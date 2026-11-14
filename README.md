@@ -2,7 +2,7 @@
 
 A free, 20-stage pixel-art platformer for browsers and Windows. Play with a keyboard or touch controls, collect coins, and take on the Hollow Crown across five worlds. Players can start without an account.
 
-[Download for Windows x64](https://github.com/soulaiman125/pixel-adventure/releases/download/v1.0.0/Pixel-Adventure-Setup-1.0.0-x64.exe) · [Release notes](https://github.com/soulaiman125/pixel-adventure/releases/tag/v1.0.0)
+[Play online](https://pixel-adventure-phi.vercel.app/) · [Download for Windows x64](https://github.com/soulaiman125/pixel-adventure/releases/download/v1.0.0/Pixel-Adventure-Setup-1.0.0-x64.exe) · [Release notes](https://github.com/soulaiman125/pixel-adventure/releases/tag/v1.0.0)
 
 ![Verdant Hills gameplay with the player, floating ledges, and coins](docs/verdant-hills.png)
 

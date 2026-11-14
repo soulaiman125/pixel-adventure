@@ -260,11 +260,15 @@ dialog[open] { animation: dialog-in .19s ease-out; }
   .stat:first-child svg { left: 0; }
   .arcade-footer { min-height: 50px; padding-block: 3px; }
   .stage { aspect-ratio: auto; height: max(144px, calc(100dvh - 152px)); }
-  [data-view="menu"] .stage { min-height: 252px; height: calc(100dvh - 102px); }
-  .menu { padding: 15px 7%; }
-  .menu h1 { font-size: clamp(45px, 8.5vw, 69px); }
-  .menu p { margin: 11px 0 14px; }
-  .menu-actions .button-primary { min-height: 43px; }
+  [data-view="menu"] .stage { min-height: 300px; height: calc(100dvh - 102px); }
+  .menu { padding: 10px 7%; }
+  .menu h1 { font-size: clamp(40px, 7vw, 54px); }
+  .menu p { margin: 8px 0 11px; }
+  .menu-actions { gap: 7px; }
+  .menu-actions .button { min-height: 37px; }
+  .menu-actions .button-primary { min-height: 42px; }
+  .menu-release-links { margin-top: 7px; }
+  .menu-release-links .button { min-height: 36px; }
 }
 @media (max-width: 355px) {
   .menu-actions .button { padding-inline: 8px; gap: 6px; }
