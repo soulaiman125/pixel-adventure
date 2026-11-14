@@ -1,0 +1,423 @@
+import Phaser from 'phaser';
+import '@fontsource-variable/bricolage-grotesque/wght.css';
+import '@fontsource-variable/dm-sans/wght.css';
+import { createControls } from './game/controls.js';
+import { VIEW_HEIGHT } from './game/level-one.js';
+import { LEVELS } from './game/levels.js';
+import { MenuScene } from './game/menu-scene.js';
+import { createProgress, ratingFor } from './game/progress.js';
+import { createSound } from './game/sound.js';
+import { PlatformerScene } from './game/platformer-scene.js';
+import './styles.css';
+
+const byId = (id) => document.getElementById(id);
+const shell = byId('shell');
+// The packaged game blocks web navigation and keeps its menu usable offline.
+byId('menu-release-links').hidden = !['http:', 'https:'].includes(location.protocol);
+const stage = byId('stage');
+const gameMount = byId('game-mount');
+const toast = byId('game-toast');
+const helpButton = byId('help-button');
+const soundButton = byId('sound-button');
+const soundSetting = byId('sound-setting');
+const volumeSetting = byId('sound-volume');
+const motionSetting = byId('motion-setting');
+const tutorialDone = byId('tutorial-done');
+const levelDialog = byId('levels-dialog');
+const settings = byId('settings-dialog');
+const help = byId('help-dialog');
+const pause = byId('pause-dialog');
+const clear = byId('clear-dialog');
+const victory = byId('victory-dialog');
+const nextLevel = byId('next-level');
+const viewVictory = byId('view-victory');
+const worlds = ['Green Valley', 'Dangerous Canyon', 'Frozen Kingdom', 'Fire Kingdom', 'Dark Castle'];
+const levelButtons = LEVELS.map((level, index) => {
+  const list = byId('level-list');
+  if (index % 4 === 0) {
+    const heading = document.createElement('h3');
+    heading.textContent = worlds[Math.floor(index / 4)];
+    list.append(heading);
+  }
+  const button = document.createElement('button');
+  button.className = 'button level-option';
+  button.type = 'button';
+  button.dataset.level = index;
+  button.innerHTML = '<span class="level-number" aria-hidden="true"></span><span><small></small><strong></strong><small class="level-record" hidden></small></span><svg class="trailing" aria-hidden="true"><use href="#lock"/></svg>';
+  button.querySelector('.level-number').textContent = String(index + 1).padStart(2, '0');
+  button.querySelector('strong').textContent = level.name;
+  list.append(button);
+  return button;
+});
+const progress = createProgress(LEVELS);
+const sound = createSound();
+const motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
+const preferenceKey = 'pixel-adventure.preferences';
+
+function readPreferences() {
+  try {
+    return JSON.parse(localStorage.getItem(preferenceKey)) ?? {};
+  } catch {
+    return {};
+  }
+}
+
+const preferences = { ...readPreferences() };
+let mode = 'menu';
+let currentLevel = 0;
+let requestedLevel;
+let tutorialPurpose;
+let toastTimeout;
+let landscapeAnimation;
+
+function savePreferences() {
+  try {
+    localStorage.setItem(preferenceKey, JSON.stringify(preferences));
+  } catch {
+    // Preferences still work for the current visit.
+  }
+}
+
+function reduceMotion() {
+  return motionPreference.matches || preferences.reducedMotion === true;
+}
+
+function updatePreferences() {
+  const soundEnabled = preferences.sound !== false;
+  const volume = Number.isFinite(preferences.volume) ? Math.min(100, Math.max(0, preferences.volume)) : 100;
+  sound.configure(soundEnabled, volume / 100);
+  volumeSetting.value = volume;
+  byId('volume-value').textContent = `${volume}%`;
+  soundSetting.checked = soundEnabled;
+  soundButton.setAttribute('aria-pressed', String(soundEnabled));
+  byId('sound-icon').setAttribute('href', soundEnabled ? '#speaker' : '#muted');
+  byId('sound-label').textContent = soundEnabled ? 'Sound on' : 'Sound off';
+  motionSetting.checked = reduceMotion();
+  motionSetting.disabled = motionPreference.matches;
+  document.documentElement.classList.toggle('reduce-motion', reduceMotion());
+}
+
+function changeSound(enabled) {
+  preferences.sound = enabled;
+  savePreferences();
+  updatePreferences();
+  sound.unlock();
+}
+
+updatePreferences();
+motionPreference.addEventListener('change', updatePreferences);
+soundButton.addEventListener('click', () => {
+  changeSound(!soundSetting.checked);
+  if (mode === 'playing') focusStage();
+});
+soundSetting.addEventListener('change', () => changeSound(soundSetting.checked));
+volumeSetting.addEventListener('input', () => {
+  preferences.volume = volumeSetting.valueAsNumber;
+  updatePreferences();
+});
+volumeSetting.addEventListener('change', savePreferences);
+motionSetting.addEventListener('change', () => {
+  preferences.reducedMotion = motionSetting.checked;
+  savePreferences();
+  updatePreferences();
+});
+window.addEventListener('keydown', () => sound.unlock(), { capture: true });
+window.addEventListener('pointerdown', () => sound.unlock(), { capture: true });
+document.addEventListener('click', (event) => {
+  const button = event.target.closest('button');
+  if (button && !button.matches('[data-action], :disabled')) sound.play('click');
+});
+
+const pad = (number) => String(number).padStart(2, '0');
+const formatScore = (count) => String(count * 100).padStart(4, '0');
+
+function formatTime(milliseconds) {
+  const seconds = Math.floor(milliseconds / 1000);
+  return `${pad(Math.floor(seconds / 60))}:${pad(seconds % 60)}`;
+}
+
+function setMode(nextMode) {
+  mode = nextMode;
+  const isMenu = nextMode === 'menu';
+  shell.dataset.view = isMenu ? 'menu' : 'playing';
+  byId('main-menu').hidden = !isMenu;
+  byId('menu-footer').hidden = !isMenu;
+  byId('hud').hidden = isMenu;
+  byId('keyboard-hints').hidden = isMenu;
+}
+
+function showScore(count) {
+  byId('coins').textContent = pad(count);
+  byId('score').textContent = formatScore(count);
+}
+
+function showTime(elapsed) {
+  byId('time').textContent = formatTime(elapsed);
+}
+
+function hideToast() {
+  window.clearTimeout(toastTimeout);
+  toast.hidden = true;
+  byId('toast-label').textContent = '';
+}
+
+function showToast(message, effect) {
+  hideToast();
+  byId('toast-label').textContent = message;
+  toast.hidden = false;
+  toastTimeout = window.setTimeout(hideToast, 2000);
+  sound.play(effect);
+}
+
+function viewportWidth() {
+  return Math.round(Math.max(1, gameMount.clientWidth) / Math.max(1, gameMount.clientHeight) * VIEW_HEIGHT);
+}
+
+function resize() {
+  const width = viewportWidth();
+  if (game.scale.width !== width) game.scale.resize(width, VIEW_HEIGHT);
+}
+
+function transitionLandscape() {
+  landscapeAnimation?.cancel();
+  if (!reduceMotion()) landscapeAnimation = gameMount.animate([{ opacity: 0.3 }, { opacity: 1 }], { duration: 250, easing: 'ease-out' });
+}
+
+function focusStage() {
+  stage.focus({ preventScroll: true });
+}
+
+function updateLevelSelect() {
+  byId('menu-unlocks').textContent = `${progress.unlocked} / ${LEVELS.length} levels unlocked`;
+  levelButtons.forEach((button, index) => {
+    const locked = !progress.canPlay(index);
+    button.disabled = locked;
+    button.classList.toggle('level-ready', !locked);
+    button.querySelector('small').textContent = `Level ${index + 1}${locked ? ' · Locked' : ''}`;
+    button.querySelector('use').setAttribute('href', locked ? '#lock' : '#play');
+    const record = progress.record(index);
+    const label = button.querySelector('.level-record');
+    label.hidden = !record;
+    if (record) label.textContent = `${record.coins}/${LEVELS[index].coins.length} coins · ${record.stars} ★ · Best ${formatTime(record.elapsed)}`;
+  });
+}
+
+function startRun(index) {
+  byId('boss-hud').hidden = true;
+  currentLevel = index;
+  const level = LEVELS[index];
+  shell.dataset.theme = level.theme;
+  byId('hud-level-number').textContent = pad(index + 1);
+  byId('hud-level-name').textContent = level.name;
+  byId('pause-level').textContent = `Level ${index + 1} · ${level.name}`;
+  showScore(0);
+  showTime(0);
+  controls.clear();
+  hideToast();
+  setMode('loading');
+  game.scene.stop('menu');
+  game.scene.stop('platformer');
+  resize();
+  game.scene.start('platformer', { level });
+  transitionLandscape();
+}
+
+function showMainMenu() {
+  byId('boss-hud').hidden = true;
+  controls.clear();
+  hideToast();
+  if (pause.open) pause.close();
+  if (clear.open) clear.close();
+  if (victory.open) victory.close();
+  game.scene.stop('platformer');
+  setMode('menu');
+  delete shell.dataset.theme;
+  resize();
+  game.scene.start('menu');
+  transitionLandscape();
+  byId('play-game').focus({ preventScroll: true });
+}
+
+function beginRequestedRun() {
+  const { index, newAdventure } = requestedLevel;
+  requestedLevel = undefined;
+  if (newAdventure) progress.newAdventure();
+  startRun(index);
+}
+
+function requestPlay(index, newAdventure = false) {
+  if (!game.isBooted || !progress.canPlay(index)) return;
+  requestedLevel = { index, newAdventure };
+  if (levelDialog.open) levelDialog.close();
+  if (preferences.tutorialSeen) beginRequestedRun();
+  else openHelp('first-run');
+}
+
+function stopForDialog() {
+  controls.clear();
+  setMode('paused');
+  game.scene.pause('platformer');
+}
+
+function resumeRun() {
+  controls.clear();
+  setMode('playing');
+  game.scene.resume('platformer');
+  focusStage();
+}
+
+function openHelp(purpose) {
+  tutorialPurpose = purpose;
+  if (purpose === 'run-controls') stopForDialog();
+  tutorialDone.textContent = { 'first-run': 'Start Level', 'menu-controls': 'Back to Menu', 'run-controls': 'Back to Level' }[purpose];
+  help.showModal();
+}
+
+function closeDialog(dialog, confirm = false) {
+  dialog.close();
+  if (dialog === pause || (dialog === help && tutorialPurpose === 'run-controls')) resumeRun();
+  if (dialog === help && tutorialPurpose === 'first-run') {
+    if (confirm) {
+      preferences.tutorialSeen = true;
+      savePreferences();
+      beginRequestedRun();
+    } else {
+      requestedLevel = undefined;
+      byId('play-game').focus();
+    }
+  }
+}
+
+function openPause() {
+  if (mode !== 'playing') return;
+  stopForDialog();
+  pause.showModal();
+}
+
+for (const dialog of document.querySelectorAll('dialog')) {
+  dialog.querySelectorAll('[data-close]').forEach((button) => {
+    button.addEventListener('click', () => closeDialog(dialog));
+  });
+  dialog.addEventListener('cancel', (event) => {
+    event.preventDefault();
+    if (dialog !== clear && dialog !== victory) closeDialog(dialog);
+  });
+}
+
+updateLevelSelect();
+byId('play-game').addEventListener('click', () => requestPlay(0, true));
+levelButtons.forEach((button, index) => button.addEventListener('click', () => requestPlay(index)));
+byId('level-select').addEventListener('click', () => {
+  levelDialog.showModal();
+  levelButtons[0].focus();
+});
+byId('settings-button').addEventListener('click', () => settings.showModal());
+helpButton.addEventListener('click', () => openHelp(mode === 'menu' ? 'menu-controls' : 'run-controls'));
+tutorialDone.addEventListener('click', () => closeDialog(help, true));
+byId('pause-button').addEventListener('click', openPause);
+byId('restart-level').addEventListener('click', () => { pause.close(); startRun(currentLevel); });
+byId('play-again').addEventListener('click', () => { clear.close(); startRun(currentLevel); });
+nextLevel.addEventListener('click', () => { clear.close(); startRun(currentLevel + 1); });
+viewVictory.addEventListener('click', () => {
+  const totals = progress.totals();
+  byId('victory-coins').textContent = `${totals.coins} / ${maxCoins}`;
+  byId('victory-time').textContent = formatTime(totals.elapsed);
+  byId('victory-score').textContent = formatScore(totals.coins);
+  byId('victory-summary').textContent = `All ${LEVELS.length} levels complete.`;
+  clear.close();
+  victory.showModal();
+});
+byId('victory-replay').addEventListener('click', () => {
+  victory.close();
+  progress.newAdventure();
+  startRun(0);
+});
+byId('pause-main').addEventListener('click', showMainMenu);
+byId('clear-main').addEventListener('click', showMainMenu);
+byId('victory-main').addEventListener('click', showMainMenu);
+stage.addEventListener('pointerdown', (event) => {
+  if (mode === 'playing' && !event.target.closest('button')) focusStage();
+});
+window.addEventListener('keydown', (event) => {
+  if (event.code === 'Escape' && !event.repeat && mode === 'playing') {
+    event.preventDefault();
+    openPause();
+  }
+});
+
+const controls = createControls(byId('touch-controls'), () => mode === 'playing');
+const maxCoins = LEVELS.reduce((sum, level) => sum + level.coins.length, 0);
+const scene = new PlatformerScene(controls, {
+  get reduceMotion() { return reduceMotion(); },
+  onReady(coinTotal) {
+    byId('coin-total').textContent = pad(coinTotal);
+    showScore(0);
+    showTime(0);
+    setMode('playing');
+    focusStage();
+  },
+  onScore: showScore,
+  onTime: showTime,
+  onCheckpoint() { showToast('Checkpoint reached', 'checkpoint'); },
+  onRespawn() { showToast('Back at the checkpoint', 'respawn'); },
+  playSound: (name) => sound.play(name),
+  onBoss(boss, state) {
+    const hud = byId('boss-hud');
+    const meter = byId('boss-health');
+    if (hud.hidden) hud.hidden = false;
+    if (meter.max !== boss.maxHp) meter.max = boss.maxHp;
+    if (meter.value !== boss.hp) meter.value = boss.hp;
+    if (byId('boss-state').textContent !== state) byId('boss-state').textContent = state;
+  },
+  onComplete(count, coinTotal, elapsed) {
+    setMode('complete');
+    controls.clear();
+    hideToast();
+    showTime(elapsed);
+    sound.play('finish');
+    const unlocked = progress.finish(currentLevel, count, elapsed);
+    updateLevelSelect();
+    const following = LEVELS[currentLevel + 1];
+    const canViewVictory = LEVELS.length === 20 && !following && Boolean(progress.totals());
+    const rating = ratingFor(count, coinTotal);
+    const stars = byId('result-stars');
+    stars.setAttribute('aria-label', `${rating} out of 3 stars`);
+    [...stars.children].forEach((star, index) => star.classList.toggle('earned', index < rating));
+    byId('rating-note').textContent = {
+      1: 'Collect at least half the coins for a second star.',
+      2: 'Collect every coin for three stars.',
+      3: 'All coins collected!',
+    }[rating];
+    byId('result-coins').textContent = `${count} / ${coinTotal}`;
+    byId('result-time').textContent = formatTime(elapsed);
+    byId('result-score').textContent = formatScore(count);
+    byId('result-level').textContent = LEVELS[currentLevel].name;
+    byId('continue-note').textContent = unlocked ? `${following.name} unlocked` : '';
+    byId('continue-note').hidden = !unlocked;
+    nextLevel.hidden = !following;
+    viewVictory.hidden = !canViewVictory;
+    clear.showModal();
+    if (following) nextLevel.focus();
+    else if (canViewVictory) viewVictory.focus();
+  },
+});
+
+const game = new Phaser.Game({
+  type: Phaser.CANVAS,
+  parent: gameMount,
+  width: viewportWidth(),
+  height: VIEW_HEIGHT,
+  backgroundColor: '#72aac4',
+  pixelArt: true,
+  roundPixels: true,
+  banner: false,
+  audio: { noAudio: true },
+  input: { keyboard: false, mouse: false, touch: false },
+  scale: { mode: Phaser.Scale.NONE },
+  physics: { default: 'arcade', arcade: { gravity: { y: 700 } } },
+  scene: [new MenuScene(reduceMotion), scene],
+});
+
+new ResizeObserver(() => {
+  if (game.isBooted) resize();
+}).observe(gameMount);

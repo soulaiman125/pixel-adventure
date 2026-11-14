@@ -1,0 +1,142 @@
+import { contact } from './obstacles.js';
+
+const phases = ['Warn: jump the low wave', 'Warn: move away from the marker'];
+
+export function attackReaches(player, x, y, width = 12, height = 13) {
+  const forward = (player.flipX ? -1 : 1) * (x - player.x);
+  return forward >= -width / 2 && forward <= 24 + width / 2
+    && Math.abs(player.y - 10 - y) <= 11 + height / 2;
+}
+
+export function addCombat(scene) {
+  scene.projectiles = [];
+  scene.attackAfter = 0;
+  scene.attackEffect = scene.add.graphics().setDepth(7);
+  const config = scene.level.boss;
+  if (!config) {
+    scene.boss = null;
+    return;
+  }
+  const art = scene.add.graphics().setDepth(3);
+  const indicator = scene.add.graphics().setDepth(2);
+  scene.boss = { ...config, maxHp: config.hp, art, indicator, phase: 'waiting', cycle: 0, since: 0 };
+}
+
+function fire(scene, x, y, vx, vy = 0, radius = 5) {
+  const dot = scene.add.rectangle(x, y, radius * 2, radius * 2, 0xffa4ba).setStrokeStyle(1, 0xffe4bd).setDepth(5);
+  scene.projectiles.push({ dot, vx, vy, radius, expires: scene.elapsed + 2700 });
+}
+
+function updateEnemyShots(scene, enemy) {
+  const { type, left } = enemy.data.values;
+  if (type === 'flying') {
+    enemy.setVelocityY(Math.cos(scene.elapsed / 295 + left) * 25);
+    return;
+  }
+  if (type !== 'shooter') return;
+  const warning = enemy.getData('warning');
+  const near = Math.abs(enemy.x - scene.player.x) < 165;
+  if (!near) {
+    enemy.setData('shotAt', 0);
+    warning.setVisible(false);
+    return;
+  }
+  const shotAt = enemy.getData('shotAt') || scene.elapsed + 650;
+  enemy.setData('shotAt', shotAt);
+  if (scene.elapsed >= shotAt) {
+    fire(scene, enemy.x, enemy.y - 7, scene.player.x < enemy.x ? -84 : 84);
+    enemy.setData('shotAt', scene.elapsed + 2200);
+  }
+  warning.setPosition(enemy.x, enemy.y - 17).setVisible(shotAt - scene.elapsed < 515);
+}
+
+export function updateCombat(scene, delta) {
+  const now = scene.elapsed;
+  const swing = scene.controls.consumeAttack();
+  if (swing && now >= scene.attackAfter) {
+    scene.attackAfter = now + 335;
+    scene.ui.playSound('attack');
+    scene.enemies.children.iterate((enemy) => {
+      if (enemy.active && attackReaches(scene.player, enemy.x, enemy.y - 6)) scene.defeatEnemy(enemy);
+    });
+    const boss = scene.boss;
+    if (boss?.phase === 'open' && boss.hits < 2 && attackReaches(scene.player, boss.x, 168, 28, 31)) {
+      boss.hp--;
+      boss.hits++;
+      scene.burst(boss.x, 164, 0xffd97d, 8);
+      scene.ui.playSound('stomp');
+      if (!scene.ui.reduceMotion) scene.cameras.main.shake(135, .005);
+      if (boss.hp === 0) {
+        boss.phase = 'defeated';
+        boss.art.clear();
+        boss.indicator.clear();
+        scene.clearProjectiles();
+        scene.ui.onBoss(boss, 'Crown defeated · Reach the flag');
+      }
+    }
+  }
+  scene.attackEffect.clear();
+  if (now + 205 < scene.attackAfter && !scene.ui.reduceMotion) {
+    const sign = scene.player.flipX ? -1 : 1;
+    const x = scene.player.x + sign * 10;
+    const y = scene.player.y - 13;
+    scene.attackEffect.fillStyle(0xffefad).fillTriangle(x, y + 8, x + sign * 17, y, x + sign * 8, y + 10);
+  }
+  scene.enemies.children.iterate((enemy) => { if (enemy.active) updateEnemyShots(scene, enemy); });
+  for (const shot of scene.projectiles) {
+    if (!shot.dot.active) continue;
+    shot.dot.x += shot.vx * delta / 1000;
+    shot.dot.y += shot.vy * delta / 1000;
+    if (now >= shot.expires || shot.dot.x < 0 || shot.dot.x > scene.level.width || shot.dot.y > 188) shot.dot.destroy();
+    else contact(scene, shot.dot.x, shot.dot.y, shot.radius * 1.65, shot.radius * 1.65);
+  }
+  scene.projectiles = scene.projectiles.filter(({ dot }) => dot.active);
+  if (scene.boss?.hp > 0) updateBoss(scene, scene.boss);
+}
+
+function updateBoss(scene, boss) {
+  const now = scene.elapsed;
+  if (boss.phase === 'waiting' && scene.player.x >= boss.start) {
+    boss.phase = 'warn';
+    boss.since = now;
+    boss.target = scene.player.x;
+  }
+  const age = now - boss.since;
+  const pattern = boss.cycle % 2;
+  if (boss.phase === 'warn' && age >= 900) {
+    boss.phase = 'attack';
+    boss.since = now;
+    if (pattern === 0) {
+      const direction = scene.player.x < boss.x ? -1 : 1;
+      fire(scene, boss.x + direction * 20, 177, direction * 116, 0, 6);
+      fire(scene, boss.x + direction * 24, 176, direction * 157, 0, 5);
+    } else {
+      for (const offset of [-17, 0, 17]) fire(scene, boss.target + offset, 35 - Math.abs(offset), 0, 150);
+    }
+  } else if (boss.phase === 'attack' && age >= 980) {
+    boss.phase = 'open';
+    boss.hits = 0;
+    boss.since = now;
+  } else if (boss.phase === 'open' && age >= 2450) {
+    boss.phase = 'warn';
+    boss.cycle++;
+    boss.since = now;
+    boss.target = scene.player.x;
+  }
+  const vulnerable = boss.phase === 'open' && boss.hits < 2;
+  boss.art.clear().fillStyle(vulnerable ? 0x9469a5 : 0x6a4e83).fillRoundedRect(boss.x - 18, 152, 36, 32, 4);
+  boss.art.fillStyle(vulnerable ? 0xffe192 : 0xe98ab3).fillRect(boss.x - 8, 163, 16, 5);
+  boss.art.fillStyle(0xd6aac6).fillTriangle(boss.x - 16, 153, boss.x - 14, 140, boss.x - 5, 153);
+  boss.art.fillTriangle(boss.x + 16, 153, boss.x + 14, 140, boss.x + 5, 153);
+  boss.indicator.clear();
+  if (boss.phase === 'warn') {
+    const x = pattern === 1 ? boss.target : boss.x;
+    boss.indicator.fillStyle(0xffd181).fillRect(x - 19, 180, 38, 3);
+  }
+  if (boss.phase === 'attack') contact(scene, boss.x, 170, 29, 27);
+  if (boss.phase !== 'waiting') {
+    const cue = vulnerable ? 'Attack now!' : boss.phase === 'warn' ? phases[pattern]
+      : boss.phase === 'open' ? 'Guard up · Get ready' : 'Dodge!';
+    scene.ui.onBoss(boss, cue);
+  }
+}

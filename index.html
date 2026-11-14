@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#101822">
+    <meta name="description" content="Play Pixel Adventure, a colorful platformer through the Verdant Hills.">
+    <link rel="icon" href="/favicon.png" type="image/png">
+    <title>Pixel Adventure</title>
+  </head>
+  <body>
+    <svg xmlns="http://www.w3.org/2000/svg" class="icon-library" aria-hidden="true">
+      <symbol id="spark" viewBox="0 0 24 24"><path fill="currentColor" d="M10 1h4v6h3v3h6v4h-6v3h-3v6h-4v-6H7v-3H1v-4h6V7h3z"/></symbol>
+      <symbol id="star" viewBox="0 0 24 24"><path fill="currentColor" d="M10 2h4v6h8v4h-4v3h-2v7h-3v-3h-2v-2H9v2H7v3H4v-7h2v-3H2V8h8z"/></symbol>
+      <symbol id="coin" viewBox="0 0 24 24"><path fill="#a85a26" d="M7 1h10v3h4v4h2v8h-2v4h-4v3H7v-3H3v-4H1V8h2V4h4z"/><path fill="#ffc654" d="M7 3h10v3h3v4h1v4h-1v4h-3v3H7v-3H4v-4H3v-4h1V6h3z"/><path fill="#fff1a2" d="M7 5h7v3H7v7H5V8h2z"/><path fill="#e29235" d="M12 7h3v10h-3z"/></symbol>
+      <symbol id="play" viewBox="0 0 24 24"><path fill="currentColor" d="M6 3h3v2h3v2h3v2h3v2h3v2h-3v2h-3v2h-3v2H9v2H6z"/></symbol>
+      <symbol id="levels" viewBox="0 0 24 24"><path d="M3 17h5v4H3zm6-6h5v10H9zm6-7h6v17h-6z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"/></symbol>
+      <symbol id="settings" viewBox="0 0 24 24"><path d="M4 7h16M4 17h16m-10-13v6m5 4v6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M10 7h.1M15 17h.1" stroke="currentColor" stroke-width="5" stroke-linecap="round"/></symbol>
+      <symbol id="speaker" viewBox="0 0 24 24"><path d="m3 9 4 0 5-4v14l-5-4H3zM16 8.5c2 2 2 5 0 7m2.5-9.5c3.5 3.4 3.5 8.6 0 12" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="muted" viewBox="0 0 24 24"><path d="m3 9 4 0 5-4v14l-5-4H3zM16 9l5 6m0-6-5 6" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="controller" viewBox="0 0 24 24"><path d="M7 7h10a4 4 0 0 1 3.9 3.3l1 4.7a2.3 2.3 0 0 1-3.8 2.2L15 15H9l-3.1 2.2A2.3 2.3 0 0 1 2.1 15l1-4.7A4 4 0 0 1 7 7ZM8 9.5v4m-2-2h4m5.5 0h.1m2.5-1.5h.1" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="restart" viewBox="0 0 24 24"><path d="M4 5v5h5m-4.6-.6A8 8 0 1 1 4 15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="arrow" viewBox="0 0 24 24"><path d="M19 12H5m6-6-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="flag" viewBox="0 0 24 24"><path d="M5 21V3h13l-3 4 3 4H5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+      <symbol id="lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M8 10V7a4 4 0 1 1 8 0v3m-4 4v3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+      <symbol id="clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 7v5l3 2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+      <symbol id="pause" viewBox="0 0 24 24"><path fill="currentColor" d="M6 4h4v16H6zm8 0h4v16h-4z"/></symbol>
+      <symbol id="home" viewBox="0 0 24 24"><path d="m3 11 9-7 9 7m-3-2v11h-4v-5h-4v5H6V9" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    </svg>
+
+    <header class="masthead">
+      <div class="brand"><span class="brand-mark"><svg aria-hidden="true"><use href="#spark"/></svg></span>Pixel Adventure</div>
+      <button class="button sound-button" id="sound-button" type="button" aria-pressed="true">
+        <svg aria-hidden="true"><use id="sound-icon" href="#speaker"/></svg><span id="sound-label">Sound on</span>
+      </button>
+    </header>
+
+    <main class="game-shell" id="shell" data-view="menu">
+      <section class="arcade" aria-label="Pixel Adventure arcade">
+        <div class="hud" id="hud" hidden>
+          <div class="hud-level"><span class="level-chip" id="hud-level-number">01</span><h1 id="hud-level-name">Verdant Hills</h1></div>
+          <dl class="stats">
+            <div class="stat"><dt><svg aria-hidden="true"><use href="#coin"/></svg>Coins</dt><dd><span id="coins">00</span><span class="stat-total"> / <span id="coin-total">18</span></span></dd></div>
+            <div class="stat"><dt><svg class="lime" aria-hidden="true"><use href="#spark"/></svg>Score</dt><dd id="score">0000</dd></div>
+            <div class="stat"><dt><svg aria-hidden="true"><use href="#clock"/></svg>Time</dt><dd id="time">00:00</dd></div>
+          </dl>
+          <button class="button hud-pause" id="pause-button" type="button" aria-label="Pause game"><svg aria-hidden="true"><use href="#pause"/></svg><span>Pause</span></button>
+        </div>
+
+        <div class="stage" id="stage" tabindex="-1" role="region" aria-label="Pixel Adventure playfield">
+          <div class="game-mount" id="game-mount" aria-hidden="true"></div>
+          <div id="boss-hud" class="boss-hud" hidden><div><strong>The Hollow Crown</strong><span id="boss-state"></span></div><meter id="boss-health" aria-label="Hollow Crown health" min="0" max="5" value="5"></meter></div>
+          <section class="menu" id="main-menu" aria-labelledby="menu-title">
+            <div class="menu-content">
+              <h1 id="menu-title"><span>PIXEL</span><span>ADVENTURE</span></h1>
+              <p>Leap across five worlds, collect gold, and face the Hollow Crown.</p>
+              <nav class="menu-actions" aria-label="Main menu">
+                <button class="button button-primary" id="play-game" type="button"><svg aria-hidden="true"><use href="#play"/></svg>Play Game<svg class="trailing arrow-right" aria-hidden="true"><use href="#arrow"/></svg></button>
+                <button class="button" id="level-select" type="button"><svg aria-hidden="true"><use href="#levels"/></svg>Level Select</button>
+                <button class="button" id="settings-button" type="button"><svg aria-hidden="true"><use href="#settings"/></svg>Settings</button>
+              </nav>
+              <div class="menu-release-links" id="menu-release-links" hidden>
+                <a class="button download-button" href="https://github.com/soulaiman125/pixel-adventure/releases/download/v1.0.0/Pixel-Adventure-Setup-1.0.0-x64.exe" target="_blank" rel="noopener noreferrer">
+                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m-4-4 4 4 4-4M5 16v4h14v-4"/></svg>
+                  Download for Windows
+                </a>
+                <a class="button button-text" href="https://github.com/soulaiman125/pixel-adventure" target="_blank" rel="noopener noreferrer">GitHub Repository</a>
+              </div>
+            </div>
+          </section>
+          <p class="game-toast" id="game-toast" role="status" hidden><svg aria-hidden="true"><use href="#flag"/></svg><span id="toast-label"></span></p>
+        </div>
+
+        <div class="arcade-footer">
+          <div class="menu-footer" id="menu-footer"><span><svg class="lime" aria-hidden="true"><use href="#flag"/></svg> <span id="menu-unlocks">1 / 3 levels unlocked</span></span></div>
+          <div class="keyboard-hints" id="keyboard-hints" hidden>
+            <span><kbd>A</kbd><kbd>D</kbd> Move</span><span><kbd>Space</kbd> Jump</span><span><kbd>X</kbd> Attack</span><span><kbd>Esc</kbd> Pause</span>
+          </div>
+          <div class="touch-controls" id="touch-controls" aria-label="Touch controls">
+            <div class="touch-direction">
+              <button class="button touch-button" type="button" data-action="left" aria-label="Move left"><svg aria-hidden="true"><use href="#arrow"/></svg></button>
+              <button class="button touch-button" type="button" data-action="right" aria-label="Move right"><svg class="arrow-right" aria-hidden="true"><use href="#arrow"/></svg></button>
+            </div>
+            <button class="button button-primary touch-button" type="button" data-action="jump" aria-label="Jump"><svg class="arrow-up" aria-hidden="true"><use href="#arrow"/></svg>Jump</button>
+            <button class="button touch-button" type="button" data-action="attack" aria-label="Attack">Attack</button>
+          </div>
+          <button class="button button-text" id="help-button" type="button"><svg aria-hidden="true"><use href="#controller"/></svg>Controls</button>
+        </div>
+      </section>
+    </main>
+
+    <dialog id="levels-dialog" aria-labelledby="levels-title">
+      <div class="dialog-body">
+        <button class="button icon-button dialog-close" type="button" data-close aria-label="Close level select"><svg aria-hidden="true"><use href="#close"/></svg></button>
+        <span class="dialog-icon"><svg aria-hidden="true"><use href="#levels"/></svg></span>
+        <h2 id="levels-title">Level Select</h2>
+        <div class="level-list" id="level-list"></div>
+      </div>
+    </dialog>
+
+    <dialog id="settings-dialog" aria-labelledby="settings-title">
+      <div class="dialog-body">
+        <button class="button icon-button dialog-close" type="button" data-close aria-label="Close settings"><svg aria-hidden="true"><use href="#close"/></svg></button>
+        <span class="dialog-icon"><svg aria-hidden="true"><use href="#settings"/></svg></span>
+        <h2 id="settings-title">Settings</h2>
+        <label class="setting"><span><strong>Sound effects</strong><small>Menu, jump, coin, and checkpoint sounds</small></span><input id="sound-setting" type="checkbox" role="switch" checked></label>
+        <div class="setting volume-setting"><label for="sound-volume"><strong>Sound volume</strong><small id="volume-value">100%</small></label><input id="sound-volume" type="range" min="0" max="100" value="100" step="5"></div>
+        <label class="setting"><span><strong>Reduced motion</strong><small>Less background motion, particles, and flashing</small></span><input id="motion-setting" type="checkbox" role="switch"></label>
+        <button class="button button-primary full-width" type="button" data-close autofocus>Done</button>
+      </div>
+    </dialog>
+
+    <dialog id="help-dialog" aria-labelledby="help-title">
+      <div class="dialog-body">
+        <button class="button icon-button dialog-close" type="button" data-close aria-label="Close controls"><svg aria-hidden="true"><use href="#close"/></svg></button>
+        <span class="dialog-icon"><svg aria-hidden="true"><use href="#controller"/></svg></span>
+        <h2 id="help-title">How to Play</h2>
+        <p>Reach the finish flag to unlock the next level. Every coin earns 100 points.</p>
+        <dl class="instruction-list">
+          <div><dt>Move</dt><dd><kbd>A</kbd> <kbd>D</kbd> or <kbd>←</kbd> <kbd>→</kbd></dd></div>
+          <div><dt>Jump</dt><dd><kbd>W</kbd>, <kbd>↑</kbd>, or <kbd>Space</kbd>. Hold for a higher jump.</dd></div>
+          <div><dt>Drop</dt><dd><kbd>S</kbd> or <kbd>↓</kbd> through floating platforms.</dd></div>
+          <div><dt>Attack</dt><dd><kbd>X</kbd> or <kbd>J</kbd>, or tap Attack. Face the target at close range.</dd></div>
+          <div><dt>Touch</dt><dd>Hold an arrow to move. Press Jump with your other thumb.</dd></div>
+        </dl>
+        <p>Stomp slimes from above. Falls and side hits send you to the latest checkpoint with your coins.</p>
+        <button class="button button-primary full-width" id="tutorial-done" type="button" autofocus>Start Level</button>
+      </div>
+    </dialog>
+
+    <dialog id="pause-dialog" aria-labelledby="pause-title">
+      <div class="dialog-body">
+        <button class="button icon-button dialog-close" type="button" data-close aria-label="Close pause menu"><svg aria-hidden="true"><use href="#close"/></svg></button>
+        <span class="dialog-icon"><svg aria-hidden="true"><use href="#pause"/></svg></span>
+        <h2 id="pause-title">Paused</h2>
+        <p id="pause-level">Level 1 · Verdant Hills</p>
+        <div class="dialog-actions">
+          <button class="button button-primary" id="resume" type="button" data-close autofocus><svg aria-hidden="true"><use href="#play"/></svg>Resume</button>
+          <button class="button" id="restart-level" type="button"><svg aria-hidden="true"><use href="#restart"/></svg>Restart Level</button>
+          <button class="button" id="pause-main" type="button"><svg aria-hidden="true"><use href="#home"/></svg>Main Menu</button>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog id="clear-dialog" aria-labelledby="clear-title">
+      <div class="dialog-body results">
+        <p class="result-level" id="result-level">Verdant Hills</p>
+        <h2 id="clear-title">Level Complete!</h2>
+        <div class="result-stars" id="result-stars" role="img">
+          <svg aria-hidden="true"><use href="#star"/></svg><svg aria-hidden="true"><use href="#star"/></svg><svg aria-hidden="true"><use href="#star"/></svg>
+        </div>
+        <p class="rating-note" id="rating-note"></p>
+        <dl class="result-stats">
+          <div><dt><svg aria-hidden="true"><use href="#coin"/></svg> Coins</dt><dd id="result-coins"></dd></div>
+          <div><dt><svg aria-hidden="true"><use href="#clock"/></svg> Time</dt><dd id="result-time"></dd></div>
+          <div><dt><svg class="lime" aria-hidden="true"><use href="#spark"/></svg> Score</dt><dd id="result-score"></dd></div>
+        </dl>
+        <p class="continue-note" id="continue-note"></p>
+        <div class="dialog-actions result-actions">
+          <button class="button button-primary" id="play-again" type="button" autofocus><svg aria-hidden="true"><use href="#restart"/></svg>Play Again</button>
+          <button class="button" id="clear-main" type="button"><svg aria-hidden="true"><use href="#home"/></svg>Main Menu</button>
+          <button class="button button-primary" id="next-level" type="button" hidden>Next Level<svg class="trailing arrow-right" aria-hidden="true"><use href="#arrow"/></svg></button>
+          <button class="button button-primary" id="view-victory" type="button" hidden>View Victory<svg class="trailing arrow-right" aria-hidden="true"><use href="#arrow"/></svg></button>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog id="victory-dialog" aria-labelledby="victory-title">
+      <div class="dialog-body results victory">
+        <div class="victory-emblem"><svg class="victory-spark" aria-hidden="true"><use href="#spark"/></svg><svg class="victory-star" aria-hidden="true"><use href="#star"/></svg><svg class="victory-spark" aria-hidden="true"><use href="#spark"/></svg></div>
+        <h2 id="victory-title">You Win!</h2>
+        <p id="victory-summary"></p>
+        <dl class="result-stats">
+          <div><dt><svg aria-hidden="true"><use href="#coin"/></svg> Total coins</dt><dd id="victory-coins"></dd></div>
+          <div><dt><svg aria-hidden="true"><use href="#clock"/></svg> Total time</dt><dd id="victory-time"></dd></div>
+          <div><dt><svg class="lime" aria-hidden="true"><use href="#spark"/></svg> Total score</dt><dd id="victory-score"></dd></div>
+        </dl>
+        <div class="dialog-actions result-actions">
+          <button class="button button-primary" id="victory-replay" type="button" autofocus><svg aria-hidden="true"><use href="#restart"/></svg>Play Again</button>
+          <button class="button" id="victory-main" type="button"><svg aria-hidden="true"><use href="#home"/></svg>Main Menu</button>
+        </div>
+      </div>
+    </dialog>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

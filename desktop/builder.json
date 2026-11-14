@@ -1,0 +1,22 @@
+{
+  "appId": "com.pixeladventure.game",
+  "productName": "Pixel Adventure",
+  "asar": true,
+  "directories": { "output": "release" },
+  "files": ["desktop/main.cjs", "dist/**/*", "package.json", "!node_modules/**/*"],
+  "win": {
+    "target": [{ "target": "nsis", "arch": ["x64"] }],
+    "icon": "desktop/icon.ico",
+    "artifactName": "Pixel-Adventure-Setup-${version}-${arch}.exe",
+    "signExecutable": false
+  },
+  "nsis": {
+    "oneClick": true,
+    "perMachine": false,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "Pixel Adventure",
+    "installerIcon": "desktop/icon.ico",
+    "uninstallerIcon": "desktop/icon.ico"
+  }
+}
