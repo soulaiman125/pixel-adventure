@@ -1,10 +1,8 @@
-# Pixel Adventure
+# Pixel Adventure 2.0
 
 A free pixel-art platformer for browsers and Windows. The 2.0 expansion has 30 stages across seven worlds, with keyboard and touch controls. Players can start without an account.
 
-[Play online](https://pixel-adventure-phi.vercel.app/) · [Download for Windows x64](https://github.com/soulaiman125/pixel-adventure/releases/download/v1.0.0/Pixel-Adventure-Setup-1.0.0-x64.exe) · [Release notes](https://github.com/soulaiman125/pixel-adventure/releases/tag/v1.0.0)
-
-The public game and Windows download are version 1.0.0 with 20 stages. Run this branch locally to play the expansion.
+[Play online](https://pixel-adventure-phi.vercel.app/) · [Download for Windows x64](https://github.com/soulaiman125/pixel-adventure/releases/download/v2.0.0/Pixel-Adventure-Setup-2.0.0-x64.exe) · [Release notes](https://github.com/soulaiman125/pixel-adventure/releases/tag/v2.0.0)
 
 ![Verdant Hills gameplay with the player, floating ledges, and coins](docs/verdant-hills.png)
 
@@ -31,7 +29,7 @@ Open [http://127.0.0.1:5173/](http://127.0.0.1:5173/). The browser version can a
 
 ## Play on Windows
 
-Download the setup executable from [GitHub Releases](https://github.com/soulaiman125/pixel-adventure/releases/tag/v1.0.0), run it on Windows x64, then open **Pixel Adventure** from the desktop or Start menu. The installer includes the runtime, game, and assets. It plays offline after installation and saves progress separately from the browser version.
+Download the setup executable from [GitHub Releases](https://github.com/soulaiman125/pixel-adventure/releases/tag/v2.0.0), close any open Pixel Adventure window, and run the installer on Windows x64. Open **Pixel Adventure** from the desktop or Start menu. Run the same installer over v1.0.0 to upgrade and retain your existing Windows save. The installer includes the runtime, game, and assets. It plays offline after installation and saves progress separately from the browser version.
 
 To rebuild the installer on Windows, run `npm.cmd run package:win`. It writes the NSIS installer to `release/`. The installer is unsigned, so Windows SmartScreen may display a warning when it is opened. Distribute the setup executable as a single file. Building does not publish it.
 
