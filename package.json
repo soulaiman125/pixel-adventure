@@ -10,6 +10,7 @@
     "desktop": "electron .",
     "package:win": "npm run build && electron-builder --config desktop/builder.json --win nsis --x64 --publish never",
     "test:browser": "node test/browser-smoke.cjs",
+    "test:touch": "node test/touch-controls.cjs",
     "test:desktop": "node test/desktop-smoke.cjs"
   },
   "type": "module",

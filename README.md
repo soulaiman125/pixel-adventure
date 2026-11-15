@@ -53,16 +53,23 @@ Verdant Hills remains Level 1, Sunset Canyon is Level 5, and Crystal Peaks is Le
 
 Settings stores volume, mute, and reduced motion. Reduced motion limits particles, flashing, and camera shake. An operating system preference for reduced motion also applies.
 
+### Mobile controls
+
+Hold an arrow with one thumb and tap Jump or Attack with the other. Slide directly between the arrows to change direction. Sliding off both arrows releases movement. Hold Jump for more height. Landscape gives you a wider view, and portrait remains playable.
+
+Open **Settings** from the main menu or pause screen to change button size, opacity, or handedness. Haptics and fullscreen appear when the browser supports them. Preferences are saved per browser or app.
+
 ## Verification
 
 ```powershell
 npm.cmd test
 npm.cmd run test:browser
+npm.cmd run test:touch
 npm.cmd run build
 npm.cmd run test:desktop
 ```
 
-Run the browser suite with the development server running and Microsoft Edge installed. It verifies scene loads and completion triggers with controlled player placement, plus real input for selected movement, combat, and touch checks. The Node suite checks level layout bounds and routes, save migration, scoring records, and unlocks. The desktop suite uses a temporary profile, plays and opens all 20 stages with networking disabled, and checks its local save after relaunch. To test an installed copy, pass the installed executable path after `npm.cmd run test:desktop --`.
+Run the browser suites with the development server running and Microsoft Edge installed. The campaign smoke test verifies scene loads and completion triggers with controlled player placement, plus real input for selected movement, combat, and touch checks. The touch suite uses browser emulation for simultaneous input, cancellation, pause and restart, focus changes, and phone layouts. The Node suite checks level layout bounds and routes, save migration, scoring records, and unlocks. The desktop suite uses a temporary profile, plays and opens all 20 stages with networking disabled, and checks its local save after relaunch. To test an installed copy, pass the installed executable path after `npm.cmd run test:desktop --`.
 
 ## Credits
 

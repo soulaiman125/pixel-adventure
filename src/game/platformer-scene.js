@@ -54,8 +54,10 @@ export class PlatformerScene extends Phaser.Scene {
     addCombat(this);
     this.resizeBackdrop();
     this.createContacts();
+    this.input.on(Phaser.Input.Events.POINTER_DOWN, this.ui.onPlayfieldPress);
     this.scale.on(Phaser.Scale.Events.RESIZE, this.resizeBackdrop, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.input.off(Phaser.Input.Events.POINTER_DOWN, this.ui.onPlayfieldPress);
       this.scale.off(Phaser.Scale.Events.RESIZE, this.resizeBackdrop, this);
     });
     this.ui.onReady(this.level.coins.length);
@@ -253,6 +255,7 @@ export class PlatformerScene extends Phaser.Scene {
     this.player.body.reset(this.checkpoint, GROUND_Y - 2);
     this.player.setTexture('hero-idle').setFlipX(false);
     this.resetJump();
+    this.controls.consumeAttack();
     this.invulnerableUntil = this.elapsed + RESPAWN_GRACE;
     this.moveCamera(1);
     this.ui.onRespawn();

@@ -13,9 +13,9 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 [hidden] { display: none !important; }
-body { min-width: 280px; margin: 0; background: radial-gradient(ellipse at 58% 0, #202e3b 0, transparent 58%); }
-button, input { font: inherit; }
-button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid #e7ffa9; outline-offset: 3px; }
+body { min-width: 280px; margin: 0; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); background: radial-gradient(ellipse at 58% 0, #202e3b 0, transparent 58%); }
+button, input, select { font: inherit; }
+button:focus-visible, input:focus-visible, a:focus-visible, select:focus-visible { outline: 2px solid #e7ffa9; outline-offset: 3px; }
 svg { width: 19px; height: 19px; flex: none; }
 .icon-library { position: absolute; width: 0; height: 0; overflow: hidden; }
 .lime { color: var(--lime); }
@@ -118,21 +118,32 @@ svg { width: 19px; height: 19px; flex: none; }
 .menu-footer, .keyboard-hints { color: #d2dfdf; font-size: 13px; font-weight: 700; }
 .keyboard-hints { gap: 15px; }
 kbd { display: inline-grid; place-items: center; min-width: 23px; min-height: 23px; padding: 0 5px; border: 1px solid #49616e; border-bottom-width: 2px; border-radius: 5px; background: #273b4a; color: #f6f7fd; font: 700 11px/1 "DM Sans Variable", sans-serif; vertical-align: middle; }
-.touch-controls { display: none; flex: 1; justify-content: space-between; gap: 10px; }
-.touch-direction { display: flex; gap: 7px; }
-.touch-button { min-width: 52px; min-height: 47px; padding-inline: 12px; touch-action: none; user-select: none; -webkit-user-select: none; }
-.touch-button[data-pressed] { background: #435e6b; border-color: #87a0a5; transform: translateY(2px); }
+.touch-controls { display: none; width: 100%; justify-content: space-between; gap: 12px; --touch-size: 60px; }
+.touch-controls[data-size="small"] { --touch-size: 50px; }
+.touch-controls[data-size="large"] { --touch-size: 72px; }
+.touch-controls.left-handed { flex-direction: row-reverse; }
+.touch-direction, .touch-actions { display: flex; gap: clamp(5px, 1.8vw, 11px); }
+.touch-controls.left-handed .touch-actions { flex-direction: row-reverse; }
+.touch-button {
+  width: min(var(--touch-size), 20vw);
+  height: var(--touch-size);
+  min-height: 44px;
+  padding: 0 4px;
+  border-radius: 13px;
+  opacity: var(--touch-opacity, 1);
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: none;
+}
+.touch-button[data-action="jump"] { width: min(calc(var(--touch-size) + 12px), 23vw); }
+.touch-button:active { transform: none; }
+.touch-button[data-pressed] { background: #435e6b; border-color: #b4d0d1; opacity: 1; }
 .touch-button.button-primary[data-pressed] { background: #a7d061; }
+.orientation-hint { display: none; margin: 0; color: var(--muted); font-size: 12px; }
 .boss-hud { position:absolute; top:10px; left:50%; transform:translateX(-50%); width:min(86%,320px); padding:7px 10px; border-radius:7px; background:#22182de8; color:#ffe5b4; z-index:1; font-size:12px; }
 .boss-hud > div { display:flex; justify-content:space-between; flex-wrap:wrap; gap:3px; }
 .boss-hud meter { width:100%; height:11px; }
-@media (max-width: 440px) {
-  .touch-controls { gap:4px; }
-  .touch-direction { gap:4px; }
-  .touch-button { min-width:39px; padding-inline:6px; font-size:12px; }
-  .touch-button svg { width:15px; height:15px; }
-  .touch-button[data-action="jump"] svg { display:none; }
-}
 .game-toast {
   position: absolute;
   top: 15px;
@@ -179,6 +190,9 @@ dialog[open] { animation: dialog-in .19s ease-out; }
 .setting input[type="checkbox"]:checked { background: #add775; border-color: #b9e68e; }
 .setting input[type="checkbox"]:checked::before { background: #294236; transform: translateX(18px); }
 .volume-setting input { width: min(50%, 155px); accent-color: var(--lime); }
+.mobile-settings { margin: 18px 0 0; padding: 0; border: 0; }
+.mobile-settings legend { padding: 0; font-weight: 800; color: var(--lime); }
+.mobile-settings select { min-height: 40px; padding: 3px 8px; border: 1px solid #648192; border-radius: 8px; color: inherit; background: #273b48; }
 .instruction-list { margin: 11px 0; }
 .instruction-list div { display: grid; grid-template-columns: 55px 1fr; align-items: baseline; gap: 5px; padding-block: 7px; border-bottom: 1px solid var(--line); font-size: 13px; }
 .instruction-list dt { font-weight: 800; }
@@ -246,9 +260,27 @@ dialog[open] { animation: dialog-in .19s ease-out; }
   .keyboard-hints { gap: 5px; }
   .button-text { font-size: 12px; gap: 4px; }
 }
-@media (pointer: coarse), (max-width: 680px) {
+@media (any-pointer: coarse), (max-width: 680px) {
+  .game-view body { height: 100dvh; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+  .game-view .masthead { min-height: 50px; }
+  .game-view .game-shell { min-height: 0; padding-bottom: 6px; }
+  .game-view .arcade { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
+  .game-view .stage { height: auto; min-height: 0; aspect-ratio: auto; }
+  .game-view .arcade-footer { flex-direction: column; gap: 4px; padding-block: 7px; }
+  .game-view .hud-pause { min-width: 44px; min-height: 44px; }
   [data-view="playing"] .touch-controls { display: flex; }
+  [data-view="playing"] #help-button { display: none; }
   .keyboard-hints { display: none; }
+  .in-game { overscroll-behavior: none; overflow: hidden; }
+  .in-game :is(.stage, .arcade-footer, .hud) {
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
+}
+@media (any-pointer: coarse) and (orientation: portrait), (max-width: 680px) and (orientation: portrait) {
+  .game-view .orientation-hint { display: block; }
 }
 @media (orientation: landscape) and (max-height: 550px) {
   .masthead { min-height: 46px; }
@@ -275,6 +307,6 @@ dialog[open] { animation: dialog-in .19s ease-out; }
   .sound-button { min-height: 37px; padding-inline: 8px; gap: 4px; font-size: 11px; }
   .stat { padding-inline: 27px 7px; }
   .stat svg { left: 7px; }
-  .touch-button { min-width: 43px; padding-inline: 8px; }
+  .touch-button { font-size: 12px; }
   .dialog-body { padding: 18px; }
 }

@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#101822">
     <meta name="description" content="Play Pixel Adventure, a colorful platformer through the Verdant Hills.">
     <link rel="icon" href="/favicon.png" type="image/png">
@@ -77,14 +77,17 @@
           <div class="keyboard-hints" id="keyboard-hints" hidden>
             <span><kbd>A</kbd><kbd>D</kbd> Move</span><span><kbd>Space</kbd> Jump</span><span><kbd>X</kbd> Attack</span><span><kbd>Esc</kbd> Pause</span>
           </div>
-          <div class="touch-controls" id="touch-controls" aria-label="Touch controls">
+          <div class="touch-controls" id="touch-controls" role="group" aria-label="Touch controls">
             <div class="touch-direction">
               <button class="button touch-button" type="button" data-action="left" aria-label="Move left"><svg aria-hidden="true"><use href="#arrow"/></svg></button>
               <button class="button touch-button" type="button" data-action="right" aria-label="Move right"><svg class="arrow-right" aria-hidden="true"><use href="#arrow"/></svg></button>
             </div>
-            <button class="button button-primary touch-button" type="button" data-action="jump" aria-label="Jump"><svg class="arrow-up" aria-hidden="true"><use href="#arrow"/></svg>Jump</button>
-            <button class="button touch-button" type="button" data-action="attack" aria-label="Attack">Attack</button>
+            <div class="touch-actions">
+              <button class="button touch-button" type="button" data-action="attack">Attack</button>
+              <button class="button button-primary touch-button" type="button" data-action="jump">Jump</button>
+            </div>
           </div>
+          <p class="orientation-hint">Turn your phone sideways for a wider view.</p>
           <button class="button button-text" id="help-button" type="button"><svg aria-hidden="true"><use href="#controller"/></svg>Controls</button>
         </div>
       </section>
@@ -107,6 +110,15 @@
         <label class="setting"><span><strong>Sound effects</strong><small>Menu, jump, coin, and checkpoint sounds</small></span><input id="sound-setting" type="checkbox" role="switch" checked></label>
         <div class="setting volume-setting"><label for="sound-volume"><strong>Sound volume</strong><small id="volume-value">100%</small></label><input id="sound-volume" type="range" min="0" max="100" value="100" step="5"></div>
         <label class="setting"><span><strong>Reduced motion</strong><small>Less background motion, particles, and flashing</small></span><input id="motion-setting" type="checkbox" role="switch"></label>
+        <fieldset class="mobile-settings">
+          <legend>Mobile Controls</legend>
+          <label class="setting"><strong>Button size</strong><select id="touch-size"><option value="small">Small</option><option value="medium" selected>Medium</option><option value="large">Large</option></select></label>
+          <div class="setting volume-setting"><label for="touch-opacity"><strong>Button opacity</strong><small id="touch-opacity-value">100%</small></label><input id="touch-opacity" type="range" min="50" max="100" value="100" step="5"></div>
+          <label class="setting"><strong>Left-handed layout</strong><input id="touch-left-handed" type="checkbox" role="switch"></label>
+          <label class="setting" id="touch-haptics-setting" hidden><strong>Haptic feedback</strong><input id="touch-haptics" type="checkbox" role="switch"></label>
+          <button class="button full-width" type="button" id="fullscreen" hidden>Enter Fullscreen</button>
+          <p id="fullscreen-status" role="status" hidden></p>
+        </fieldset>
         <button class="button button-primary full-width" type="button" data-close autofocus>Done</button>
       </div>
     </dialog>
@@ -137,6 +149,8 @@
         <p id="pause-level">Level 1 · Verdant Hills</p>
         <div class="dialog-actions">
           <button class="button button-primary" id="resume" type="button" data-close autofocus><svg aria-hidden="true"><use href="#play"/></svg>Resume</button>
+          <button class="button" id="pause-settings" type="button"><svg aria-hidden="true"><use href="#settings"/></svg>Settings</button>
+          <button class="button" id="pause-controls" type="button"><svg aria-hidden="true"><use href="#controller"/></svg>Controls</button>
           <button class="button" id="restart-level" type="button"><svg aria-hidden="true"><use href="#restart"/></svg>Restart Level</button>
           <button class="button" id="pause-main" type="button"><svg aria-hidden="true"><use href="#home"/></svg>Main Menu</button>
         </div>

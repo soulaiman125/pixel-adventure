@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import '@fontsource-variable/bricolage-grotesque/wght.css';
 import '@fontsource-variable/dm-sans/wght.css';
 import { createControls } from './game/controls.js';
+import { setupTouchSettings } from './game/touch-settings.js';
 import { VIEW_HEIGHT } from './game/level-one.js';
 import { LEVELS } from './game/levels.js';
 import { MenuScene } from './game/menu-scene.js';
@@ -69,6 +70,7 @@ let requestedLevel;
 let tutorialPurpose;
 let toastTimeout;
 let landscapeAnimation;
+let settingsFromPause = false;
 
 function savePreferences() {
   try {
@@ -138,7 +140,9 @@ function formatTime(milliseconds) {
 
 function setMode(nextMode) {
   mode = nextMode;
+  document.documentElement.classList.toggle('in-game', nextMode === 'playing' || nextMode === 'loading');
   const isMenu = nextMode === 'menu';
+  document.documentElement.classList.toggle('game-view', !isMenu);
   shell.dataset.view = isMenu ? 'menu' : 'playing';
   byId('main-menu').hidden = !isMenu;
   byId('menu-footer').hidden = !isMenu;
@@ -269,12 +273,21 @@ function resumeRun() {
 function openHelp(purpose) {
   tutorialPurpose = purpose;
   if (purpose === 'run-controls') stopForDialog();
-  tutorialDone.textContent = { 'first-run': 'Start Level', 'menu-controls': 'Back to Menu', 'run-controls': 'Back to Level' }[purpose];
+  tutorialDone.textContent = { 'first-run': 'Start Level', 'menu-controls': 'Back to Menu', 'run-controls': 'Back to Level', 'pause-controls': 'Back to Pause' }[purpose];
   help.showModal();
 }
 
 function closeDialog(dialog, confirm = false) {
   dialog.close();
+  if (dialog === settings && settingsFromPause) {
+    settingsFromPause = false;
+    pause.showModal();
+    byId('pause-settings').focus();
+  }
+  if (dialog === help && tutorialPurpose === 'pause-controls') {
+    pause.showModal();
+    byId('pause-controls').focus();
+  }
   if (dialog === pause || (dialog === help && tutorialPurpose === 'run-controls')) resumeRun();
   if (dialog === help && tutorialPurpose === 'first-run') {
     if (confirm) {
@@ -312,6 +325,15 @@ byId('level-select').addEventListener('click', () => {
   levelButtons[0].focus();
 });
 byId('settings-button').addEventListener('click', () => settings.showModal());
+byId('pause-settings').addEventListener('click', () => {
+  settingsFromPause = true;
+  pause.close();
+  settings.showModal();
+});
+byId('pause-controls').addEventListener('click', () => {
+  pause.close();
+  openHelp('pause-controls');
+});
 helpButton.addEventListener('click', () => openHelp(mode === 'menu' ? 'menu-controls' : 'run-controls'));
 tutorialDone.addEventListener('click', () => closeDialog(help, true));
 byId('pause-button').addEventListener('click', openPause);
@@ -335,9 +357,6 @@ byId('victory-replay').addEventListener('click', () => {
 byId('pause-main').addEventListener('click', showMainMenu);
 byId('clear-main').addEventListener('click', showMainMenu);
 byId('victory-main').addEventListener('click', showMainMenu);
-stage.addEventListener('pointerdown', (event) => {
-  if (mode === 'playing' && !event.target.closest('button')) focusStage();
-});
 window.addEventListener('keydown', (event) => {
   if (event.code === 'Escape' && !event.repeat && mode === 'playing') {
     event.preventDefault();
@@ -345,10 +364,15 @@ window.addEventListener('keydown', (event) => {
   }
 });
 
-const controls = createControls(byId('touch-controls'), () => mode === 'playing');
+const panel = byId('touch-controls');
+const hapticFeedback = setupTouchSettings(panel, preferences, savePreferences);
+const controls = createControls(panel, () => mode === 'playing', hapticFeedback);
+window.matchMedia('(orientation: portrait)').addEventListener('change', controls.clear);
+document.addEventListener('fullscreenchange', controls.clear);
 const maxCoins = LEVELS.reduce((sum, level) => sum + level.coins.length, 0);
 const scene = new PlatformerScene(controls, {
   get reduceMotion() { return reduceMotion(); },
+  onPlayfieldPress: focusStage,
   onReady(coinTotal) {
     byId('coin-total').textContent = pad(coinTotal);
     showScore(0);
@@ -412,7 +436,11 @@ const game = new Phaser.Game({
   roundPixels: true,
   banner: false,
   audio: { noAudio: true },
-  input: { keyboard: false, mouse: false, touch: false },
+  input: {
+    // Phaser handles canvas interaction. The HTML controls retain browser pointer IDs.
+    keyboard: false, activePointers: 2, touch: { capture: false },
+    mouse: { preventDefaultDown: false, preventDefaultUp: false, preventDefaultMove: false, preventDefaultWheel: false },
+  },
   scale: { mode: Phaser.Scale.NONE },
   physics: { default: 'arcade', arcade: { gravity: { y: 700 } } },
   scene: [new MenuScene(reduceMotion), scene],
