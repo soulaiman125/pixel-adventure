@@ -144,6 +144,15 @@ kbd { display: inline-grid; place-items: center; min-width: 23px; min-height: 23
 .boss-hud { position:absolute; top:10px; left:50%; transform:translateX(-50%); width:min(86%,320px); padding:7px 10px; border-radius:7px; background:#22182de8; color:#ffe5b4; z-index:1; font-size:12px; }
 .boss-hud > div { display:flex; justify-content:space-between; flex-wrap:wrap; gap:3px; }
 .boss-hud meter { width:100%; height:11px; }
+.boss-hud[data-phase="warn"] { color: #ffdba1; outline: 1px solid #b68d4e; }
+.boss-hud[data-phase="attack"] { color: #ffcfba; outline: 1px solid #db806d; }
+.boss-hud[data-phase="open"] { color: #fff6b6; outline: 1px solid #d9be67; }
+.boss-hud[data-phase="defeated"] { color: #e4ffa6; outline: 1px solid #96b860; }
+.loading-label { position: absolute; inset: auto auto 12px 12px; z-index: 2; margin: 0; padding: 6px 10px; border-radius: 6px; background: #1a2734; font-size: 13px; }
+.world-nav { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 16px; }
+.world-nav .world-jump { min-height: 32px; min-width: 0; padding: 5px 8px; font-size: 12px; }
+.level-list h3 { display: flex; justify-content: space-between; gap: 10px; scroll-margin-block-start: 14px; }
+.level-list h3 span { color: var(--muted); white-space: nowrap; }
 .game-toast {
   position: absolute;
   top: 15px;
@@ -215,8 +224,10 @@ dialog[open] { animation: dialog-in .19s ease-out; }
 #next-level, #view-victory { grid-column: 1 / -1; grid-row: 1; justify-content: flex-start; }
 .results .continue-note { margin: 8px 0; color: var(--lime); font-size: 13px; font-weight: 750; }
 .victory { background: radial-gradient(ellipse at 50% 8%, #333d3d, transparent 70%); }
-.victory-emblem { display: flex; align-items: center; justify-content: center; gap: 14px; margin: 0 0 15px; }
+.victory-emblem { display: flex; align-items: center; justify-content: center; gap: 14px; margin: 0 0 15px; padding-block: 11px; background: radial-gradient(ellipse at center, #ffd96930 0%, transparent 65%); }
 .victory-star { width: 63px; height: 63px; color: #ffd969; filter: drop-shadow(0 4px #a9652e); }
+#victory-dialog[open] .victory-star { animation: victory-star-in .38s ease-out; }
+@keyframes victory-star-in { from { opacity: .45; transform: scale(.82); } to { opacity: 1; transform: scale(1); } }
 .victory-spark { color: #bfe97e; }
 .victory h2 { font-size: clamp(42px, 10vw, 62px); }
 [data-theme="canyon"] .level-chip { border-color: #91604c; background: #563c3c; color: #ffd28d; }
@@ -267,10 +278,10 @@ dialog[open] { animation: dialog-in .19s ease-out; }
   .button-text { font-size: 12px; gap: 4px; }
 }
 @media (any-pointer: coarse), (max-width: 680px) {
-  .game-view body { height: 100dvh; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+  .game-view body { height: 100dvh; display: grid; grid-template-rows: auto minmax(0, 1fr); grid-template-columns: minmax(0, 1fr); }
   .game-view .masthead { min-height: 50px; }
   .game-view .game-shell { min-height: 0; padding-bottom: 6px; }
-  .game-view .arcade { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
+  .game-view .arcade { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; grid-template-columns: minmax(0, 1fr); }
   .game-view .stage { height: auto; min-height: 0; aspect-ratio: auto; }
   .game-view .arcade-footer { flex-direction: column; gap: 4px; padding-block: 7px; }
   .game-view .hud-pause { min-width: 44px; min-height: 44px; }
@@ -293,6 +304,9 @@ dialog[open] { animation: dialog-in .19s ease-out; }
   .game-shell { padding-bottom: 0; }
   .hud { min-height: 48px; padding-block: 4px; flex-wrap: nowrap; justify-content: space-between; }
   .hud-level, .stats { width: auto; }
+  .hud-level { flex: 1; min-width: 0; }
+  .hud-level h1 { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .hud-level .level-chip, .stats, .hud-pause { flex-shrink: 0; }
   .hud-pause { order: 2; margin-left: 0; }
   .stat:first-child { padding-left: 24px; }
   .stat:first-child svg { left: 0; }

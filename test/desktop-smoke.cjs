@@ -7,13 +7,28 @@ const { _electron: electron } = require('playwright-core');
 async function main() {
   const profile = await mkdtemp(path.join(os.tmpdir(), 'pixel-adventure-qa-'));
   const bundle = process.argv[2];
-  const launch = () => electron.launch({
-    ...(bundle ? { executablePath: path.resolve(bundle) } : {}),
-    args: [...(bundle ? [] : ['.']), '--user-data-dir=' + profile,
+  const legacyBundle = process.argv[3];
+  const launch = (executable = bundle) => electron.launch({
+    ...(executable ? { executablePath: path.resolve(executable) } : {}),
+    args: [...(executable ? [] : ['.']), '--user-data-dir=' + profile,
       '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE localhost'],
   });
   let app;
   try {
+    if (legacyBundle) {
+      app = await launch(legacyBundle);
+      const original = await app.firstWindow();
+      await original.locator('canvas').waitFor();
+      assert.equal(await original.locator('[data-level]').count(), 20);
+      await original.evaluate(() => {
+        const records = Array(20).fill(null);
+        records[19] = { coins: 6, elapsed: 48000 };
+        localStorage.setItem('pixel-adventure.preferences', '{"volume":55}');
+        localStorage.setItem('pixel-adventure.progress', JSON.stringify({ version: 2, unlocked: 20, records }));
+      });
+      await app.close();
+      app = undefined;
+    }
     app = await launch();
     let page = await app.firstWindow();
     const errors = [];
@@ -37,16 +52,42 @@ async function main() {
     }));
     external.length = 0; // Exclude the deliberate fetch rejection probe above.
     await page.context().setOffline(true);
-    await page.locator('#sound-button').click();
+    await page.evaluate(() => {
+      const compressor = AudioContext.prototype.createDynamicsCompressor;
+      AudioContext.prototype.createDynamicsCompressor = function () {
+        const mix = compressor.call(this);
+        const analyser = this.createAnalyser();
+        mix.connect(analyser);
+        const buffer = new Float32Array(analyser.fftSize);
+        window.qaAudioSignal = () => {
+          analyser.getFloatTimeDomainData(buffer);
+          return this.state === 'running' && buffer.some(value => Math.abs(value) > .001);
+        };
+        return mix;
+      };
+    });
+    if (legacyBundle) {
+      await page.locator('#level-select').click();
+      assert(await page.locator('[data-level="20"]').isEnabled());
+      assert(await page.locator('[data-level="21"]').isDisabled());
+      assert.match(await page.locator('[data-level="19"] .level-record').textContent(), /Best 00:48/);
+      await page.locator('#levels-dialog [data-close]').click();
+      assert.equal(await page.locator('#sound-volume').inputValue(), '55');
+      console.log('Read the v1.0.0 save and effects setting from the same isolated Windows profile.');
+    }
     await page.locator('#play-game').click();
     await page.locator('#tutorial-done').click();
     await page.locator('#pause-button').waitFor();
+    await page.waitForFunction(() => window.qaAudioSignal?.());
     await page.keyboard.down('KeyD');
     await page.waitForTimeout(315);
     await page.keyboard.down('Space');
     await page.waitForFunction(() => document.querySelector('#coins').textContent === '01');
     await page.keyboard.up('Space');
     await page.keyboard.up('KeyD');
+    await page.locator('#sound-button').click();
+    assert.equal(await page.locator('#sound-button').getAttribute('aria-pressed'), 'false');
+    console.log('Measured Web Audio output during offline gameplay and verified mute.');
     assert.deepEqual(errors, []);
     assert.deepEqual(external, []);
     await page.evaluate(() => {
@@ -75,7 +116,8 @@ async function main() {
         && document.activeElement.id === 'stage', String(index + 1).padStart(2, '0'));
       assert(await page.locator('#pause-button').isVisible());
       assert(!(await page.locator('#help-dialog').isVisible()));
-      assert(await page.locator('canvas').evaluate((canvas) => canvas.getContext('2d').getImageData(12, 12, 1, 1).data[3] === 255));
+      await page.waitForFunction(() => document.querySelector('canvas')
+        ?.getContext('2d').getImageData(12, 12, 1, 1).data[3] === 255);
       await page.locator('#pause-button').click();
       await page.locator('#pause-main').click();
     }

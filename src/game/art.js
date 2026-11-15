@@ -162,23 +162,27 @@ function drawHero(context, pose) {
   const colors = { o: '#202a3d', r: '#e95c51', R: '#ff9272', k: '#9c394a',
     s: '#ffd391', S: '#d99667', e: '#253447', w: '#fff3d3', b: '#32687b', B: '#62c4be',
     y: '#ffe57d', Y: '#eaa34c' };
+  const crouch = pose === 'land' ? 2 : 0;
   pixels(context, colors, [
     '......oooooo....', '....ooRRRRRoo...', '...oRRrrrrrro...', '...oRrrrrrrro...',
     '...orrkroooooo..', '...ookossswweo..', '....oosssswseo..', '....osssSsssso..',
     '.....ooSSSooo...', '....oyyyyyYo....', '..ooyyoBBwBoo...', '.oyYooBBBBBbo...',
     '.oY...oBbBBso...', '......obbbooo...',
-  ], 0, 2);
+  ], 0, 2 + crouch);
   const boots = {
     idle: ['......oBobo.....', '......oBobo.....', '.....oookko.....', '.....orrooroo...', '.....ooooooo....'],
     step: ['.....oBboo......', '....oBbo.obo....', '...ooko..oobo...', '...orro...orro..', '...ooo....oooo..'],
     stride: ['......oBboo.....', '.....ob.Bo......', '.....obooRo.....', '....oro.ooo.....', '....ooo.........'],
     jump: ['.....oBboo......', '....oBbooobo....', '...orro..oboo...', '...ooo....oroo..', '..........ooo...'],
     fall: ['.....oBBbo......', '.....oBo.oBo....', '.....oBo..oro...', '.....orro.ooo...', '.....oooo.......'],
+    attack: ['.....oBbbo......', '....oBbo.obo....', '...ooko..oobo...', '...orro...orro..', '...ooo....oooo..'],
+    land: ['................', '................', '....ooBBBboo....', '...orro..orro...', '...oooo..oooo...'],
   };
   pixels(context, colors, boots[pose], 0, 16);
   if (pose === 'stride' || pose === 'jump') {
     pixels(context, colors, ['.ooo', 'oyYo', 'oo..'], 0, 12);
   }
+  if (pose === 'attack') pixels(context, colors, ['....ww', '..wwYo', 'osso..'], 10, 11);
 }
 
 function drawSlime(context, rising, colors = {}) {
@@ -240,7 +244,7 @@ export function createArt(scene) {
   texture(scene, 'tree', 72, 70, drawTree);
   texture(scene, 'ground', 48, 40, (ctx) => drawDirt(ctx, 40));
   texture(scene, 'platform', 48, 12, (ctx) => drawDirt(ctx, 12));
-  for (const pose of ['idle', 'step', 'stride', 'jump', 'fall']) {
+  for (const pose of ['idle', 'step', 'stride', 'jump', 'fall', 'attack', 'land']) {
     texture(scene, 'hero-' + pose, 16, 21, (ctx) => drawHero(ctx, pose));
   }
   texture(scene, 'slime-rest', 18, 13, (ctx) => drawSlime(ctx, false));

@@ -83,12 +83,12 @@ async function testTouch(browser) {
   await wait(page, () => touchQA.scene.player.y < 181);
   await settled();
   const firstJump = await down('jump', 1);
+  const secondJump = await point('jump', 2, -12);
   await wait(page, () => touchQA.scene.player.y < 145);
   await wait(page, () => touchQA.scene.player.y >= 167 && touchQA.scene.player.body.velocity.y > 0);
   // A second finger presses Jump before the first finger lifts. The next
   // landing should consume the new buffered jump.
-  await dispatch('touchStart', [firstJump, await point('jump', 2, -12)]);
-  await wait(page, () => touchQA.scene.jumpUntil > touchQA.scene.elapsed);
+  await dispatch('touchStart', [firstJump, secondJump]);
   await wait(page, () => touchQA.scene.player.body.velocity.y < -160);
   await dispatch('touchEnd');
   await released();

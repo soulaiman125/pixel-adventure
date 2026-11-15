@@ -68,12 +68,43 @@ function drawBlock(graphics, x, y, width, height, color, edge) {
   graphics.fillStyle(edge).fillRect(left + 2, top + height - 4, width - 4, 2);
 }
 
-export function paintDanger(graphics, hazard, frame, elapsed = 0, reduced = false) {
+function drawWarning(graphics, hazard, frame, opacity, assisted) {
+  const { kind, dx = 0, dy = 0, spread } = hazard;
+  const { x, y, width, height } = frame;
+  const size = kind === 'walls' ? spread * 2 + width : Math.max(12, width + Math.abs(dx) * 2);
+  const left = hazard.x - size / 2;
+  graphics.fillStyle(0xffd787, opacity);
+  for (let mark = 0; mark < size; mark += 8) {
+    graphics.fillRect(left + mark, 181, Math.min(5, size - mark), 2);
+  }
+  const color = assisted ? 0xfff2a3 : 0xffca77;
+  graphics.lineStyle(assisted ? 2 : 1, color, opacity);
+  if (kind === 'laser' || kind === 'lightning') {
+    graphics.strokeRect(x - width / 2, y - height / 2, width, height);
+    if (assisted && (dx || dy)) {
+      graphics.strokeRect(hazard.x - width / 2 - Math.abs(dx), hazard.y - height / 2 - Math.abs(dy),
+        width + Math.abs(dx) * 2, height + Math.abs(dy) * 2);
+    }
+  } else if (kind === 'crusher') {
+    graphics.strokeRect(x - width / 2, y + dy - height / 2, width, height);
+    if (assisted) graphics.strokeRect(x - width / 2, y - height / 2, width, height + dy);
+  } else if (kind === 'risingLava') {
+    graphics.fillRect(x - width / 2, Math.max(202, y - dy) - height / 2, width, 2);
+  } else if (kind === 'poisonSpit') {
+    for (let step = 0; step <= 1; step += .25) {
+      graphics.fillRect(x + dx * step, y - 148 * step * (1 - step), 2, 2);
+    }
+  } else if (kind !== 'walls') {
+    graphics.strokeRect(x - width / 2, y - height / 2, width, height);
+  }
+}
+
+export function paintDanger(graphics, hazard, frame, elapsed = 0, reduced = false, assisted = false) {
   graphics.clear();
   const { kind } = hazard;
   const { x, y, width, height, phase, otherX } = frame;
   const [fill, edge] = palette[kind];
-  const pulse = !reduced && Math.floor(elapsed / 125) % 2 === 0 ? .85 : .6;
+  const pulse = reduced ? .85 : .76 + Math.sin(elapsed / 155) * .13;
   if (kind === 'saw') {
     const angle = reduced ? 0 : elapsed / 125;
     const radius = width / 2;
@@ -86,6 +117,7 @@ export function paintDanger(graphics, hazard, frame, elapsed = 0, reduced = fals
         x + Math.cos(a + .27) * radius * .62, y + Math.sin(a + .27) * radius * .62);
     }
     graphics.fillStyle(0x4b4159).fillRect(x - 2, y - 2, 4, 4);
+    if (assisted) graphics.lineStyle(1, 0xffe49a, .8).strokeCircle(x, y, radius - 2);
     return;
   }
   if (phase !== 'active') {
@@ -94,11 +126,7 @@ export function paintDanger(graphics, hazard, frame, elapsed = 0, reduced = fals
       if (otherX !== undefined) drawBlock(graphics, otherX, y, width, height, fill, edge);
     }
     if (phase === 'warning') {
-      const markerWidth = kind === 'walls' ? hazard.spread * 2 : Math.max(12, width);
-      graphics.fillStyle(0xffd787, pulse).fillRect(hazard.x - markerWidth / 2, 181, markerWidth, 3);
-      if (kind === 'laser' || kind === 'lightning') {
-        graphics.lineStyle(1, edge, pulse).strokeRect(x - width / 2, y - height / 2, width, height);
-      }
+      drawWarning(graphics, hazard, frame, pulse, assisted);
     }
     return;
   }
@@ -116,25 +144,51 @@ export function paintDanger(graphics, hazard, frame, elapsed = 0, reduced = fals
         Math.max(2, width - 4), Math.max(2, height - 4));
     }
   }
+  if (assisted) {
+    graphics.lineStyle(1, 0xffeca7, .92).strokeRect(x - width / 2, y - height / 2, width, height);
+    if (otherX !== undefined) graphics.strokeRect(otherX - width / 2, y - height / 2, width, height);
+  }
 }
+
+const hazardSounds = {
+  laser: ['laserCharge', 'laserFire'],
+  lightning: ['laserCharge', 'electric'],
+  electricFloor: ['charge', 'electric'],
+  electricPulse: ['charge', 'electric'],
+  risingLava: ['warning', 'fire'],
+  crusher: ['charge', 'impact'],
+  walls: ['charge', 'impact'],
+  poisonCloud: ['warning', 'poison'],
+  poisonSpit: ['warning', 'poison'],
+};
 
 export function addDanger(scene, hazard) {
   const graphics = scene.add.graphics().setDepth(hazard.kind === 'poisonPool' || hazard.kind === 'risingLava' ? -1 : 2);
   const frame = {};
   let previous;
+  let sawAfter = 0;
   return (elapsed) => {
     if (Math.abs(scene.player.x - hazard.x) > 500) {
       graphics.setVisible(false);
       previous = undefined;
       return;
     }
-    graphics.setVisible(true);
     hazardFrame(hazard, elapsed, frame);
-    paintDanger(graphics, hazard, frame, elapsed, scene.ui.reduceMotion);
-    if (frame.phase === 'warning' && previous !== frame.phase && Math.abs(scene.player.x - hazard.x) < 110) {
-      scene.ui.playSound('warning');
+    const visible = frame.x + frame.width / 2 + (hazard.spread ?? 0) >= scene.cameraX - 45
+      && frame.x - frame.width / 2 - (hazard.spread ?? 0) <= scene.cameraX + scene.scale.width + 45;
+    graphics.setVisible(visible);
+    if (visible) paintDanger(graphics, hazard, frame, elapsed, scene.ui.reduceMotion, scene.ui.dangerGuides);
+    const near = Math.abs(scene.player.x - frame.x) < 110;
+    if (near && previous !== frame.phase && hazardSounds[hazard.kind]) {
+      const [warn, activate] = hazardSounds[hazard.kind];
+      if (frame.phase === 'warning') scene.ui.playSound(warn);
+      if (frame.phase === 'active') scene.ui.playSound(activate);
     }
-    previous = frame.phase;
+    if (hazard.kind === 'saw' && Math.abs(scene.player.x - frame.x) < 42 && elapsed >= sawAfter) {
+      sawAfter = elapsed + 1200;
+      scene.ui.playSound('saw');
+    }
+    previous = near ? frame.phase : undefined;
     if (dangerHits(scene.player.body, hazard, frame)) scene.damage();
   };
 }

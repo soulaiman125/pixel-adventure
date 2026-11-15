@@ -22,7 +22,9 @@ const helpButton = byId('help-button');
 const soundButton = byId('sound-button');
 const soundSetting = byId('sound-setting');
 const volumeSetting = byId('sound-volume');
+const musicSetting = byId('music-volume');
 const motionSetting = byId('motion-setting');
+const dangerSetting = byId('danger-setting');
 const tutorialDone = byId('tutorial-done');
 const levelDialog = byId('levels-dialog');
 const settings = byId('settings-dialog');
@@ -34,12 +36,27 @@ const nextLevel = byId('next-level');
 const viewVictory = byId('view-victory');
 const worlds = new Map([[0, 'Green Valley'], [4, 'Dangerous Canyon'], [8, 'Frozen Kingdom'],
   [12, 'Fire Kingdom'], [16, 'Dark Castle'], [20, 'Poison Jungle'], [25, 'Thunder Fortress']]);
+const worldRows = [];
 const levelButtons = LEVELS.map((level, index) => {
   const list = byId('level-list');
   if (worlds.has(index)) {
     const heading = document.createElement('h3');
+    heading.tabIndex = -1;
+    heading.id = `world-${index + 1}`;
     heading.textContent = worlds.get(index);
+    const count = document.createElement('span');
+    heading.append(count);
     list.append(heading);
+    const jump = document.createElement('button');
+    jump.type = 'button';
+    jump.className = 'button world-jump';
+    jump.textContent = worlds.get(index);
+    jump.addEventListener('click', () => {
+      heading.focus({ preventScroll: true });
+      heading.scrollIntoView({ block: 'start' });
+    });
+    byId('world-nav').append(jump);
+    worldRows.push({ start: index, count, jump });
   }
   const button = document.createElement('button');
   button.className = 'button level-option';
@@ -85,18 +102,26 @@ function reduceMotion() {
   return motionPreference.matches || preferences.reducedMotion === true;
 }
 
+function percentage(value, fallback) {
+  return Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : fallback;
+}
+
 function updatePreferences() {
   const soundEnabled = preferences.sound !== false;
-  const volume = Number.isFinite(preferences.volume) ? Math.min(100, Math.max(0, preferences.volume)) : 100;
-  sound.configure(soundEnabled, volume / 100);
+  const volume = percentage(preferences.volume, 100);
+  const musicVolume = percentage(preferences.musicVolume, 45);
+  sound.configure(soundEnabled, volume / 100, musicVolume / 100);
   volumeSetting.value = volume;
+  musicSetting.value = musicVolume;
   byId('volume-value').textContent = `${volume}%`;
+  byId('music-volume-value').textContent = `${musicVolume}%`;
   soundSetting.checked = soundEnabled;
   soundButton.setAttribute('aria-pressed', String(soundEnabled));
   byId('sound-icon').setAttribute('href', soundEnabled ? '#speaker' : '#muted');
   byId('sound-label').textContent = soundEnabled ? 'Sound on' : 'Sound off';
   motionSetting.checked = reduceMotion();
   motionSetting.disabled = motionPreference.matches;
+  dangerSetting.checked = preferences.dangerGuides === true;
   document.documentElement.classList.toggle('reduce-motion', reduceMotion());
 }
 
@@ -108,17 +133,27 @@ function changeSound(enabled) {
 }
 
 updatePreferences();
+syncMusic();
 motionPreference.addEventListener('change', updatePreferences);
+document.addEventListener('visibilitychange', syncMusic);
+window.addEventListener('pagehide', () => sound.music());
+window.addEventListener('pageshow', syncMusic);
 soundButton.addEventListener('click', () => {
   changeSound(!soundSetting.checked);
   if (mode === 'playing') focusStage();
 });
 soundSetting.addEventListener('change', () => changeSound(soundSetting.checked));
-volumeSetting.addEventListener('input', () => {
-  preferences.volume = volumeSetting.valueAsNumber;
-  updatePreferences();
+for (const [slider, key] of [[volumeSetting, 'volume'], [musicSetting, 'musicVolume']]) {
+  slider.addEventListener('input', () => {
+    preferences[key] = slider.valueAsNumber;
+    updatePreferences();
+  });
+  slider.addEventListener('change', savePreferences);
+}
+dangerSetting.addEventListener('change', () => {
+  preferences.dangerGuides = dangerSetting.checked;
+  savePreferences();
 });
-volumeSetting.addEventListener('change', savePreferences);
 motionSetting.addEventListener('change', () => {
   preferences.reducedMotion = motionSetting.checked;
   savePreferences();
@@ -141,6 +176,7 @@ function formatTime(milliseconds) {
 
 function setMode(nextMode) {
   mode = nextMode;
+  syncMusic();
   document.documentElement.classList.toggle('in-game', nextMode === 'playing' || nextMode === 'loading');
   const isMenu = nextMode === 'menu';
   document.documentElement.classList.toggle('game-view', !isMenu);
@@ -148,7 +184,13 @@ function setMode(nextMode) {
   byId('main-menu').hidden = !isMenu;
   byId('menu-footer').hidden = !isMenu;
   byId('hud').hidden = isMenu;
+  byId('loading-label').hidden = nextMode !== 'loading';
   byId('keyboard-hints').hidden = isMenu;
+}
+
+function syncMusic() {
+  const track = mode === 'menu' ? 'verdant' : mode === 'playing' ? LEVELS[currentLevel].theme : undefined;
+  sound.music(document.hidden ? undefined : track);
 }
 
 function showScore(count) {
@@ -207,6 +249,15 @@ function updateLevelSelect() {
       const badge = record.bestDeaths === 0 ? ' · No deaths' : '';
       label.textContent = `${record.coins}/${LEVELS[index].coins.length} coins · ${record.stars} ★ · Best ${formatTime(record.elapsed)}${badge}`;
     }
+  });
+  worldRows.forEach(({ start, count, jump }, index) => {
+    const end = worldRows[index + 1]?.start ?? LEVELS.length;
+    let cleared = 0;
+    for (let stage = start; stage < end; stage++) {
+      if (progress.record(stage)) cleared++;
+    }
+    count.textContent = `${cleared} / ${end - start}`;
+    jump.setAttribute('aria-label', `${worlds.get(start)}, ${cleared} of ${end - start} stages cleared`);
   });
 }
 
@@ -327,7 +378,7 @@ byId('play-game').addEventListener('click', () => requestPlay(0, true));
 levelButtons.forEach((button, index) => button.addEventListener('click', () => requestPlay(index)));
 byId('level-select').addEventListener('click', () => {
   levelDialog.showModal();
-  levelButtons[0].focus();
+  levelButtons[0].focus({ preventScroll: true });
 });
 byId('settings-button').addEventListener('click', () => settings.showModal());
 byId('pause-settings').addEventListener('click', () => {
@@ -343,6 +394,11 @@ helpButton.addEventListener('click', () => openHelp(mode === 'menu' ? 'menu-cont
 tutorialDone.addEventListener('click', () => closeDialog(help, true));
 byId('pause-button').addEventListener('click', openPause);
 byId('restart-level').addEventListener('click', () => { pause.close(); startRun(currentLevel); });
+byId('retry-checkpoint').addEventListener('click', () => {
+  pause.close();
+  resumeRun();
+  scene.respawn('retry');
+});
 byId('play-again').addEventListener('click', () => { clear.close(); startRun(currentLevel); });
 nextLevel.addEventListener('click', () => { clear.close(); startRun(currentLevel + 1); });
 viewVictory.addEventListener('click', () => {
@@ -355,6 +411,7 @@ viewVictory.addEventListener('click', () => {
   byId('victory-summary').textContent = `All ${LEVELS.length} levels complete.`;
   clear.close();
   victory.showModal();
+  sound.play('victory');
 });
 byId('victory-replay').addEventListener('click', () => {
   victory.close();
@@ -369,6 +426,12 @@ window.addEventListener('keydown', (event) => {
     event.preventDefault();
     openPause();
   }
+  if (event.code === 'KeyR' && !event.repeat && !event.ctrlKey && !event.metaKey && !event.altKey
+    && mode === 'playing' && document.activeElement === stage) {
+    event.preventDefault();
+    controls.clear();
+    scene.respawn('retry');
+  }
 });
 
 const panel = byId('touch-controls');
@@ -379,6 +442,7 @@ document.addEventListener('fullscreenchange', controls.clear);
 const maxCoins = LEVELS.reduce((sum, level) => sum + level.coins.length, 0);
 const scene = new PlatformerScene(controls, {
   get reduceMotion() { return reduceMotion(); },
+  get dangerGuides() { return dangerSetting.checked; },
   onPlayfieldPress: focusStage,
   onReady(coinTotal) {
     byId('coin-total').textContent = pad(coinTotal);
@@ -390,9 +454,9 @@ const scene = new PlatformerScene(controls, {
   onScore: showScore,
   onTime: showTime,
   onCheckpoint() { showToast('Checkpoint reached', 'checkpoint'); },
-  onRespawn(deaths) {
+  onRespawn(deaths, reason) {
     byId('deaths').textContent = deaths;
-    showToast('Back at the checkpoint', 'respawn');
+    showToast(reason === 'retry' ? 'Checkpoint restarted' : 'Back at the checkpoint', 'respawn');
   },
   playSound: (name) => sound.play(name),
   onBoss(boss, state) {
@@ -406,6 +470,8 @@ const scene = new PlatformerScene(controls, {
     }
     if (meter.max !== boss.maxHp) meter.max = boss.maxHp;
     if (meter.value !== boss.hp) meter.value = boss.hp;
+    const phase = boss.phase === 'open' && boss.hits >= 2 ? 'guarded' : boss.phase;
+    if (hud.dataset.phase !== phase) hud.dataset.phase = phase;
     if (byId('boss-state').textContent !== state) byId('boss-state').textContent = state;
   },
   onComplete(count, coinTotal, elapsed, deaths) {

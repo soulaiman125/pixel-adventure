@@ -43,8 +43,8 @@ export class MenuScene extends Phaser.Scene {
     if (!narrow) ledge(0, ground + 18, Math.max(1, start - 29), 'ground');
     ledge(center - 30, ground - 32, 48, 'platform');
     ledge(center + 34, ground - 59, 39, 'platform');
-    image(center + 10, ground - 32, 'hero-idle', 1.25);
-    image(center + 49, ground, 'slime-rest');
+    this.hero = image(center + 10, ground - 32, 'hero-idle', 1.25);
+    this.slime = image(center + 49, ground, 'slime-rest');
     image(center + 53, ground - 59, 'flag', 0.58);
     this.coins = [[center - 19, ground - 42], [center + 29, ground - 51], [center + 43, ground - 72]]
       .map(([x, y]) => ({ y, sprite: image(x, y, 'coin-wide', 0.85) }));
@@ -55,6 +55,8 @@ export class MenuScene extends Phaser.Scene {
   paint() {
     const time = this.reduceMotion() ? 0 : this.elapsed;
     this.backdrop.scroll(time * 0.007, this.scale.width * 0.77, time * 0.006);
+    this.hero.setTexture(time % 4200 > 3750 ? 'hero-attack' : 'hero-idle');
+    this.slime.setTexture(time % 1350 > 1020 ? 'slime-hop' : 'slime-rest');
     this.coins.forEach(({ y, sprite }, index) => {
       sprite.y = Math.round(y + Math.sin(time / 270 + index) * 2);
       sprite.setTexture(Math.floor(time / 155 + index) % 4 === 2 ? 'coin-narrow' : 'coin-wide');

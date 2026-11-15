@@ -9,6 +9,7 @@ export function guardBlocks(enemy, player, now) {
 export function strikeEnemy(scene, enemy) {
   if (guardBlocks(enemy, scene.player, scene.elapsed)) {
     enemy.setData('exposedUntil', scene.elapsed + 730);
+    enemy.getData('warning')?.setVisible(false);
     scene.burst(enemy.x, enemy.y - 9, 0xffe5a0, 4);
     scene.ui.playSound('block');
     return;
@@ -19,7 +20,7 @@ export function strikeEnemy(scene, enemy) {
 export function updateExpansionEnemy(scene, enemy, fire) {
   const { left, right, type, speed } = enemy.data.values;
   const now = scene.elapsed;
-  enemy.setFlipX(enemy.body.velocity.x < 0);
+  if (enemy.body.velocity.x !== 0) enemy.setFlipX(enemy.body.velocity.x < 0);
   if (type === 'bat') {
     // Correct toward a repeating altitude so frame rate changes cannot cause drift.
     const desiredY = 144 + Math.sin(now / 275 + left) * 12;
@@ -40,13 +41,14 @@ export function updateExpansionEnemy(scene, enemy, fire) {
   const recovering = enemy.getData('recoverUntil') > now;
   if (!armed && !recovering && Math.abs(distance) < (isCharge ? 102 : 138)) {
     enemy.setData({ actionAt: now + (isCharge ? 620 : 690), aim: Math.sign(distance) || 1 });
+    scene.ui.playSound(isCharge ? 'charge' : 'warning');
   } else if (armed && now >= armed) {
     const direction = enemy.getData('aim');
     if (isCharge) enemy.setData('chargeUntil', now + 390);
     else fire(scene, enemy.x + direction * 9, enemy.y - 9, direction * (type === 'robot' ? 122 : 91),
       type === 'poison' ? -74 : 0, 4, type === 'robot' ? 0x91eaff : 0xb8db77, type === 'poison' ? 230 : 0);
     enemy.setData({ actionAt: 0, recoverUntil: now + (isCharge ? 1800 : 2250) });
-    if (Math.abs(distance) < 150) scene.ui.playSound(type === 'robot' ? 'electric' : 'hazard');
+    if (Math.abs(distance) < 150) scene.ui.playSound(type === 'robot' ? 'electric' : type === 'poison' ? 'poison' : 'hazard');
   }
   const actionAt = enemy.getData('actionAt') || 0;
   warning.setPosition(enemy.x, enemy.y - 18).setVisible(actionAt > 0);

@@ -6,6 +6,7 @@ import { attackReaches } from '../src/game/combat.js';
 import { dangerHits, hazardFrame, hazardPhase } from '../src/game/danger.js';
 import { bossTier, resetExpansionBoss, updateExpansionBoss } from '../src/game/expansion-bosses.js';
 import { guardBlocks, updateExpansionEnemy } from '../src/game/expansion-enemies.js';
+import { addObstacles } from '../src/game/obstacles.js';
 
 test('the campaign has 30 uniquely named stages, with bosses on levels 20, 25, and 30', () => {
   assert.equal(LEVELS.length, 30);
@@ -144,6 +145,35 @@ test('saw corners are safe, crushers and walls retract, and rising lava stays be
   assert(hazardFrame(walls, 1700).otherX - hazardFrame(walls, 1700).x > 60);
   const high = hazardFrame(lava, 1150);
   assert(high.y - high.height / 2 > 184);
+});
+
+test('classic traps damage at the visible hazard and leave a distant player safe', () => {
+  const art = new Proxy({}, { get: () => () => art });
+  const x = 100;
+  const floorY = 184;
+  const droppedY = 25 + (floorY - 17) * ((1100 - 620) / 660) ** 2;
+  const cases = [
+    ['spikes', floorY, 180, 0], ['sweep', 173, 173, 0, 30],
+    ['rock', floorY, droppedY, 0], ['icicle', floorY, droppedY, 0],
+    ['lava', 205, 219, 0], ['jet', floorY, floorY - 20, 300],
+    ['fireball', floorY, floorY - 6 - 106 * (250 / 950) * (1 - 250 / 950), 300],
+  ];
+  for (const [kind, y, contactY, time, range] of cases) {
+    let hits = 0;
+    const scene = {
+      add: { graphics: () => art },
+      ui: { reduceMotion: true, playSound() {} },
+      player: { x, body: { left: x - 1, right: x + 1, top: contactY - 1, bottom: contactY + 1 } },
+      damage() { hits++; },
+    };
+    const [step] = addObstacles(scene, [[kind, x, y, 20, range]]);
+    step(time);
+    assert.equal(hits, 1, kind);
+    scene.player.body.left += 80;
+    scene.player.body.right += 80;
+    step(time);
+    assert.equal(hits, 1, kind);
+  }
 });
 
 test('guards block only from the front and leave an opening after a block', () => {

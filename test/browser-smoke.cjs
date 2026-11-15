@@ -11,9 +11,30 @@ const address = process.env.PIXEL_TEST_URL || 'http://127.0.0.1:5173/';
       const res = await route.fetch();
       await route.fulfill({ contentType: 'application/javascript', body: (await res.text()) + '\nwindow.qa = scene;' });
     });
-    await page.addInitScript(() => localStorage.setItem('pixel-adventure.preferences', '{"tutorialSeen":true,"sound":false}'));
+    await page.addInitScript(() => {
+      if (!localStorage.getItem('pixel-adventure.preferences')) {
+        localStorage.setItem('pixel-adventure.preferences', '{"tutorialSeen":true,"sound":false}');
+      }
+    });
     await page.goto(address);
     await page.locator('canvas').waitFor();
+    await page.locator('#settings-button').click();
+    await page.locator('#music-volume').press('End');
+    await page.locator('#music-volume').press('ArrowLeft');
+    await page.locator('#sound-volume').press('Home');
+    await page.locator('#danger-setting').check();
+    await page.reload();
+    await page.locator('canvas').waitFor();
+    await page.locator('#settings-button').click();
+    assert.equal(await page.locator('#music-volume').inputValue(), '95');
+    assert.equal(await page.locator('#sound-volume').inputValue(), '0');
+    assert(await page.locator('#danger-setting').isChecked());
+    await page.locator('#settings-dialog [data-close]').first().click();
+    await page.locator('#level-select').click();
+    await page.getByRole('button', { name: 'Thunder Fortress, 0 of 5 stages cleared' }).click();
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'world-26');
+    assert(await page.locator('[data-level="25"]').isDisabled());
+    await page.locator('#levels-dialog [data-close]').click();
     await page.locator('#play-game').click();
     const total = await page.locator('[data-level]').count();
     for (let index = 0; index < total; index++) {
@@ -121,6 +142,12 @@ const address = process.env.PIXEL_TEST_URL || 'http://127.0.0.1:5173/';
         await page.waitForFunction(() => qa.deaths === 1 && qa.player.x === qa.checkpoint);
         assert.equal(Number(await page.locator('#coins').textContent()), coinsBefore + 1);
         assert.equal(await page.locator('#deaths').textContent(), '1');
+        await page.keyboard.press('KeyR');
+        await page.waitForFunction(() => qa.deaths === 2 && qa.player.x === qa.checkpoint);
+        assert.equal(Number(await page.locator('#coins').textContent()), coinsBefore + 1);
+        await page.keyboard.press('Escape');
+        await page.locator('#retry-checkpoint').click();
+        await page.waitForFunction(() => qa.deaths === 3 && qa.player.x === qa.checkpoint);
         await page.keyboard.press('Escape');
         const paused = await page.evaluate(() => qa.elapsed);
         await page.waitForTimeout(220);

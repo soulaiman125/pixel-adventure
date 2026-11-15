@@ -6,6 +6,7 @@ import { addObstacles, updatePlatforms } from './obstacles.js';
 import { addCombat, updateCombat } from './combat.js';
 import { EXPANSION_ENEMIES } from './expansion-enemies.js';
 import { resetExpansionBoss } from './expansion-bosses.js';
+import { createFeedback } from './feedback.js';
 
 const MOVE_SPEED = 132;
 const JUMP_SPEED = 263;
@@ -46,6 +47,9 @@ export class PlatformerScene extends Phaser.Scene {
     this.lastSecond = 0;
     this.wasGrounded = false;
     this.lastFallSpeed = 0;
+    this.landUntil = 0;
+    this.swingUntil = 0;
+    this.ambientFrame = -1;
     this.riding = null;
     this.specialPlatforms = [];
     this.resetJump();
@@ -55,6 +59,7 @@ export class PlatformerScene extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, this.level.width, VIEW_HEIGHT);
     this.createTerrain();
     this.createActors();
+    this.feedback = createFeedback(this);
     this.obstacleUpdates = addObstacles(this, this.level.hazards);
     addCombat(this);
     this.createAmbient();
@@ -171,14 +176,18 @@ export class PlatformerScene extends Phaser.Scene {
   }
 
   createAmbient() {
-    const tint = { jungle: 0xcde080, thunder: 0x93d4f8 }[this.level.theme];
-    this.ambient = tint && Array.from({ length: 12 }, (_, index) =>
-      this.add.rectangle(0, 0, index % 4 === 0 ? 2 : 1, 1, tint, .59).setScrollFactor(0).setDepth(-4));
+    const tint = { verdant: 0xe4f6b3, canyon: 0xffbd72, crystal: 0xc6f1ff, fire: 0xff925c,
+      castle: 0xd5bde4, jungle: 0xcde080, thunder: 0x93d4f8 }[this.level.theme];
+    this.ambient = Array.from({ length: 10 }, (_, index) =>
+      this.add.rectangle(0, 0, index % 4 === 0 ? 2 : 1, 1, tint, .48).setScrollFactor(0).setDepth(-4));
   }
 
   updateAmbient() {
-    if (!this.ambient) return;
     const time = this.ui.reduceMotion ? 0 : this.elapsed;
+    const frame = Math.floor(time / 90);
+    if (frame === this.ambientFrame && this.scale.width === this.ambientWidth) return;
+    this.ambientFrame = frame;
+    this.ambientWidth = this.scale.width;
     this.ambient.forEach((particle, index) => {
       const x = (index * 49 + Math.floor(time / (150 + index * 7))) % this.scale.width;
       particle.setPosition(x, 62 + ((index * 29 + Math.floor(time / 220)) % 98));
@@ -225,26 +234,11 @@ export class PlatformerScene extends Phaser.Scene {
   }
 
   burst(x, y, color, count = 5) {
-    if (this.ui.reduceMotion) return;
-    for (let index = 0; index < count; index += 1) {
-      const angle = index * Math.PI * 2 / count - Math.PI / 2;
-      const spark = this.add.rectangle(x, y, 2, 2, color).setDepth(6);
-      this.tweens.add({
-        targets: spark, x: x + Math.cos(angle) * 11, y: y + Math.sin(angle) * 11,
-        alpha: 0, duration: 240, onComplete: () => spark.destroy(),
-      });
-    }
+    this.feedback.emit(x, y, color, count);
   }
 
   dust(x, y) {
-    if (this.ui.reduceMotion) return;
-    for (const offset of [-8, -4, 4, 8]) {
-      const fleck = this.add.rectangle(x + offset / 2, y - 1, 2, 2, 0xffe6ba).setDepth(5);
-      this.tweens.add({
-        targets: fleck, x: x + offset, y: y - 4, alpha: 0, duration: 210,
-        onComplete: () => fleck.destroy(),
-      });
-    }
+    this.feedback.emit(x, y - 1, 0xffe6ba, 4, true);
   }
 
   hitSlime(enemy) {
@@ -265,7 +259,7 @@ export class PlatformerScene extends Phaser.Scene {
     enemy.disableBody(true, true);
     enemy.getData('warning')?.setVisible(false);
     this.burst(enemy.x, enemy.y - 6, 0xa9e169);
-    if (EXPANSION_ENEMIES.has(enemy.getData('type')) && !this.ui.reduceMotion) {
+    if (!this.ui.reduceMotion) {
       const fall = this.add.image(enemy.x, enemy.y, enemy.texture.key).setOrigin(.5, 1).setFlipX(enemy.flipX).setDepth(4);
       this.tweens.add({ targets: fall, y: enemy.y - 9, scaleY: .25, alpha: 0, duration: 235, onComplete: () => fall.destroy() });
     }
@@ -273,24 +267,28 @@ export class PlatformerScene extends Phaser.Scene {
   }
 
   clearProjectiles() {
-    for (const shot of this.projectiles) shot.dot.destroy();
+    for (const shot of this.projectiles) shot.dot.setActive(false).setVisible(false);
+    this.projectiles.length = 0;
   }
 
-  respawn() {
+  respawn(reason = 'damage') {
     this.deaths++;
     const x = this.player.x;
     const y = this.player.y;
     this.riding = null;
+    this.feedback.death(this.player);
     this.clearProjectiles();
     this.player.body.reset(this.checkpoint, GROUND_Y - 2);
     this.player.setTexture('hero-idle').setFlipX(false);
     this.resetJump();
+    this.landUntil = 0;
+    this.swingUntil = 0;
     this.controls.consumeAttack();
     this.invulnerableUntil = this.elapsed + RESPAWN_GRACE;
     this.moveCamera(1);
     this.burst(x, Math.min(y, VIEW_HEIGHT), 0xffa7a4);
     if (this.boss?.kind && this.boss.hp > 0 && this.boss.phase !== 'waiting') resetExpansionBoss(this, this.boss);
-    this.ui.onRespawn(this.deaths);
+    this.ui.onRespawn(this.deaths, reason);
   }
 
   damage() {
@@ -311,7 +309,10 @@ export class PlatformerScene extends Phaser.Scene {
     const body = player.body;
     // Arcade overlap callbacks (coins and enemies) can set touching.down in midair.
     const grounded = body.velocity.y >= 0 && body.blocked.down;
-    if (grounded && !this.wasGrounded && this.lastFallSpeed > 145) this.dust(player.x, player.y);
+    if (grounded && !this.wasGrounded && this.lastFallSpeed > 145) {
+      this.landUntil = time + 115;
+      this.dust(player.x, player.y);
+    }
     this.wasGrounded = grounded;
     this.lastFallSpeed = body.velocity.y;
     const jumpDown = this.controls.isDown('jump');
@@ -347,9 +348,10 @@ export class PlatformerScene extends Phaser.Scene {
     let pose = 'idle';
     if (!grounded || body.velocity.y < -30) pose = body.velocity.y < 0 ? 'jump' : 'fall';
     else if (Math.abs(body.velocity.x) > 16) pose = RUN_FRAMES[frame % RUN_FRAMES.length];
+    if (!this.ui.reduceMotion && grounded && time < this.landUntil && body.velocity.y >= 0) pose = 'land';
+    if (time < this.swingUntil) pose = 'attack';
     const texture = 'hero-' + pose;
     if (player.texture.key !== texture) player.setTexture(texture);
-    player.setAlpha(time < this.invulnerableUntil && !this.ui.reduceMotion && frame % 2 ? 0.48 : 1);
   }
 
   update(_time, delta) {
@@ -369,6 +371,7 @@ export class PlatformerScene extends Phaser.Scene {
     updatePlatforms(this);
     this.obstacleUpdates.forEach((update) => update(this.elapsed));
     updateCombat(this, delta);
+    this.feedback.update();
     this.enemies.children.iterate((enemy) => {
       if (!enemy.active) return;
       const { left, right, speed, type } = enemy.data.values;

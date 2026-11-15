@@ -49,6 +49,7 @@ function falling(scene, type, x, y, width) {
 function flame(scene, type, x, y, width) {
   const art = scene.add.graphics().setDepth(1);
   let frame = -1;
+  let wasActive = false;
   return (time) => {
     const tick = scene.ui.reduceMotion ? 0 : Math.floor(time / 75);
     if (type === 'lava') {
@@ -65,9 +66,15 @@ function flame(scene, type, x, y, width) {
     }
     const phase = (time + x * 6) % 2800;
     const active = phase >= 650 && phase < 1600;
+    if (active && !wasActive && Math.abs(scene.player.x - x) < 92) scene.ui.playSound('fire');
+    wasActive = active;
     art.clear().fillStyle(0x593a51).fillRect(x - width / 2, y - 3, width, 3);
     if (phase < 650) {
-      art.fillStyle(0xffc674).fillRect(x - 2, y - 9, 4, 5);
+      const rise = scene.ui.reduceMotion ? 6 : Math.floor(phase / 95);
+      art.fillStyle(0xffc674).fillRect(x - 2, y - 7 - rise, 4, 3 + rise);
+      if (scene.ui.dangerGuides && type === 'jet') {
+        art.lineStyle(1, 0xffd893, .85).strokeRect(x - width / 2, y - 40, width, 40);
+      }
       return;
     }
     if (!active) return;
@@ -101,6 +108,7 @@ export function addObstacles(scene, hazards = []) {
     if (type === 'sweep') {
       const saw = scene.add.graphics().setDepth(2);
       const radius = width / 2;
+      let nextSound = 0;
       saw.fillStyle(0xf4a3b8);
       for (let i = 0; i < 8; i++) {
         const angle = i * Math.PI / 4;
@@ -111,7 +119,11 @@ export function addObstacles(scene, hazards = []) {
       updates.push((time) => {
         const position = x + Math.sin(time / 520) * range;
         saw.setPosition(position, y);
-        if (!scene.ui.reduceMotion) saw.setRotation(time / 175);
+        saw.setRotation(scene.ui.reduceMotion ? 0 : time / 175);
+        if (time >= nextSound && Math.abs(scene.player.x - position) < 35) {
+          nextSound = time + 1200;
+          scene.ui.playSound('saw');
+        }
         contact(scene, position, y, width * .72, width * .72);
       });
       continue;

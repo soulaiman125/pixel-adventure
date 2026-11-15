@@ -3,6 +3,7 @@ import { EXPANSION_ENEMIES, strikeEnemy, updateExpansionEnemy } from './expansio
 import { updateExpansionBoss } from './expansion-bosses.js';
 
 const phases = ['Warn: jump the low wave', 'Warn: move away from the marker'];
+const PROJECTILE_LIMIT = 24;
 
 export function attackReaches(player, x, y, width = 12, height = 13) {
   const forward = (player.flipX ? -1 : 1) * (x - player.x);
@@ -12,6 +13,7 @@ export function attackReaches(player, x, y, width = 12, height = 13) {
 
 export function addCombat(scene) {
   scene.projectiles = [];
+  scene.projectilePool = [];
   scene.attackAfter = 0;
   scene.attackEffect = scene.add.graphics().setDepth(7);
   const config = scene.level.boss;
@@ -26,8 +28,20 @@ export function addCombat(scene) {
 }
 
 function fire(scene, x, y, vx, vy = 0, radius = 5, tint = 0xffa4ba, gravity = 0) {
-  const dot = scene.add.rectangle(x, y, radius * 2, radius * 2, tint).setStrokeStyle(1, 0xffe4bd).setDepth(5);
-  scene.projectiles.push({ dot, vx, vy, gravity, radius, expires: scene.elapsed + 2700 });
+  let shot = scene.projectilePool.find(({ dot }) => !dot.active);
+  if (!shot) {
+    if (scene.projectilePool.length >= PROJECTILE_LIMIT) return;
+    shot = { dot: scene.add.rectangle(x, y, radius * 2, radius * 2, tint).setDepth(5) };
+    scene.projectilePool.push(shot);
+  }
+  shot.dot.setPosition(x, y).setSize(radius * 2, radius * 2).setFillStyle(tint)
+    .setStrokeStyle(1, 0xffe4bd).setActive(true).setVisible(true);
+  shot.vx = vx;
+  shot.vy = vy;
+  shot.gravity = gravity;
+  shot.radius = radius;
+  shot.expires = scene.elapsed + 2700;
+  scene.projectiles.push(shot);
 }
 
 function updateEnemyShots(scene, enemy) {
@@ -62,6 +76,7 @@ export function updateCombat(scene, delta) {
   const swing = scene.controls.consumeAttack();
   if (swing && now >= scene.attackAfter) {
     scene.attackAfter = now + 335;
+    scene.swingUntil = now + 150;
     scene.ui.playSound('attack');
     scene.enemies.children.iterate((enemy) => {
       if (enemy.active && attackReaches(scene.player, enemy.x, enemy.y - 6)) strikeEnemy(scene, enemy);
@@ -72,7 +87,7 @@ export function updateCombat(scene, delta) {
       boss.hits++;
       boss.flashUntil = now + 145;
       scene.burst(boss.x, 164, 0xffd97d, 8);
-      scene.ui.playSound('stomp');
+      scene.ui.playSound('bossHit');
       if (!scene.ui.reduceMotion) scene.cameras.main.shake(boss.hp === 0 ? 240 : 135, boss.hp === 0 ? .009 : .005);
       if (boss.hp === 0) {
         boss.phase = 'defeated';
@@ -80,28 +95,38 @@ export function updateCombat(scene, delta) {
         boss.indicator.clear();
         boss.trapArt?.forEach(({ art }) => art.clear());
         scene.clearProjectiles();
+        scene.burst(boss.x, 161, 0xd8ffff, 14);
+        scene.burst(boss.x, 149, 0xffdc96, 10);
         scene.ui.playSound('bossDefeat');
         scene.ui.onBoss(boss, 'Boss defeated · Reach the flag');
       }
     }
   }
   scene.attackEffect.clear();
-  if (now + 205 < scene.attackAfter && !scene.ui.reduceMotion) {
+  if (now < scene.swingUntil && !scene.ui.reduceMotion) {
     const sign = scene.player.flipX ? -1 : 1;
-    const x = scene.player.x + sign * 10;
+    const x = scene.player.x + sign * 9;
     const y = scene.player.y - 13;
-    scene.attackEffect.fillStyle(0xffefad).fillTriangle(x, y + 8, x + sign * 17, y, x + sign * 8, y + 10);
+    const length = now + 90 < scene.swingUntil ? 17 : 12;
+    scene.attackEffect.fillStyle(0xe29150).fillTriangle(x, y + 9, x + sign * length, y, x + sign * 8, y + 11);
+    scene.attackEffect.fillStyle(0xffefad).fillTriangle(x, y + 6, x + sign * length, y, x + sign * 7, y + 8);
   }
   scene.enemies.children.iterate((enemy) => { if (enemy.active) updateEnemyShots(scene, enemy); });
-  for (const shot of scene.projectiles) {
+  let active = 0;
+  const projectiles = scene.projectiles;
+  for (const shot of projectiles) {
     if (!shot.dot.active) continue;
     shot.vy += shot.gravity * delta / 1000;
     shot.dot.x += shot.vx * delta / 1000;
     shot.dot.y += shot.vy * delta / 1000;
-    if (now >= shot.expires || shot.dot.x < 0 || shot.dot.x > scene.level.width || shot.dot.y > 188) shot.dot.destroy();
+    if (now >= shot.expires || shot.dot.x < 0 || shot.dot.x > scene.level.width || shot.dot.y > 188) {
+      shot.dot.setActive(false).setVisible(false);
+    }
     else contact(scene, shot.dot.x, shot.dot.y, shot.radius * 1.65, shot.radius * 1.65);
+    if (shot.dot.active) projectiles[active++] = shot;
   }
-  scene.projectiles = scene.projectiles.filter(({ dot }) => dot.active);
+  // A hit can empty the list during the loop.
+  projectiles.length = Math.min(active, projectiles.length);
   if (scene.boss?.hp > 0) {
     const boss = scene.boss;
     if (boss.kind) {
@@ -117,12 +142,14 @@ function updateBoss(scene, boss) {
     boss.phase = 'warn';
     boss.since = now;
     boss.target = scene.player.x;
+    scene.ui.playSound('bossWarning');
   }
   const age = now - boss.since;
   const pattern = boss.cycle % 2;
   if (boss.phase === 'warn' && age >= 900) {
     boss.phase = 'attack';
     boss.since = now;
+    scene.ui.playSound('bossStrike');
     if (pattern === 0) {
       const direction = scene.player.x < boss.x ? -1 : 1;
       fire(scene, boss.x + direction * 20, 177, direction * 116, 0, 6);
@@ -139,6 +166,7 @@ function updateBoss(scene, boss) {
     boss.cycle++;
     boss.since = now;
     boss.target = scene.player.x;
+    scene.ui.playSound('bossWarning');
   }
   const vulnerable = boss.phase === 'open' && boss.hits < 2;
   boss.art.clear().fillStyle(vulnerable ? 0x9469a5 : 0x6a4e83).fillRoundedRect(boss.x - 18, 152, 36, 32, 4);
