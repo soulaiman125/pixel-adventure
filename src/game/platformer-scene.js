@@ -4,6 +4,8 @@ import { createBackdrop, terrainTexture } from './backdrop.js';
 import { GROUND_Y, VIEW_HEIGHT } from './level-one.js';
 import { addObstacles, updatePlatforms } from './obstacles.js';
 import { addCombat, updateCombat } from './combat.js';
+import { EXPANSION_ENEMIES } from './expansion-enemies.js';
+import { resetExpansionBoss } from './expansion-bosses.js';
 
 const MOVE_SPEED = 132;
 const JUMP_SPEED = 263;
@@ -18,6 +20,8 @@ const PLATFORM_EDGES = {
   crystal: [0x35485f, 0xcaecf7],
   fire: [0x4c293c, 0xffa76d],
   castle: [0x372d4a, 0xc5a3c5],
+  jungle: [0x53475b, 0xd4e498],
+  thunder: [0x404968, 0xc1f9ff],
 };
 
 export class PlatformerScene extends Phaser.Scene {
@@ -33,6 +37,7 @@ export class PlatformerScene extends Phaser.Scene {
 
   create() {
     this.collected = 0;
+    this.deaths = 0;
     this.checkpoint = this.level.spawnX;
     this.complete = false;
     this.invulnerableUntil = 0;
@@ -52,6 +57,7 @@ export class PlatformerScene extends Phaser.Scene {
     this.createActors();
     this.obstacleUpdates = addObstacles(this, this.level.hazards);
     addCombat(this);
+    this.createAmbient();
     this.resizeBackdrop();
     this.createContacts();
     this.input.on(Phaser.Input.Events.POINTER_DOWN, this.ui.onPlayfieldPress);
@@ -147,12 +153,14 @@ export class PlatformerScene extends Phaser.Scene {
 
     this.enemies = this.physics.add.group({ allowGravity: false, immovable: true });
     for (const [left, distance, speed, type] of this.level.enemies) {
-      const slime = this.enemies.create(left, type === 'flying' ? 148 : GROUND_Y, terrainTexture(this.level.theme, 'slime-rest'))
+      const expansion = EXPANSION_ENEMIES.has(type);
+      const texture = expansion ? `${type}-rest` : terrainTexture(this.level.theme, 'slime-rest');
+      const slime = this.enemies.create(left, type === 'flying' || type === 'bat' ? 148 : GROUND_Y, texture)
         .setOrigin(0.5, 1).setDepth(3).setVelocityX(speed);
-      slime.body.setSize(15, 11, false).setOffset(1, 2);
+      slime.body.setSize(15, expansion ? 13 : 11, false).setOffset(1, expansion ? 5 : 2);
       slime.setData({ left, right: left + distance, speed, type });
-      if (type === 'shooter') {
-        const glow = this.add.rectangle(left, GROUND_Y - 16, 4, 4, 0xffc593).setDepth(5).setVisible(false);
+      if (type === 'shooter' || expansion) {
+        const glow = this.add.rectangle(left, GROUND_Y - 16, 4, 4, 0xffcf78).setDepth(5).setVisible(false);
         slime.setData('warning', glow);
       }
     }
@@ -160,6 +168,21 @@ export class PlatformerScene extends Phaser.Scene {
     this.add.image(this.level.flagX - 10, GROUND_Y, 'flag').setOrigin(0, 1).setDepth(1);
     this.finish = this.add.zone(this.level.flagX + 1, GROUND_Y - 21, 21, 42);
     this.physics.add.existing(this.finish, true);
+  }
+
+  createAmbient() {
+    const tint = { jungle: 0xcde080, thunder: 0x93d4f8 }[this.level.theme];
+    this.ambient = tint && Array.from({ length: 12 }, (_, index) =>
+      this.add.rectangle(0, 0, index % 4 === 0 ? 2 : 1, 1, tint, .59).setScrollFactor(0).setDepth(-4));
+  }
+
+  updateAmbient() {
+    if (!this.ambient) return;
+    const time = this.ui.reduceMotion ? 0 : this.elapsed;
+    this.ambient.forEach((particle, index) => {
+      const x = (index * 49 + Math.floor(time / (150 + index * 7))) % this.scale.width;
+      particle.setPosition(x, 62 + ((index * 29 + Math.floor(time / 220)) % 98));
+    });
   }
 
   createContacts() {
@@ -242,6 +265,10 @@ export class PlatformerScene extends Phaser.Scene {
     enemy.disableBody(true, true);
     enemy.getData('warning')?.setVisible(false);
     this.burst(enemy.x, enemy.y - 6, 0xa9e169);
+    if (EXPANSION_ENEMIES.has(enemy.getData('type')) && !this.ui.reduceMotion) {
+      const fall = this.add.image(enemy.x, enemy.y, enemy.texture.key).setOrigin(.5, 1).setFlipX(enemy.flipX).setDepth(4);
+      this.tweens.add({ targets: fall, y: enemy.y - 9, scaleY: .25, alpha: 0, duration: 235, onComplete: () => fall.destroy() });
+    }
     this.ui.playSound('stomp');
   }
 
@@ -250,6 +277,9 @@ export class PlatformerScene extends Phaser.Scene {
   }
 
   respawn() {
+    this.deaths++;
+    const x = this.player.x;
+    const y = this.player.y;
     this.riding = null;
     this.clearProjectiles();
     this.player.body.reset(this.checkpoint, GROUND_Y - 2);
@@ -258,7 +288,9 @@ export class PlatformerScene extends Phaser.Scene {
     this.controls.consumeAttack();
     this.invulnerableUntil = this.elapsed + RESPAWN_GRACE;
     this.moveCamera(1);
-    this.ui.onRespawn();
+    this.burst(x, Math.min(y, VIEW_HEIGHT), 0xffa7a4);
+    if (this.boss?.kind && this.boss.hp > 0 && this.boss.phase !== 'waiting') resetExpansionBoss(this, this.boss);
+    this.ui.onRespawn(this.deaths);
   }
 
   damage() {
@@ -271,7 +303,7 @@ export class PlatformerScene extends Phaser.Scene {
     this.player.setVelocity(0);
     this.player.setAcceleration(0);
     this.physics.pause();
-    this.ui.onComplete(this.collected, this.level.coins.length, this.elapsed);
+    this.ui.onComplete(this.collected, this.level.coins.length, this.elapsed, this.deaths);
   }
 
   updatePlayer(time) {
@@ -333,6 +365,7 @@ export class PlatformerScene extends Phaser.Scene {
       return;
     }
     this.updatePlayer(this.elapsed);
+    this.updateAmbient();
     updatePlatforms(this);
     this.obstacleUpdates.forEach((update) => update(this.elapsed));
     updateCombat(this, delta);
@@ -345,8 +378,8 @@ export class PlatformerScene extends Phaser.Scene {
       }
       if (enemy.x <= left) enemy.setVelocityX(speed);
       if (enemy.x >= right) enemy.setVelocityX(-speed);
-      const pose = Math.floor((this.elapsed + left) / 180) % 2 ? 'slime-hop' : 'slime-rest';
-      const texture = terrainTexture(this.level.theme, pose);
+      const pose = Math.floor((this.elapsed + left) / 180) % 2 ? 'hop' : 'rest';
+      const texture = EXPANSION_ENEMIES.has(type) ? `${type}-${pose}` : terrainTexture(this.level.theme, `slime-${pose}`);
       if (enemy.texture.key !== texture) enemy.setTexture(texture);
     });
     this.coins.children.iterate((coin, index) => {

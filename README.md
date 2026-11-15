@@ -1,8 +1,10 @@
 # Pixel Adventure
 
-A free, 20-stage pixel-art platformer for browsers and Windows. Play with a keyboard or touch controls, collect coins, and take on the Hollow Crown across five worlds. Players can start without an account.
+A free pixel-art platformer for browsers and Windows. The 2.0 expansion has 30 stages across seven worlds, with keyboard and touch controls. Players can start without an account.
 
 [Play online](https://pixel-adventure-phi.vercel.app/) · [Download for Windows x64](https://github.com/soulaiman125/pixel-adventure/releases/download/v1.0.0/Pixel-Adventure-Setup-1.0.0-x64.exe) · [Release notes](https://github.com/soulaiman125/pixel-adventure/releases/tag/v1.0.0)
+
+The public game and Windows download are version 1.0.0 with 20 stages. Run this branch locally to play the expansion.
 
 ![Verdant Hills gameplay with the player, floating ledges, and coins](docs/verdant-hills.png)
 
@@ -13,6 +15,8 @@ A free, 20-stage pixel-art platformer for browsers and Windows. Play with a keyb
 | 9–12 | Frozen Kingdom | Low-friction ice, ice slimes, icicles, and vanishing ledges |
 | 13–16 | Fire Kingdom | Lava, fireballs, flame vents, and crumbling ledges |
 | 17–20 | Dark Castle | Sweeping spikes, flying enemies, shooters, and the Hollow Crown |
+| 21–25 | Poison Jungle | Poison pools and clouds, armored guards, and the Poison Queen |
+| 26–30 | Thunder Fortress | Moving lasers, rising lava, electric floors, crushers, and the Thunder Titan |
 
 ## Run the browser game locally
 
@@ -43,13 +47,13 @@ To run the desktop edition from source, run `npm.cmd run build` followed by `npm
 | Drop through a ledge | S or Down | Walk off the edge |
 | Pause | Esc or Pause | Tap Pause |
 
-Hold Jump for height. Stomp enemies or attack at close range while facing them. Blinking ledges and marked ground warn of incoming hazards. Green flags restore you to the last checkpoint with collected coins intact. At the Hollow Crown, dodge the two telegraphed attacks and strike when the health panel says **Attack now!** The finish flag unlocks when the boss is defeated.
+Hold Jump for height. Stomp enemies or attack at close range while facing them. A frontal hit on an armored guard exposes it for a follow-up. Blinking ledges and marked ground warn of incoming hazards. Green flags restore you to the last checkpoint with collected coins intact. Dodge boss attacks and strike when the health panel says **Attack now!** The finish flag opens when the boss is defeated.
 
 ## Progress
 
-Finish a level to unlock the next. Each coin earns 100 points. A finish earns one star, at least half the coins earns two, and collecting every coin earns three. Level Select keeps the best coin count, star rating, and completion time for each stage. Active runs reset on restart, while saved records and access are retained.
+Finish a level to unlock the next. Each coin earns 100 points. A finish earns one star, at least half the coins earns two, and collecting every coin earns three. Level Select keeps the best coin count, star rating, and completion time for each stage. Clear a stage without dying to earn a **No deaths** badge. Active runs reset on restart, while saved records and access are retained.
 
-Verdant Hills remains Level 1, Sunset Canyon is Level 5, and Crystal Peaks is Level 11. Earlier browser saves preserve access and records for those same stages. A fresh adventure resets current campaign totals and preserves best records and unlocks. Final victory requires completing all 20 stages and defeating the Hollow Crown.
+Verdant Hills remains Level 1, Sunset Canyon is Level 5, and Crystal Peaks is Level 11. Earlier browser saves preserve access and records for those same stages. An existing Hollow Crown clear unlocks Level 21. A fresh adventure resets current campaign totals and preserves best records and unlocks. Final victory requires completing all 30 stages and defeating the Thunder Titan.
 
 Settings stores volume, mute, and reduced motion. Reduced motion limits particles, flashing, and camera shake. An operating system preference for reduced motion also applies.
 
@@ -69,7 +73,7 @@ npm.cmd run build
 npm.cmd run test:desktop
 ```
 
-Run the browser suites with the development server running and Microsoft Edge installed. The campaign smoke test verifies scene loads and completion triggers with controlled player placement, plus real input for selected movement, combat, and touch checks. The touch suite uses browser emulation for simultaneous input, cancellation, pause and restart, focus changes, and phone layouts. The Node suite checks level layout bounds and routes, save migration, scoring records, and unlocks. The desktop suite uses a temporary profile, plays and opens all 20 stages with networking disabled, and checks its local save after relaunch. To test an installed copy, pass the installed executable path after `npm.cmd run test:desktop --`.
+Run the browser suites with the development server running and Microsoft Edge installed. The campaign smoke test verifies scene loads and completion triggers with controlled player placement, plus real input for selected movement, combat, and touch checks. The touch suite uses browser emulation for simultaneous input, cancellation, pause and restart, focus changes, and phone layouts. The Node suite checks jump routes, save migration, unlocks, trap timing, and enemy and boss behavior. The desktop suite uses a temporary profile, opens all 30 stages with networking disabled, and checks save persistence after relaunch. To test an installed copy, pass the installed executable path after `npm.cmd run test:desktop --`.
 
 ## Credits
 

@@ -44,17 +44,18 @@
             <div class="stat"><dt><svg aria-hidden="true"><use href="#coin"/></svg>Coins</dt><dd><span id="coins">00</span><span class="stat-total"> / <span id="coin-total">18</span></span></dd></div>
             <div class="stat"><dt><svg class="lime" aria-hidden="true"><use href="#spark"/></svg>Score</dt><dd id="score">0000</dd></div>
             <div class="stat"><dt><svg aria-hidden="true"><use href="#clock"/></svg>Time</dt><dd id="time">00:00</dd></div>
+            <div class="stat stat-deaths"><dt>Deaths</dt><dd id="deaths">0</dd></div>
           </dl>
           <button class="button hud-pause" id="pause-button" type="button" aria-label="Pause game"><svg aria-hidden="true"><use href="#pause"/></svg><span>Pause</span></button>
         </div>
 
         <div class="stage" id="stage" tabindex="-1" role="region" aria-label="Pixel Adventure playfield">
           <div class="game-mount" id="game-mount" aria-hidden="true"></div>
-          <div id="boss-hud" class="boss-hud" hidden><div><strong>The Hollow Crown</strong><span id="boss-state"></span></div><meter id="boss-health" aria-label="Hollow Crown health" min="0" max="5" value="5"></meter></div>
+          <div id="boss-hud" class="boss-hud" hidden><div><strong id="boss-name"></strong><span id="boss-state"></span></div><meter id="boss-health" aria-label="Boss health" min="0" max="5" value="5"></meter></div>
           <section class="menu" id="main-menu" aria-labelledby="menu-title">
             <div class="menu-content">
               <h1 id="menu-title"><span>PIXEL</span><span>ADVENTURE</span></h1>
-              <p>Leap across five worlds, collect gold, and face the Hollow Crown.</p>
+              <p>Leap across seven worlds and take on the Thunder Titan.</p>
               <nav class="menu-actions" aria-label="Main menu">
                 <button class="button button-primary" id="play-game" type="button"><svg aria-hidden="true"><use href="#play"/></svg>Play Game<svg class="trailing arrow-right" aria-hidden="true"><use href="#arrow"/></svg></button>
                 <button class="button" id="level-select" type="button"><svg aria-hidden="true"><use href="#levels"/></svg>Level Select</button>
@@ -169,7 +170,9 @@
           <div><dt><svg aria-hidden="true"><use href="#coin"/></svg> Coins</dt><dd id="result-coins"></dd></div>
           <div><dt><svg aria-hidden="true"><use href="#clock"/></svg> Time</dt><dd id="result-time"></dd></div>
           <div><dt><svg class="lime" aria-hidden="true"><use href="#spark"/></svg> Score</dt><dd id="result-score"></dd></div>
+          <div><dt>Deaths</dt><dd id="result-deaths"></dd></div>
         </dl>
+        <p class="rating-note" id="result-best"></p>
         <p class="continue-note" id="continue-note"></p>
         <div class="dialog-actions result-actions">
           <button class="button button-primary" id="play-again" type="button" autofocus><svg aria-hidden="true"><use href="#restart"/></svg>Play Again</button>
@@ -189,6 +192,7 @@
           <div><dt><svg aria-hidden="true"><use href="#coin"/></svg> Total coins</dt><dd id="victory-coins"></dd></div>
           <div><dt><svg aria-hidden="true"><use href="#clock"/></svg> Total time</dt><dd id="victory-time"></dd></div>
           <div><dt><svg class="lime" aria-hidden="true"><use href="#spark"/></svg> Total score</dt><dd id="victory-score"></dd></div>
+          <div id="victory-deaths-stat" hidden><dt>Total deaths</dt><dd id="victory-deaths"></dd></div>
         </dl>
         <div class="dialog-actions result-actions">
           <button class="button button-primary" id="victory-replay" type="button" autofocus><svg aria-hidden="true"><use href="#restart"/></svg>Play Again</button>

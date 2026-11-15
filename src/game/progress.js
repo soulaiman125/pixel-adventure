@@ -8,7 +8,9 @@ export function ratingFor(coins, total) {
 function readResult(level, result) {
   if (Number.isInteger(result?.coins) && result.coins >= 0
     && result.coins <= level.coins.length && Number.isFinite(result.elapsed) && result.elapsed >= 0) {
-    return { coins: result.coins, elapsed: result.elapsed };
+    const parsed = { coins: result.coins, elapsed: result.elapsed };
+    if (Number.isSafeInteger(result.deaths) && result.deaths >= 0) parsed.deaths = result.deaths;
+    return parsed;
   }
   return null;
 }
@@ -29,10 +31,15 @@ export function createProgress(levels, storage) {
   let results = levels.map((level, index) => readResult(level,
     saved?.results?.[legacy ? legacyNames.indexOf(level.name) : index]));
   const records = levels.map((level, index) => {
-    const result = legacy ? readResult(level, saved?.results?.[legacyNames.indexOf(level.name)])
-      : readResult(level, saved?.records?.[index]);
-    return result && { ...result, stars: ratingFor(result.coins, level.coins.length) };
+    const source = legacy ? saved?.results?.[legacyNames.indexOf(level.name)] : saved?.records?.[index];
+    const result = readResult(level, source);
+    if (!result) return null;
+    const record = { coins: result.coins, elapsed: result.elapsed, stars: ratingFor(result.coins, level.coins.length) };
+    if (Number.isSafeInteger(source.bestDeaths) && source.bestDeaths >= 0) record.bestDeaths = source.bestDeaths;
+    return record;
   });
+  // The old campaign saved its final clear without a next stage to unlock.
+  if (frontier === 20 && levels[20]?.name === 'Toxic Entrance' && (records[19] || results[19])) frontier = 21;
 
   function save() {
     try {
@@ -56,14 +63,18 @@ export function createProgress(levels, storage) {
       results = levels.map(() => null);
       save();
     },
-    finish(index, coins, elapsed) {
+    finish(index, coins, elapsed, deaths) {
       if (!canPlay(index)) return false;
+      const result = readResult(levels[index], { coins, elapsed, deaths });
+      if (!result) return false;
       const wasUnlocked = canPlay(index + 1);
-      results[index] = { coins, elapsed };
+      results[index] = result;
       const old = records[index];
       const bestCoins = Math.max(coins, old?.coins ?? 0);
       records[index] = { coins: bestCoins, elapsed: Math.min(elapsed, old?.elapsed ?? Infinity),
         stars: ratingFor(bestCoins, levels[index].coins.length) };
+      if (result.deaths !== undefined) records[index].bestDeaths = Math.min(deaths, old?.bestDeaths ?? Infinity);
+      else if (old?.bestDeaths !== undefined) records[index].bestDeaths = old.bestDeaths;
       if (index < frontier) frontier = Math.max(frontier, Math.min(levels.length, index + 2));
       else if (index + 1 < levels.length) granted.add(levels[index + 1].name);
       save();
@@ -74,7 +85,8 @@ export function createProgress(levels, storage) {
       return results.reduce((sum, result) => ({
         coins: sum.coins + result.coins,
         elapsed: sum.elapsed + result.elapsed,
-      }), { coins: 0, elapsed: 0 });
+        deaths: result.deaths === undefined || sum.deaths === null ? null : sum.deaths + result.deaths,
+      }), { coins: 0, elapsed: 0, deaths: 0 });
     },
   };
 }

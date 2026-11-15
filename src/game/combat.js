@@ -1,4 +1,6 @@
 import { contact } from './obstacles.js';
+import { EXPANSION_ENEMIES, strikeEnemy, updateExpansionEnemy } from './expansion-enemies.js';
+import { updateExpansionBoss } from './expansion-bosses.js';
 
 const phases = ['Warn: jump the low wave', 'Warn: move away from the marker'];
 
@@ -20,15 +22,20 @@ export function addCombat(scene) {
   const art = scene.add.graphics().setDepth(3);
   const indicator = scene.add.graphics().setDepth(2);
   scene.boss = { ...config, maxHp: config.hp, art, indicator, phase: 'waiting', cycle: 0, since: 0 };
+  if (config.kind) scene.boss.trapArt = [];
 }
 
-function fire(scene, x, y, vx, vy = 0, radius = 5) {
-  const dot = scene.add.rectangle(x, y, radius * 2, radius * 2, 0xffa4ba).setStrokeStyle(1, 0xffe4bd).setDepth(5);
-  scene.projectiles.push({ dot, vx, vy, radius, expires: scene.elapsed + 2700 });
+function fire(scene, x, y, vx, vy = 0, radius = 5, tint = 0xffa4ba, gravity = 0) {
+  const dot = scene.add.rectangle(x, y, radius * 2, radius * 2, tint).setStrokeStyle(1, 0xffe4bd).setDepth(5);
+  scene.projectiles.push({ dot, vx, vy, gravity, radius, expires: scene.elapsed + 2700 });
 }
 
 function updateEnemyShots(scene, enemy) {
   const { type, left } = enemy.data.values;
+  if (EXPANSION_ENEMIES.has(type)) {
+    updateExpansionEnemy(scene, enemy, fire);
+    return;
+  }
   if (type === 'flying') {
     enemy.setVelocityY(Math.cos(scene.elapsed / 295 + left) * 25);
     return;
@@ -57,21 +64,24 @@ export function updateCombat(scene, delta) {
     scene.attackAfter = now + 335;
     scene.ui.playSound('attack');
     scene.enemies.children.iterate((enemy) => {
-      if (enemy.active && attackReaches(scene.player, enemy.x, enemy.y - 6)) scene.defeatEnemy(enemy);
+      if (enemy.active && attackReaches(scene.player, enemy.x, enemy.y - 6)) strikeEnemy(scene, enemy);
     });
     const boss = scene.boss;
     if (boss?.phase === 'open' && boss.hits < 2 && attackReaches(scene.player, boss.x, 168, 28, 31)) {
       boss.hp--;
       boss.hits++;
+      boss.flashUntil = now + 145;
       scene.burst(boss.x, 164, 0xffd97d, 8);
       scene.ui.playSound('stomp');
-      if (!scene.ui.reduceMotion) scene.cameras.main.shake(135, .005);
+      if (!scene.ui.reduceMotion) scene.cameras.main.shake(boss.hp === 0 ? 240 : 135, boss.hp === 0 ? .009 : .005);
       if (boss.hp === 0) {
         boss.phase = 'defeated';
         boss.art.clear();
         boss.indicator.clear();
+        boss.trapArt?.forEach(({ art }) => art.clear());
         scene.clearProjectiles();
-        scene.ui.onBoss(boss, 'Crown defeated · Reach the flag');
+        scene.ui.playSound('bossDefeat');
+        scene.ui.onBoss(boss, 'Boss defeated · Reach the flag');
       }
     }
   }
@@ -85,13 +95,20 @@ export function updateCombat(scene, delta) {
   scene.enemies.children.iterate((enemy) => { if (enemy.active) updateEnemyShots(scene, enemy); });
   for (const shot of scene.projectiles) {
     if (!shot.dot.active) continue;
+    shot.vy += shot.gravity * delta / 1000;
     shot.dot.x += shot.vx * delta / 1000;
     shot.dot.y += shot.vy * delta / 1000;
     if (now >= shot.expires || shot.dot.x < 0 || shot.dot.x > scene.level.width || shot.dot.y > 188) shot.dot.destroy();
     else contact(scene, shot.dot.x, shot.dot.y, shot.radius * 1.65, shot.radius * 1.65);
   }
   scene.projectiles = scene.projectiles.filter(({ dot }) => dot.active);
-  if (scene.boss?.hp > 0) updateBoss(scene, scene.boss);
+  if (scene.boss?.hp > 0) {
+    const boss = scene.boss;
+    if (boss.kind) {
+      updateExpansionBoss(scene, boss, fire);
+      if (boss.phase === 'attack') contact(scene, boss.x, 170, 27, 24);
+    } else updateBoss(scene, boss);
+  }
 }
 
 function updateBoss(scene, boss) {

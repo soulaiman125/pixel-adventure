@@ -1,3 +1,5 @@
+import { addDanger } from './danger.js';
+
 const WARNING_MS = 620;
 const CYCLE_MS = 2700;
 
@@ -82,7 +84,12 @@ function flame(scene, type, x, y, width) {
 
 export function addObstacles(scene, hazards = []) {
   const updates = [];
-  for (const [type, x, y, width, range] of hazards) {
+  for (const hazard of hazards) {
+    if (!Array.isArray(hazard)) {
+      updates.push(addDanger(scene, hazard));
+      continue;
+    }
+    const [type, x, y, width, range] = hazard;
     if (type === 'rock' || type === 'icicle') {
       updates.push(falling(scene, type, x, y, width));
       continue;

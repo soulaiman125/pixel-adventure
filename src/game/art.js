@@ -251,6 +251,50 @@ export function createArt(scene) {
   texture(scene, 'checkpoint', 18, 24, (ctx) => drawCheckpoint(ctx, false));
   texture(scene, 'checkpoint-active', 18, 24, (ctx) => drawCheckpoint(ctx, true));
   texture(scene, 'flag', 39, 50, drawFlag);
+  for (const type of ['guard', 'bat', 'charger', 'poison', 'robot']) {
+    for (const pose of ['rest', 'hop']) {
+      texture(scene, `${type}-${pose}`, 18, 18, (ctx) => drawExpansionEnemy(ctx, type, pose === 'hop'));
+    }
+  }
+}
+
+function drawExpansionEnemy(context, type, alternate) {
+  const colors = {
+    guard: ['#394155', '#8494a4', '#dbe5cf'],
+    bat: ['#4b3659', '#9670af', '#ecd1fc'],
+    charger: ['#513947', '#cb8266', '#ffdf9c'],
+    poison: ['#43573d', '#8baf59', '#e3f88e'],
+    robot: ['#3d4370', '#7290b9', '#a1fff4'],
+  }[type];
+  const [edge, base, detail] = colors;
+  if (type === 'bat') {
+    const tip = alternate ? 1 : 8;
+    shape(context, base, [[0, tip], [5, 6], [8, 11], [10, 11], [13, 6], [18, tip], [16, 12], [12, 14],
+      [10, 17], [6, 17], [5, 14], [2, 12]]);
+    box(context, edge, 5, 9, 8, 7);
+    box(context, detail, 8, 11, 5, 2);
+    return;
+  }
+  box(context, edge, 2, 5, 13, 11);
+  box(context, base, 3, 6, 12, 8);
+  box(context, detail, 8, 8, 5, 2);
+  box(context, edge, alternate ? 4 : 2, 16, 5, 2);
+  box(context, edge, alternate ? 11 : 12, 16, 5, 2);
+  if (type === 'guard') {
+    box(context, edge, 12, 6, 6, 11);
+    box(context, base, 13, 6, 5, 9);
+    box(context, detail, 14, 7, 2, 6);
+  } else if (type === 'charger') {
+    shape(context, detail, [[12, 8], [18, 5], [17, 11], [13, 12]]);
+  } else if (type === 'poison') {
+    box(context, detail, 2, 3, 4, 5);
+    box(context, base, 11, 2, 4, 4);
+    box(context, detail, 11, 12, 2, 2);
+  } else {
+    box(context, detail, 6, 2, 2, 5);
+    box(context, base, 12, 12, 6, 3);
+    box(context, detail, 16, 12, 2, 2);
+  }
 }
 
 export function drawMeadow(scene, segments, groundY, theme = 'verdant') {
@@ -262,6 +306,8 @@ export function drawMeadow(scene, segments, groundY, theme = 'verdant') {
     crystal: [0x547bad, 0x9bd9ea, 0x426594, 0xd4fbfb, 0xbea4ee],
     fire: [0x854759,0xd18364,0x704050,0xffc26e,0xff847b],
     castle: [0x525075,0x8f91bf,0x464369,0xe6abc7,0xd19de8],
+    jungle: [0x446655, 0xa0ad61, 0x467450, 0xf2dc7d, 0xbdb6ed],
+    thunder: [0x56618f, 0x889dd1, 0x655988, 0xb6f6fa, 0xffd995],
   }[theme];
   for (const [start, end] of segments) {
     for (let x = start + 7; x < end - 8; x += 7 + Math.floor(next() * 13)) {
@@ -278,6 +324,18 @@ export function drawMeadow(scene, segments, groundY, theme = 'verdant') {
 }
 
 const LANDSCAPES = {
+  jungle: {
+    sky: ['#304854', '#527260', '#9aaa6d'], sun: ['#dce08e', '#a3b067'], clouds: ['#59705e', '#8e9b73'],
+    ridge: ['#596768', '#415656', '#919776'], hills: ['#526c59', '#849666'], foreground: ['#405a50', '#6b875c'],
+    terrain: ['#3f3d50', '#53495b', '#706077', '#829652', '#c3d787', '#97ab59'],
+    slime: { o: '#493f5b', a: '#8774a3', b: '#b39ac1', c: '#e7d4ce', d: '#635879', e: '#3c344d', w: '#ffe5d5' },
+  },
+  thunder: {
+    sky: ['#252a4c', '#43557a', '#7990b4'], sun: ['#dedcf6', '#a4a9d6'], clouds: ['#62769d', '#a0aec7'],
+    ridge: ['#56618c', '#455076', '#a0a8c8'], hills: ['#52688d', '#94aac5'], foreground: ['#3a4968', '#5e729b'],
+    terrain: ['#363a56', '#444d6a', '#596481', '#7997b4', '#c9f3f0', '#83acc3'],
+    slime: { o: '#433959', a: '#8076a5', b: '#ad98c9', c: '#ccffff', d: '#5d5688', e: '#393050', w: '#ffe5d5' },
+  },
   castle: {
     sky: ['#272b50','#51456e','#797091'], sun: ['#ead8e7','#b79ebf'], clouds: ['#71628c','#a88dae'],
     ridge: ['#645a80','#453f64','#9c87a6'], hills: ['#514969','#786f91'], foreground: ['#352f51','#605374'],
@@ -444,6 +502,22 @@ export function createThemeArt(scene, theme) {
   texture(scene, theme + '-hills', 768, VIEW_HEIGHT, (ctx) => drawSlopes(ctx, colors.hills));
   texture(scene, theme + '-pines', 768, VIEW_HEIGHT, (ctx) => drawForeground(ctx, colors.foreground, desert));
   texture(scene, theme + '-tree', 72, 70, (ctx) => {
+    if (theme === 'jungle') {
+      box(ctx, '#555167', 32, 25, 9, 45);
+      shape(ctx, '#52694e', [[3,29],[16,13],[26,13],[34,4],[47,4],[54,10],[67,13],[72,30],[53,37],[34,30],[15,39]]);
+      shape(ctx, '#a4ae6b', [[4,28],[16,13],[26,13],[34,4],[47,4],[54,10],[66,13],[54,18],[34,12],[22,21]]);
+      box(ctx, '#af8cb7', 16, 33, 3, 15);
+      box(ctx, '#af8cb7', 54, 30, 2, 17);
+      return;
+    }
+    if (theme === 'thunder') {
+      box(ctx, '#3a4566', 27, 14, 19, 56);
+      box(ctx, '#687c9b', 32, 18, 3, 48);
+      box(ctx, '#4b5173', 15, 18, 43, 8);
+      box(ctx, '#b7f1ec', 18, 20, 37, 2);
+      box(ctx, '#d5b8f2', 35, 5, 4, 15);
+      return;
+    }
     if (theme !== 'castle') return drawLandscapeProp(ctx, desert);
     box(ctx, '#453b60', 13, 19, 44, 51);
     box(ctx, '#675674', 16, 21, 18, 49);

@@ -106,12 +106,63 @@ const address = process.env.PIXEL_TEST_URL || 'http://127.0.0.1:5173/';
         }
         assert.equal(await page.locator('#boss-health').getAttribute('value'), '0');
       }
+      if (index === 20) {
+        await page.evaluate(() => {
+          qa.player.body.reset(qa.level.ground[1][0] + 19, 184);
+        });
+        await page.waitForFunction(() => qa.checkpoint !== qa.level.spawnX);
+        const coinsBefore = await page.evaluate(() => qa.collected);
+        await page.evaluate(() => {
+          const [x, y] = qa.level.coins[0];
+          qa.player.body.reset(x, y);
+        });
+        await page.waitForFunction(expected => qa.collected === expected, coinsBefore + 1);
+        await page.evaluate(() => qa.player.body.reset(380, 203));
+        await page.waitForFunction(() => qa.deaths === 1 && qa.player.x === qa.checkpoint);
+        assert.equal(Number(await page.locator('#coins').textContent()), coinsBefore + 1);
+        assert.equal(await page.locator('#deaths').textContent(), '1');
+        await page.keyboard.press('Escape');
+        const paused = await page.evaluate(() => qa.elapsed);
+        await page.waitForTimeout(220);
+        assert.equal(await page.evaluate(() => qa.elapsed), paused);
+        await page.locator('#restart-level').click();
+        await page.waitForFunction(() => qa.elapsed < 500 && qa.deaths === 0
+          && qa.checkpoint === qa.level.spawnX && qa.coins.getChildren()[0].active);
+      }
+      if (index === 24 || index === 29) {
+        // Controlled positioning isolates the boss and UI from the route to the arena.
+        await page.evaluate(() => {
+          qa.player.body.reset(qa.level.flagX, 174);
+          qa.invulnerableUntil = Infinity;
+        });
+        await page.waitForFunction(() => qa.boss.phase === 'warn');
+        assert(!(await page.locator('#clear-dialog').isVisible()));
+        await page.evaluate(() => {
+          qa.player.body.reset(qa.boss.x - 26, 184);
+          qa.player.setFlipX(false);
+        });
+        const name = await page.evaluate(() => qa.boss.name);
+        assert.equal(await page.locator('#boss-name').textContent(), name);
+        await page.keyboard.press('KeyX');
+        const hp = await page.evaluate(() => qa.boss.maxHp);
+        assert.equal(await page.evaluate(() => qa.boss.hp), hp);
+        const seen = new Set();
+        for (let remaining = hp - 1; remaining >= 0; remaining--) {
+          await page.waitForFunction(() => qa.boss.phase === 'open' && qa.boss.hits < 2);
+          seen.add(await page.evaluate(() => qa.boss.profile.pattern));
+          await page.keyboard.press('KeyX');
+          await page.waitForFunction(expected => qa.boss.hp === expected, remaining, { timeout: 1500 });
+          await page.waitForTimeout(365);
+        }
+        assert.deepEqual([...seen], index === 24 ? ['spores', 'venom', 'bloom'] : ['wave', 'bolts', 'impact']);
+        assert.equal(await page.locator('#boss-health').getAttribute('value'), '0');
+      }
       await page.evaluate(() => qa.player.body.reset(qa.level.flagX, 174));
       await page.locator('#clear-dialog[open]').waitFor();
       if (index < total - 1) await page.locator('#next-level').click();
       console.log('Loaded, spawned and triggered finish for level', index + 1);
     }
-    if (total === 20) {
+    if (total === 30) {
       await page.locator('#view-victory').click();
       assert(await page.locator('#victory-dialog').isVisible());
       await page.locator('#victory-replay').click();

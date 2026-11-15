@@ -52,7 +52,7 @@ async function main() {
     await page.evaluate(() => {
       // Unlock selection for the independent content-availability check.
       const progress = JSON.parse(localStorage.getItem('pixel-adventure.progress'));
-      progress.unlocked = 20;
+      progress.unlocked = 30;
       localStorage.setItem('pixel-adventure.progress', JSON.stringify(progress));
     });
     await app.close();
@@ -67,8 +67,8 @@ async function main() {
       const { sound, tutorialSeen } = JSON.parse(localStorage.getItem('pixel-adventure.preferences'));
       const { version, unlocked } = JSON.parse(localStorage.getItem('pixel-adventure.progress'));
       return { sound, tutorialSeen, version, unlocked };
-    }), { sound: false, tutorialSeen: true, version: 2, unlocked: 20 });
-    for (let index = 0; index < 20; index++) {
+    }), { sound: false, tutorialSeen: true, version: 2, unlocked: 30 });
+    for (let index = 0; index < 30; index++) {
       await page.locator('#level-select').click();
       await page.locator(`[data-level="${index}"]`).click();
       await page.waitForFunction((number) => document.querySelector('#hud-level-number').textContent === number
@@ -82,7 +82,7 @@ async function main() {
     assert.deepEqual(external, []);
     assert.deepEqual(errors, []);
     assert.deepEqual(failures, []);
-    console.log('Passed offline launch, keyboard gameplay, all 20 offline stage loads, and local save persistence after relaunch. No external requests during play.');
+    console.log('Passed offline launch, keyboard gameplay, all 30 offline stage loads, and local save persistence after relaunch. No external requests during play.');
   } finally {
     if (app) await app.close();
     await rm(profile, { recursive: true, force: true, maxRetries: 3 });

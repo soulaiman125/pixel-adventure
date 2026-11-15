@@ -32,12 +32,13 @@ const clear = byId('clear-dialog');
 const victory = byId('victory-dialog');
 const nextLevel = byId('next-level');
 const viewVictory = byId('view-victory');
-const worlds = ['Green Valley', 'Dangerous Canyon', 'Frozen Kingdom', 'Fire Kingdom', 'Dark Castle'];
+const worlds = new Map([[0, 'Green Valley'], [4, 'Dangerous Canyon'], [8, 'Frozen Kingdom'],
+  [12, 'Fire Kingdom'], [16, 'Dark Castle'], [20, 'Poison Jungle'], [25, 'Thunder Fortress']]);
 const levelButtons = LEVELS.map((level, index) => {
   const list = byId('level-list');
-  if (index % 4 === 0) {
+  if (worlds.has(index)) {
     const heading = document.createElement('h3');
-    heading.textContent = worlds[Math.floor(index / 4)];
+    heading.textContent = worlds.get(index);
     list.append(heading);
   }
   const button = document.createElement('button');
@@ -202,7 +203,10 @@ function updateLevelSelect() {
     const record = progress.record(index);
     const label = button.querySelector('.level-record');
     label.hidden = !record;
-    if (record) label.textContent = `${record.coins}/${LEVELS[index].coins.length} coins · ${record.stars} ★ · Best ${formatTime(record.elapsed)}`;
+    if (record) {
+      const badge = record.bestDeaths === 0 ? ' · No deaths' : '';
+      label.textContent = `${record.coins}/${LEVELS[index].coins.length} coins · ${record.stars} ★ · Best ${formatTime(record.elapsed)}${badge}`;
+    }
   });
 }
 
@@ -216,6 +220,7 @@ function startRun(index) {
   byId('pause-level').textContent = `Level ${index + 1} · ${level.name}`;
   showScore(0);
   showTime(0);
+  byId('deaths').textContent = '0';
   controls.clear();
   hideToast();
   setMode('loading');
@@ -345,6 +350,8 @@ viewVictory.addEventListener('click', () => {
   byId('victory-coins').textContent = `${totals.coins} / ${maxCoins}`;
   byId('victory-time').textContent = formatTime(totals.elapsed);
   byId('victory-score').textContent = formatScore(totals.coins);
+  byId('victory-deaths-stat').hidden = totals.deaths === null;
+  byId('victory-deaths').textContent = totals.deaths ?? '';
   byId('victory-summary').textContent = `All ${LEVELS.length} levels complete.`;
   clear.close();
   victory.showModal();
@@ -383,26 +390,34 @@ const scene = new PlatformerScene(controls, {
   onScore: showScore,
   onTime: showTime,
   onCheckpoint() { showToast('Checkpoint reached', 'checkpoint'); },
-  onRespawn() { showToast('Back at the checkpoint', 'respawn'); },
+  onRespawn(deaths) {
+    byId('deaths').textContent = deaths;
+    showToast('Back at the checkpoint', 'respawn');
+  },
   playSound: (name) => sound.play(name),
   onBoss(boss, state) {
     const hud = byId('boss-hud');
     const meter = byId('boss-health');
-    if (hud.hidden) hud.hidden = false;
+    if (hud.hidden) {
+      const name = boss.name ?? 'The Hollow Crown';
+      byId('boss-name').textContent = name;
+      meter.setAttribute('aria-label', `${name} health`);
+      hud.hidden = false;
+    }
     if (meter.max !== boss.maxHp) meter.max = boss.maxHp;
     if (meter.value !== boss.hp) meter.value = boss.hp;
     if (byId('boss-state').textContent !== state) byId('boss-state').textContent = state;
   },
-  onComplete(count, coinTotal, elapsed) {
+  onComplete(count, coinTotal, elapsed, deaths) {
     setMode('complete');
     controls.clear();
     hideToast();
     showTime(elapsed);
     sound.play('finish');
-    const unlocked = progress.finish(currentLevel, count, elapsed);
+    const unlocked = progress.finish(currentLevel, count, elapsed, deaths);
     updateLevelSelect();
     const following = LEVELS[currentLevel + 1];
-    const canViewVictory = LEVELS.length === 20 && !following && Boolean(progress.totals());
+    const canViewVictory = !following && Boolean(progress.totals());
     const rating = ratingFor(count, coinTotal);
     const stars = byId('result-stars');
     stars.setAttribute('aria-label', `${rating} out of 3 stars`);
@@ -415,6 +430,8 @@ const scene = new PlatformerScene(controls, {
     byId('result-coins').textContent = `${count} / ${coinTotal}`;
     byId('result-time').textContent = formatTime(elapsed);
     byId('result-score').textContent = formatScore(count);
+    byId('result-deaths').textContent = deaths;
+    byId('result-best').textContent = `Best time ${formatTime(progress.record(currentLevel).elapsed)}${deaths === 0 ? ' · No deaths' : ''}`;
     byId('result-level').textContent = LEVELS[currentLevel].name;
     byId('continue-note').textContent = unlocked ? `${following.name} unlocked` : '';
     byId('continue-note').hidden = !unlocked;

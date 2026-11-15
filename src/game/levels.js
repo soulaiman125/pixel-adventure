@@ -1,5 +1,6 @@
 import { LEVEL_ONE } from './level-one.js';
 import { valley, canyon, frozen, fire, castle } from './campaign-maps.js';
+import { jungle, fortress } from './expansion-maps.js';
 
 const SUNSET_CANYON = {
   name: 'Sunset Canyon',
@@ -60,4 +61,7 @@ const CRYSTAL_PEAKS = {
     [1758, .58], [1877, .77], [1932, .48], [2191, .57]],
 };
 
-export const LEVELS = [LEVEL_ONE, ...valley, SUNSET_CANYON, ...canyon, ...frozen.slice(0, 2), CRYSTAL_PEAKS, frozen[2], ...fire, ...castle];
+export const LEVELS = [
+  LEVEL_ONE, ...valley, SUNSET_CANYON, ...canyon, ...frozen.slice(0, 2),
+  CRYSTAL_PEAKS, frozen[2], ...fire, ...castle, ...jungle, ...fortress,
+];

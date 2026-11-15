@@ -165,6 +165,7 @@ kbd { display: inline-grid; place-items: center; min-width: 23px; min-height: 23
   pointer-events: none;
 }
 .game-toast svg { width: 16px; height: 16px; }
+.boss-hud:not([hidden]) ~ .game-toast { top: 73px; }
 
 dialog { width: min(440px, calc(100% - 26px)); max-height: calc(100dvh - 24px); padding: 0; border: 1px solid #4b6474; border-radius: 17px; background: #1a2734; color: #f7f8ec; box-shadow: 0 24px 70px #080f15ce; }
 dialog::backdrop { background: #09131bbd; }
@@ -204,6 +205,8 @@ dialog[open] { animation: dialog-in .19s ease-out; }
 .result-stars .earned { color: #ffd969; filter: drop-shadow(0 3px #a9652e); }
 .results .rating-note { font-size: 12px; }
 .result-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin: 17px 0; }
+.result-stats:has(#result-deaths), .result-stats:has(#victory-deaths-stat:not([hidden])) { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.result-stats dt { flex-wrap: wrap; }
 .result-stats div { display: grid; justify-content: center; gap: 4px; padding: 9px 4px; border: 1px solid #3e5160; border-radius: 8px; background: #223542; }
 .result-stats dt { display: flex; align-items: center; justify-content: center; gap: 4px; color: #b6ccd5; font-size: 11px; }
 .result-stats dt svg { width: 14px; height: 14px; }
@@ -218,8 +221,11 @@ dialog[open] { animation: dialog-in .19s ease-out; }
 .victory h2 { font-size: clamp(42px, 10vw, 62px); }
 [data-theme="canyon"] .level-chip { border-color: #91604c; background: #563c3c; color: #ffd28d; }
 [data-theme="crystal"] .level-chip { border-color: #647fa8; background: #303f60; color: #d2eeff; }
+[data-theme="jungle"] .level-chip { border-color: #728b55; background: #364938; color: #e0f5a9; }
+[data-theme="thunder"] .level-chip { border-color: #6f79ad; background: #333751; color: #ddedff; }
 @keyframes dialog-in { from { opacity: 0; transform: translateY(6px) scale(.985); } }
 .reduce-motion *, .reduce-motion *::before, .reduce-motion *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+.stat.stat-deaths { padding-inline: 10px 0; }
 
 @media (max-width: 850px) {
   .masthead, .game-shell { width: calc(100% - 36px); }
