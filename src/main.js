@@ -3,6 +3,7 @@ import '@fontsource-variable/bricolage-grotesque/wght.css';
 import '@fontsource-variable/dm-sans/wght.css';
 import { createControls } from './game/controls.js';
 import { setupTouchSettings } from './game/touch-settings.js';
+import { RUSH_LEVELS, canChallenge, challengeLevel, challenges, createChallengeRecords } from './game/challenges.js';
 import { VIEW_HEIGHT } from './game/level-one.js';
 import { LEVELS } from './game/levels.js';
 import { MenuScene } from './game/menu-scene.js';
@@ -34,6 +35,10 @@ const clear = byId('clear-dialog');
 const victory = byId('victory-dialog');
 const nextLevel = byId('next-level');
 const viewVictory = byId('view-victory');
+const challengeDialog = byId('challenge-dialog');
+const challengeMode = byId('challenge-mode');
+const challengeStage = byId('challenge-stage');
+const outfit = byId('hero-outfit');
 const worlds = new Map([[0, 'Green Valley'], [4, 'Dangerous Canyon'], [8, 'Frozen Kingdom'],
   [12, 'Fire Kingdom'], [16, 'Dark Castle'], [20, 'Poison Jungle'], [25, 'Thunder Fortress']]);
 const worldRows = [];
@@ -69,6 +74,7 @@ const levelButtons = LEVELS.map((level, index) => {
   return button;
 });
 const progress = createProgress(LEVELS);
+const challengeRecords = createChallengeRecords();
 const sound = createSound();
 const motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
 const preferenceKey = 'pixel-adventure.preferences';
@@ -84,6 +90,9 @@ function readPreferences() {
 const preferences = { ...readPreferences() };
 let mode = 'menu';
 let currentLevel = 0;
+let runMode = 'normal';
+let rush = { time: 0, deaths: 0 };
+let outfitKey = 'scout';
 let requestedLevel;
 let tutorialPurpose;
 let toastTimeout;
@@ -172,6 +181,50 @@ const formatScore = (count) => String(count * 100).padStart(4, '0');
 function formatTime(milliseconds) {
   const seconds = Math.floor(milliseconds / 1000);
   return `${pad(Math.floor(seconds / 60))}:${pad(seconds % 60)}`;
+}
+
+function preciseTime(milliseconds) {
+  return `${formatTime(milliseconds)}.${String(Math.floor(milliseconds) % 1000).padStart(3, '0')}`;
+}
+
+function refreshOutfits() {
+  const choices = [
+    ['scout', 'Scout', true],
+    ['ember', 'Ember · Clear Hardcore', challengeRecords.count('hardcore') > 0],
+    ['frost', 'Frost · Clear No-Death', challengeRecords.count('flawless') > 0],
+    ['storm', 'Storm · Clear Nightmare or Boss Rush', challengeRecords.count('nightmare') + challengeRecords.count('rush') > 0],
+  ];
+  outfit.replaceChildren(...choices.map(([key, name, open]) => {
+    const option = new Option(name, key);
+    option.disabled = !open;
+    return option;
+  }));
+  outfitKey = choices.some(([key, , open]) => open && key === preferences.outfit) ? preferences.outfit : 'scout';
+  outfit.value = outfitKey;
+}
+
+function showChallengeRecord() {
+  const id = challengeMode.value;
+  const index = id === 'rush' ? RUSH_LEVELS[0] : Number(challengeStage.value);
+  const record = challengeRecords.get(id, index);
+  const eligible = challengeStage.options.length > 0 || (id === 'rush' && canChallenge(id, index, progress));
+  byId('challenge-start').disabled = !eligible;
+  byId('challenge-record').textContent = record
+    ? `Best ${preciseTime(record.time)} · ${record.deaths} deaths${record.clean ? ' · Flawless badge' : ''}`
+    : eligible ? '' : id === 'rush' ? 'Clear all three campaign bosses to unlock.'
+      : id === 'nightmare' ? 'Clear The Hollow Crown in Normal to unlock.'
+        : 'Clear a stage in Normal to unlock this challenge.';
+}
+
+function refreshChallengeStages() {
+  const id = challengeMode.value;
+  const previous = challengeStage.value;
+  byId('challenge-stage-row').hidden = id === 'rush';
+  byId('challenge-rules').textContent = challenges[id].rules;
+  challengeStage.replaceChildren(...LEVELS.flatMap((level, index) =>
+    id !== 'rush' && canChallenge(id, index, progress) ? [new Option(`${index + 1} · ${level.name}`, index)] : []));
+  if ([...challengeStage.options].some(option => option.value === previous)) challengeStage.value = previous;
+  showChallengeRecord();
 }
 
 function setMode(nextMode) {
@@ -264,11 +317,13 @@ function updateLevelSelect() {
 function startRun(index) {
   byId('boss-hud').hidden = true;
   currentLevel = index;
-  const level = LEVELS[index];
+  const level = challengeLevel(LEVELS[index], runMode);
+  shell.dataset.mode = runMode;
   shell.dataset.theme = level.theme;
   byId('hud-level-number').textContent = pad(index + 1);
   byId('hud-level-name').textContent = level.name;
-  byId('pause-level').textContent = `Level ${index + 1} · ${level.name}`;
+  byId('pause-level').textContent = runMode === 'normal' ? `Level ${index + 1} · ${level.name}`
+    : `${challenges[runMode].name} · ${level.name}`;
   showScore(0);
   showTime(0);
   byId('deaths').textContent = '0';
@@ -292,6 +347,7 @@ function showMainMenu() {
   game.scene.stop('platformer');
   setMode('menu');
   delete shell.dataset.theme;
+  delete shell.dataset.mode;
   resize();
   game.scene.start('menu');
   transitionLandscape();
@@ -299,16 +355,20 @@ function showMainMenu() {
 }
 
 function beginRequestedRun() {
-  const { index, newAdventure } = requestedLevel;
+  const { index, newAdventure, challenge } = requestedLevel;
   requestedLevel = undefined;
+  runMode = challenge;
+  rush = { time: 0, deaths: 0 };
   if (newAdventure) progress.newAdventure();
   startRun(index);
 }
 
-function requestPlay(index, newAdventure = false) {
-  if (!game.isBooted || !progress.canPlay(index)) return;
-  requestedLevel = { index, newAdventure };
+function requestPlay(index, newAdventure = false, challenge = 'normal') {
+  const accessible = challenge === 'normal' ? progress.canPlay(index) : canChallenge(challenge, index, progress);
+  if (!game.isBooted || !accessible) return;
+  requestedLevel = { index, newAdventure, challenge };
   if (levelDialog.open) levelDialog.close();
+  if (challengeDialog.open) challengeDialog.close();
   if (preferences.tutorialSeen) beginRequestedRun();
   else openHelp('first-run');
 }
@@ -374,6 +434,21 @@ for (const dialog of document.querySelectorAll('dialog')) {
 }
 
 updateLevelSelect();
+refreshOutfits();
+for (const [key, { name }] of Object.entries(challenges)) challengeMode.add(new Option(name, key));
+byId('challenge-button').addEventListener('click', () => { refreshChallengeStages(); challengeDialog.showModal(); });
+challengeMode.addEventListener('change', refreshChallengeStages);
+challengeStage.addEventListener('change', showChallengeRecord);
+byId('challenge-start').addEventListener('click', () => {
+  const id = challengeMode.value;
+  requestPlay(id === 'rush' ? RUSH_LEVELS[0] : Number(challengeStage.value), false, id);
+});
+outfit.addEventListener('change', () => {
+  if (outfit.selectedOptions[0]?.disabled) return;
+  preferences.outfit = outfit.value;
+  outfitKey = outfit.value;
+  savePreferences();
+});
 byId('play-game').addEventListener('click', () => requestPlay(0, true));
 levelButtons.forEach((button, index) => button.addEventListener('click', () => requestPlay(index)));
 byId('level-select').addEventListener('click', () => {
@@ -393,14 +468,23 @@ byId('pause-controls').addEventListener('click', () => {
 helpButton.addEventListener('click', () => openHelp(mode === 'menu' ? 'menu-controls' : 'run-controls'));
 tutorialDone.addEventListener('click', () => closeDialog(help, true));
 byId('pause-button').addEventListener('click', openPause);
-byId('restart-level').addEventListener('click', () => { pause.close(); startRun(currentLevel); });
+function restartRun() {
+  if (runMode === 'rush') {
+    rush = { time: 0, deaths: 0 };
+    startRun(RUSH_LEVELS[0]);
+  } else startRun(currentLevel);
+}
+byId('restart-level').addEventListener('click', () => { pause.close(); restartRun(); });
 byId('retry-checkpoint').addEventListener('click', () => {
   pause.close();
   resumeRun();
   scene.respawn('retry');
 });
-byId('play-again').addEventListener('click', () => { clear.close(); startRun(currentLevel); });
-nextLevel.addEventListener('click', () => { clear.close(); startRun(currentLevel + 1); });
+byId('play-again').addEventListener('click', () => { clear.close(); restartRun(); });
+nextLevel.addEventListener('click', () => {
+  clear.close();
+  startRun(runMode === 'rush' ? RUSH_LEVELS[RUSH_LEVELS.indexOf(currentLevel) + 1] : currentLevel + 1);
+});
 viewVictory.addEventListener('click', () => {
   const totals = progress.totals();
   byId('victory-coins').textContent = `${totals.coins} / ${maxCoins}`;
@@ -415,6 +499,7 @@ viewVictory.addEventListener('click', () => {
 });
 byId('victory-replay').addEventListener('click', () => {
   victory.close();
+  runMode = 'normal';
   progress.newAdventure();
   startRun(0);
 });
@@ -440,9 +525,39 @@ const controls = createControls(panel, () => mode === 'playing', hapticFeedback)
 window.matchMedia('(orientation: portrait)').addEventListener('change', controls.clear);
 document.addEventListener('fullscreenchange', controls.clear);
 const maxCoins = LEVELS.reduce((sum, level) => sum + level.coins.length, 0);
+function showChallengeResult(coins, coinTotal, elapsed, deaths, success = true) {
+  const isRush = runMode === 'rush';
+  const nextArena = isRush && currentLevel !== RUSH_LEVELS.at(-1);
+  if (isRush && success) {
+    rush.time += elapsed;
+    rush.deaths += deaths;
+    elapsed = rush.time;
+    deaths = rush.deaths;
+  }
+  const record = success && !nextArena
+    ? challengeRecords.record(runMode, isRush ? RUSH_LEVELS[0] : currentLevel, elapsed, deaths) : null;
+  refreshOutfits();
+  byId('clear-title').textContent = success ? (nextArena ? 'Boss Defeated' : 'Challenge Complete') : 'Attempt Ended';
+  byId('result-level').textContent = `${challenges[runMode].name} · ${LEVELS[currentLevel].name}`;
+  byId('result-stars').hidden = true;
+  byId('rating-note').textContent = success ? nextArena ? 'Time and deaths carry into the next arena.'
+    : record?.better ? 'New personal best' : '' : 'A no-death clear ends on the first death.';
+  byId('result-coins').textContent = `${coins} / ${coinTotal}`;
+  byId('result-time').textContent = preciseTime(elapsed);
+  byId('result-score').textContent = formatScore(coins);
+  byId('result-deaths').textContent = deaths;
+  byId('result-best').textContent = record ? `Best ${preciseTime(record.time)}${record.clean ? ' · Flawless badge' : ''}` : '';
+  byId('continue-note').hidden = true;
+  viewVictory.hidden = true;
+  nextLevel.hidden = !nextArena;
+  clear.showModal();
+  if (nextArena) nextLevel.focus();
+}
+
 const scene = new PlatformerScene(controls, {
   get reduceMotion() { return reduceMotion(); },
   get dangerGuides() { return dangerSetting.checked; },
+  get costume() { return outfitKey; },
   onPlayfieldPress: focusStage,
   onReady(coinTotal) {
     byId('coin-total').textContent = pad(coinTotal);
@@ -456,6 +571,14 @@ const scene = new PlatformerScene(controls, {
   onCheckpoint() { showToast('Checkpoint reached', 'checkpoint'); },
   onRespawn(deaths, reason) {
     byId('deaths').textContent = deaths;
+    if (runMode === 'flawless') {
+      setMode('complete');
+      controls.clear();
+      game.scene.pause('platformer');
+      sound.play('respawn');
+      showChallengeResult(scene.collected, scene.level.coins.length, scene.elapsed, deaths, false);
+      return;
+    }
     showToast(reason === 'retry' ? 'Checkpoint restarted' : 'Back at the checkpoint', 'respawn');
   },
   playSound: (name) => sound.play(name),
@@ -480,6 +603,12 @@ const scene = new PlatformerScene(controls, {
     hideToast();
     showTime(elapsed);
     sound.play('finish');
+    if (runMode !== 'normal') {
+      showChallengeResult(count, coinTotal, elapsed, deaths);
+      return;
+    }
+    byId('clear-title').textContent = 'Level Complete!';
+    byId('result-stars').hidden = false;
     const unlocked = progress.finish(currentLevel, count, elapsed, deaths);
     updateLevelSelect();
     const following = LEVELS[currentLevel + 1];

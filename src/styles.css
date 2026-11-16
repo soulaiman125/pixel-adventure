@@ -68,6 +68,10 @@ svg { width: 19px; height: 19px; flex: none; }
 .menu-actions .button { background: #1e302feF; border-color: #55716b; }
 .menu-actions .button:hover { background: #344c42; border-color: #9aba87; }
 .menu-actions .button-primary { grid-column: 1 / -1; justify-content: flex-start; padding-inline: 15px; font-size: 16px; min-height: 52px; }
+.menu-actions .mode-entry { grid-column: 1 / -1; }
+#challenge-stage { min-width: 0; max-width: 64%; }
+#challenge-record { color: var(--lime); min-height: 1.4em; }
+[data-mode="hardcore"] .level-chip, [data-mode="nightmare"] .level-chip { color: #ffdda6; border-color: #cc8962; }
 
 .button {
   position: relative;

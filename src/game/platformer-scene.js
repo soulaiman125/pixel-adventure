@@ -9,6 +9,7 @@ import { resetExpansionBoss } from './expansion-bosses.js';
 import { createFeedback } from './feedback.js';
 import { heroPose, heroTexture } from './hero-art.js';
 import { monsters } from './monster-ai.js';
+import { isCheckpoint } from './challenges.js';
 
 const MOVE_SPEED = 132;
 const JUMP_SPEED = 263;
@@ -113,12 +114,19 @@ export class PlatformerScene extends Phaser.Scene {
       for (let x = start + 4; x < end - 9; x += 16) ice.fillStyle(0xeaffff).fillRect(x, GROUND_Y, 9, 1);
     }
     this.checkpointFlags = new Map();
+    this.windZones = this.level.script?.air ?? [];
     this.ground = this.physics.add.staticGroup();
     this.platforms = this.physics.add.staticGroup();
-    for (const [start, end] of this.level.ground) {
+    for (const [index, [start, end]] of this.level.ground.entries()) {
       this.addSurface(this.ground, start, GROUND_Y, end - start, 40, 'ground');
-      if (start > 0) {
+      if (isCheckpoint(this.level, index)) {
         this.checkpointFlags.set(start, this.add.image(start + 19, GROUND_Y, 'checkpoint').setOrigin(0.25, 1).setDepth(1));
+      }
+    }
+    for (const [left, right, force] of this.windZones) {
+      const arrows = this.add.graphics().setDepth(-1).fillStyle(0x99d9df, .72);
+      for (let x = left + 4; x < right; x += 11) {
+        arrows.fillTriangle(x - 3, 142, x + 4 * Math.sign(force), 145, x - 3, 148);
       }
     }
     for (const [x, y, width, kind, a, b, period] of this.level.platforms) {
@@ -204,7 +212,7 @@ export class PlatformerScene extends Phaser.Scene {
   createContacts() {
     this.physics.add.collider(this.player, this.ground, (_player, ground) => {
       const start = ground.body.left;
-      if (!this.complete && start > this.checkpoint && this.player.x > start + 15) {
+      if (!this.complete && this.checkpointFlags.has(start) && start > this.checkpoint && this.player.x > start + 15) {
         this.checkpoint = start + 19;
         const flag = this.checkpointFlags.get(start);
         flag.setTexture('checkpoint-active');
@@ -359,7 +367,8 @@ export class PlatformerScene extends Phaser.Scene {
 
     const onIce = grounded && player.y >= GROUND_Y - 1
       && this.level.ice?.some(([start, end]) => player.x >= start && player.x < end);
-    player.setAccelerationX(direction * (onIce ? 540 : 880)).setDragX(onIce ? 300 : 1250);
+    const wind = !grounded && this.windZones.find(([left, right]) => player.x >= left && player.x <= right);
+    player.setAccelerationX(direction * (onIce ? 540 : 880) + (wind ? wind[2] : 0)).setDragX(onIce ? 300 : 1250);
     if (direction !== 0) player.setFlipX(direction < 0);
     const visual = this.animationState;
     visual.time = time;
