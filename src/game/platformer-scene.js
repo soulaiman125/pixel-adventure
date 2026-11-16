@@ -7,13 +7,13 @@ import { addCombat, updateCombat } from './combat.js';
 import { EXPANSION_ENEMIES } from './expansion-enemies.js';
 import { resetExpansionBoss } from './expansion-bosses.js';
 import { createFeedback } from './feedback.js';
+import { heroPose, heroTexture } from './hero-art.js';
 
 const MOVE_SPEED = 132;
 const JUMP_SPEED = 263;
 const JUMP_BUFFER = 115;
 const COYOTE_TIME = 90;
 const RESPAWN_GRACE = 750;
-const RUN_FRAMES = ['step', 'idle', 'stride', 'idle'];
 const COIN_FRAMES = ['wide', 'wide', 'narrow', 'edge', 'narrow'];
 const PLATFORM_EDGES = {
   verdant: [0x313f3a, 0xadc975],
@@ -48,6 +48,8 @@ export class PlatformerScene extends Phaser.Scene {
     this.wasGrounded = false;
     this.lastFallSpeed = 0;
     this.landUntil = 0;
+    this.launchUntil = 0;
+    this.animationState = {};
     this.swingUntil = 0;
     this.ambientFrame = -1;
     this.riding = null;
@@ -279,7 +281,7 @@ export class PlatformerScene extends Phaser.Scene {
     this.feedback.death(this.player);
     this.clearProjectiles();
     this.player.body.reset(this.checkpoint, GROUND_Y - 2);
-    this.player.setTexture('hero-idle').setFlipX(false);
+    this.player.setTexture(heroTexture('respawn', this.ui.costume)).setFlipX(false);
     this.resetJump();
     this.landUntil = 0;
     this.swingUntil = 0;
@@ -300,6 +302,7 @@ export class PlatformerScene extends Phaser.Scene {
     this.complete = true;
     this.player.setVelocity(0);
     this.player.setAcceleration(0);
+    this.player.setTexture(heroTexture('victory', this.ui.costume));
     this.physics.pause();
     this.ui.onComplete(this.collected, this.level.coins.length, this.elapsed, this.deaths);
   }
@@ -331,6 +334,7 @@ export class PlatformerScene extends Phaser.Scene {
       this.jumpUntil = -Infinity;
       this.groundedUntil = -Infinity;
       this.cuttableJump = true;
+      this.launchUntil = time + 75;
       this.dust(player.x, player.y);
       this.ui.playSound('jump');
     }
@@ -344,13 +348,18 @@ export class PlatformerScene extends Phaser.Scene {
       && this.level.ice?.some(([start, end]) => player.x >= start && player.x < end);
     player.setAccelerationX(direction * (onIce ? 540 : 880)).setDragX(onIce ? 300 : 1250);
     if (direction !== 0) player.setFlipX(direction < 0);
-    const frame = Math.floor(time / 82);
-    let pose = 'idle';
-    if (!grounded || body.velocity.y < -30) pose = body.velocity.y < 0 ? 'jump' : 'fall';
-    else if (Math.abs(body.velocity.x) > 16) pose = RUN_FRAMES[frame % RUN_FRAMES.length];
-    if (!this.ui.reduceMotion && grounded && time < this.landUntil && body.velocity.y >= 0) pose = 'land';
-    if (time < this.swingUntil) pose = 'attack';
-    const texture = 'hero-' + pose;
+    const visual = this.animationState;
+    visual.time = time;
+    visual.grounded = grounded;
+    visual.vx = body.velocity.x;
+    visual.vy = body.velocity.y;
+    visual.direction = direction;
+    visual.reduced = this.ui.reduceMotion;
+    visual.landing = this.landUntil;
+    visual.launch = this.launchUntil;
+    visual.swing = this.swingUntil;
+    visual.grace = this.invulnerableUntil;
+    const texture = heroTexture(heroPose(visual), this.ui.costume);
     if (player.texture.key !== texture) player.setTexture(texture);
   }
 

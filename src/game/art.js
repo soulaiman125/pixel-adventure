@@ -1,4 +1,6 @@
 import { VIEW_HEIGHT } from './level-one.js';
+import { costumes, drawHeroSprite, heroPoses, heroTexture } from './hero-art.js';
+import { drawLandmarks } from './landmark-art.js';
 
 function texture(scene, key, width, height, draw) {
   const canvas = scene.textures.createCanvas(key, width, height);
@@ -158,33 +160,6 @@ function drawDirt(context, height) {
   }
 }
 
-function drawHero(context, pose) {
-  const colors = { o: '#202a3d', r: '#e95c51', R: '#ff9272', k: '#9c394a',
-    s: '#ffd391', S: '#d99667', e: '#253447', w: '#fff3d3', b: '#32687b', B: '#62c4be',
-    y: '#ffe57d', Y: '#eaa34c' };
-  const crouch = pose === 'land' ? 2 : 0;
-  pixels(context, colors, [
-    '......oooooo....', '....ooRRRRRoo...', '...oRRrrrrrro...', '...oRrrrrrrro...',
-    '...orrkroooooo..', '...ookossswweo..', '....oosssswseo..', '....osssSsssso..',
-    '.....ooSSSooo...', '....oyyyyyYo....', '..ooyyoBBwBoo...', '.oyYooBBBBBbo...',
-    '.oY...oBbBBso...', '......obbbooo...',
-  ], 0, 2 + crouch);
-  const boots = {
-    idle: ['......oBobo.....', '......oBobo.....', '.....oookko.....', '.....orrooroo...', '.....ooooooo....'],
-    step: ['.....oBboo......', '....oBbo.obo....', '...ooko..oobo...', '...orro...orro..', '...ooo....oooo..'],
-    stride: ['......oBboo.....', '.....ob.Bo......', '.....obooRo.....', '....oro.ooo.....', '....ooo.........'],
-    jump: ['.....oBboo......', '....oBbooobo....', '...orro..oboo...', '...ooo....oroo..', '..........ooo...'],
-    fall: ['.....oBBbo......', '.....oBo.oBo....', '.....oBo..oro...', '.....orro.ooo...', '.....oooo.......'],
-    attack: ['.....oBbbo......', '....oBbo.obo....', '...ooko..oobo...', '...orro...orro..', '...ooo....oooo..'],
-    land: ['................', '................', '....ooBBBboo....', '...orro..orro...', '...oooo..oooo...'],
-  };
-  pixels(context, colors, boots[pose], 0, 16);
-  if (pose === 'stride' || pose === 'jump') {
-    pixels(context, colors, ['.ooo', 'oyYo', 'oo..'], 0, 12);
-  }
-  if (pose === 'attack') pixels(context, colors, ['....ww', '..wwYo', 'osso..'], 10, 11);
-}
-
 function drawSlime(context, rising, colors = {}) {
   const palette = { o: '#335046', a: '#63ac63', b: '#a9dd6d', c: '#e1f38e',
     d: '#47855c', e: '#273d34', w: '#f3f9b8', p: '#edbc84', ...colors };
@@ -240,12 +215,17 @@ export function createArt(scene) {
   texture(scene, 'clouds', 768, VIEW_HEIGHT, drawClouds);
   texture(scene, 'mountains', 768, VIEW_HEIGHT, drawMountains);
   texture(scene, 'hills', 768, VIEW_HEIGHT, drawHills);
-  texture(scene, 'pines', 768, VIEW_HEIGHT, drawPines);
+  texture(scene, 'pines', 768, VIEW_HEIGHT, (ctx) => {
+    drawPines(ctx);
+    drawLandmarks(ctx, 'verdant');
+  });
   texture(scene, 'tree', 72, 70, drawTree);
   texture(scene, 'ground', 48, 40, (ctx) => drawDirt(ctx, 40));
   texture(scene, 'platform', 48, 12, (ctx) => drawDirt(ctx, 12));
-  for (const pose of ['idle', 'step', 'stride', 'jump', 'fall', 'attack', 'land']) {
-    texture(scene, 'hero-' + pose, 16, 21, (ctx) => drawHero(ctx, pose));
+  for (const costume of Object.keys(costumes)) {
+    for (const pose of heroPoses) {
+      texture(scene, heroTexture(pose, costume), 16, 21, (ctx) => drawHeroSprite(ctx, pose, costume));
+    }
   }
   texture(scene, 'slime-rest', 18, 13, (ctx) => drawSlime(ctx, false));
   texture(scene, 'slime-hop', 18, 13, (ctx) => drawSlime(ctx, true));
@@ -504,7 +484,10 @@ export function createThemeArt(scene, theme) {
   });
   texture(scene, theme + '-mountains', 768, VIEW_HEIGHT, (ctx) => drawRidges(ctx, colors.ridge, desert));
   texture(scene, theme + '-hills', 768, VIEW_HEIGHT, (ctx) => drawSlopes(ctx, colors.hills));
-  texture(scene, theme + '-pines', 768, VIEW_HEIGHT, (ctx) => drawForeground(ctx, colors.foreground, desert));
+  texture(scene, theme + '-pines', 768, VIEW_HEIGHT, (ctx) => {
+    drawForeground(ctx, colors.foreground, desert);
+    drawLandmarks(ctx, theme);
+  });
   texture(scene, theme + '-tree', 72, 70, (ctx) => {
     if (theme === 'jungle') {
       box(ctx, '#555167', 32, 25, 9, 45);

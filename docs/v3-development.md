@@ -15,4 +15,4 @@ The development branch starts at the published v2.0.0 commit. The original campa
 
 ## Art direction
 
-Use one low-resolution pixel grid, dark silhouettes against lighter midgrounds, cool shadows, and bright accents for interactable objects. Give all worlds a foreground terrain treatment and a distinct landmark layer through signed-off, original code-drawn tiles. Keep the hero’s scarf and motion silhouette recognizable, with a blade visible during attacks. Reserve amber for warning and high-contrast cores for active hazards. Reduced motion keeps the required indicators and controls.
+Use one low-resolution pixel grid, dark silhouettes against lighter midgrounds, cool shadows, and bright accents for interactable objects. Give all worlds a foreground terrain treatment and distinct landmarks through original code-drawn tiles. Keep the hero’s scarf and motion silhouette recognizable, with a blade visible during attacks. Reserve amber for warning and high-contrast cores for active hazards. Reduced motion keeps the required indicators and controls.
