@@ -91,6 +91,7 @@ const preferences = { ...readPreferences() };
 let mode = 'menu';
 let currentLevel = 0;
 let runMode = 'normal';
+let bossMusic;
 let rush = { time: 0, deaths: 0 };
 let outfitKey = 'scout';
 let requestedLevel;
@@ -242,7 +243,7 @@ function setMode(nextMode) {
 }
 
 function syncMusic() {
-  const track = mode === 'menu' ? 'verdant' : mode === 'playing' ? LEVELS[currentLevel].theme : undefined;
+  const track = mode === 'menu' ? 'verdant' : mode === 'playing' ? bossMusic ?? LEVELS[currentLevel].theme : undefined;
   sound.music(document.hidden ? undefined : track);
 }
 
@@ -316,6 +317,7 @@ function updateLevelSelect() {
 
 function startRun(index) {
   byId('boss-hud').hidden = true;
+  bossMusic = undefined;
   currentLevel = index;
   const level = challengeLevel(LEVELS[index], runMode);
   shell.dataset.mode = runMode;
@@ -536,6 +538,11 @@ function showChallengeResult(coins, coinTotal, elapsed, deaths, success = true) 
   }
   const record = success && !nextArena
     ? challengeRecords.record(runMode, isRush ? RUSH_LEVELS[0] : currentLevel, elapsed, deaths) : null;
+  const newOutfit = [...outfit.options].find(option => option.disabled && (
+    option.value === 'ember' && runMode === 'hardcore' ||
+    option.value === 'frost' && runMode === 'flawless' ||
+    option.value === 'storm' && ['nightmare', 'rush'].includes(runMode)
+  ));
   refreshOutfits();
   byId('clear-title').textContent = success ? (nextArena ? 'Boss Defeated' : 'Challenge Complete') : 'Attempt Ended';
   byId('result-level').textContent = `${challenges[runMode].name} · ${LEVELS[currentLevel].name}`;
@@ -547,7 +554,8 @@ function showChallengeResult(coins, coinTotal, elapsed, deaths, success = true) 
   byId('result-score').textContent = formatScore(coins);
   byId('result-deaths').textContent = deaths;
   byId('result-best').textContent = record ? `Best ${preciseTime(record.time)}${record.clean ? ' · Flawless badge' : ''}` : '';
-  byId('continue-note').hidden = true;
+  byId('continue-note').hidden = !record || !newOutfit;
+  byId('continue-note').textContent = record && newOutfit ? `${newOutfit.textContent.split(' · ')[0]} outfit unlocked` : '';
   viewVictory.hidden = true;
   nextLevel.hidden = !nextArena;
   clear.showModal();
@@ -583,6 +591,12 @@ const scene = new PlatformerScene(controls, {
   },
   playSound: (name) => sound.play(name),
   onBoss(boss, state) {
+    const track = boss.phase === 'waiting' || boss.phase === 'defeated' ? undefined : boss.tier === 2
+      ? 'bossFinal' : { crown: 'bossCrown', queen: 'bossQueen', titan: 'bossTitan' }[boss.kind];
+    if (track !== bossMusic) {
+      bossMusic = track;
+      syncMusic();
+    }
     const hud = byId('boss-hud');
     const meter = byId('boss-health');
     if (hud.hidden) {

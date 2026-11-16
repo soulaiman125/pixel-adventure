@@ -36,6 +36,10 @@ const tracks = {
   castle: [164.81, .42, [0, null, 7, 6, 3, null, 10, 7]],
   jungle: [220, .36, [0, 5, 3, null, 10, 8, 5, 3]],
   thunder: [185, .29, [0, 12, 7, null, 2, 8, 10, null]],
+  bossCrown: [164.81, .36, [0, 7, 3, null, 6, 3, 10, null, 0, 7, 15, 12, 10, 6, 3, null]],
+  bossQueen: [196, .34, [0, 3, 8, 7, null, 10, 8, 3, 0, 5, 3, 12, null, 7, 3, 2]],
+  bossTitan: [185, .28, [0, 7, null, 1, 12, 7, 8, null, 0, 12, 7, 10, 8, 2, 1, null]],
+  bossFinal: [220, .25, [0, 12, 7, 3, 10, 7, 3, null, 0, 10, 12, 15, 10, 7, 3, 1]],
 };
 
 export function createSound(Audio = globalThis.AudioContext ?? globalThis.webkitAudioContext) {
