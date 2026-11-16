@@ -168,6 +168,17 @@ test('saw corners are safe, crushers and walls retract, and rising lava stays be
   assert(high.y - high.height / 2 > 184);
 });
 
+test('laser geometry matches active strokes, and grid lanes leave intervening safe space', () => {
+  const bodyAt = (x, y) => ({ left:x - 1, right:x + 1, top:y - 1, bottom:y + 1 });
+  const arm = { kind: 'rotatingLaser', x: 50, y: 50, width: 56, height: 56, radius: 28, warning: 0, offset: 0 };
+  assert(dangerHits(bodyAt(73, 50), arm, hazardFrame(arm, 0)));
+  assert(!dangerHits(bodyAt(73, 64), arm, hazardFrame(arm, 0)));
+  assert(!dangerHits(bodyAt(73, 50), { ...arm, warning: 650 }, hazardFrame({ ...arm, warning: 650 }, 0)));
+  const grid = { ...arm, kind: 'laserGrid', spacing: 14 };
+  assert(dangerHits(bodyAt(64, 50), grid, hazardFrame(grid, 0)));
+  assert(!dangerHits(bodyAt(57, 50), grid, hazardFrame(grid, 0)));
+});
+
 test('classic traps damage at the visible hazard and leave a distant player safe', () => {
   const art = new Proxy({}, { get: () => () => art });
   const x = 100;

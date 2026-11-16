@@ -1,9 +1,13 @@
+import { segmentIntersectsBox } from './monster-ai.js';
+
 const palette = {
   laser: [0x5bf4ff, 0xe8ffff], lightning: [0xb19bff, 0xf0ecff],
   saw: [0xe6aabc, 0xfbe3ed], crusher: [0x9275a9, 0xfed3a6], walls: [0x9275a9, 0xfed3a6],
   electricFloor: [0x5ea4ff, 0xe1faff], electricPulse: [0x935eff, 0xf2daff],
   poisonPool: [0x7d9c3a, 0xdbf685], poisonCloud: [0x9baa46, 0xe5f29c],
   poisonSpit: [0x96c74d, 0xf0ffab], risingLava: [0xe15149, 0xffb560],
+  rotatingLaser: [0x459ce4, 0xe2fcff], laserGrid: [0x7896fa, 0xe7faff],
+  piston: [0xbd756e, 0xffd7a0], charged: [0x7159b9, 0xd6fbff],
 };
 
 export function hazardPhase(hazard, elapsed) {
@@ -32,7 +36,7 @@ export function hazardFrame(hazard, elapsed, frame = {}) {
   if (kind === 'saw' || kind === 'laser' || kind === 'lightning') {
     frame.x += dx * travel;
     frame.y += dy * travel;
-  } else if (kind === 'crusher') {
+  } else if (kind === 'crusher' || kind === 'piston') {
     frame.y += phase === 'active' ? dy * Math.min(1, age * 4, (1 - age) * 4) : 0;
   } else if (kind === 'walls') {
     const closing = phase === 'active' ? Math.min(1, age * 3, (1 - age) * 3) : 0;
@@ -43,12 +47,28 @@ export function hazardFrame(hazard, elapsed, frame = {}) {
     frame.y -= 37 * 4 * age * (1 - age);
   } else if (kind === 'risingLava' && phase === 'active') {
     frame.y = Math.max(202, y - dy * Math.sin(Math.PI * age));
+  } else if (kind === 'rotatingLaser') {
+    const angle = (hazard.angle ?? 0) + age * Math.PI;
+    frame.armX = Math.cos(angle) * hazard.radius;
+    frame.armY = Math.sin(angle) * hazard.radius;
   }
   return frame;
 }
 
 export function dangerHits(body, hazard, frame) {
   if (frame.phase !== 'active') return false;
+  if (hazard.kind === 'rotatingLaser') {
+    return segmentIntersectsBox(frame.x - frame.armX, frame.y - frame.armY, frame.x + frame.armX, frame.y + frame.armY,
+      body.left - 2, body.top - 2, body.right + 2, body.bottom + 2);
+  }
+  if (hazard.kind === 'laserGrid') {
+    if (body.bottom < frame.y - frame.height / 2 || body.top > frame.y + frame.height / 2) return false;
+    for (let beam = -1; beam <= 1; beam++) {
+      const position = frame.x + beam * hazard.spacing;
+      if (body.left - 2 <= position && body.right + 2 >= position) return true;
+    }
+    return false;
+  }
   const halfWidth = Math.max(1, frame.width / 2 - 2);
   const halfHeight = Math.max(1, frame.height / 2 - 1);
   if (hazard.kind === 'saw') {
@@ -85,9 +105,9 @@ function drawWarning(graphics, hazard, frame, opacity, assisted) {
       graphics.strokeRect(hazard.x - width / 2 - Math.abs(dx), hazard.y - height / 2 - Math.abs(dy),
         width + Math.abs(dx) * 2, height + Math.abs(dy) * 2);
     }
-  } else if (kind === 'crusher') {
+  } else if (kind === 'crusher' || kind === 'piston') {
     graphics.strokeRect(x - width / 2, y + dy - height / 2, width, height);
-    if (assisted) graphics.strokeRect(x - width / 2, y - height / 2, width, height + dy);
+    if (assisted) graphics.strokeRect(x - width / 2, y + Math.min(0, dy) - height / 2, width, height + Math.abs(dy));
   } else if (kind === 'risingLava') {
     graphics.fillRect(x - width / 2, Math.max(202, y - dy) - height / 2, width, 2);
   } else if (kind === 'poisonSpit') {
@@ -105,6 +125,22 @@ export function paintDanger(graphics, hazard, frame, elapsed = 0, reduced = fals
   const { x, y, width, height, phase, otherX } = frame;
   const [fill, edge] = palette[kind];
   const pulse = reduced ? .85 : .76 + Math.sin(elapsed / 155) * .13;
+  if (kind === 'rotatingLaser' || kind === 'laserGrid') {
+    graphics.fillStyle(fill, .8).fillRect(x - 3, y - 3, 6, 6);
+    if (phase === 'idle') return;
+    const live = phase === 'active';
+    graphics.lineStyle(live ? 4 : 1, live ? edge : 0xffcf92, live ? 1 : pulse);
+    if (kind === 'rotatingLaser') {
+      graphics.lineBetween(x - frame.armX, y - frame.armY, x + frame.armX, y + frame.armY);
+      if (!live) graphics.strokeCircle(x, y, hazard.radius);
+    } else {
+      for (let beam = -1; beam <= 1; beam++) {
+        const position = x + beam * hazard.spacing;
+        graphics.lineBetween(position, y - height / 2, position, y + height / 2);
+      }
+    }
+    return;
+  }
   if (kind === 'saw') {
     const angle = reduced ? 0 : elapsed / 125;
     const radius = width / 2;
@@ -121,7 +157,7 @@ export function paintDanger(graphics, hazard, frame, elapsed = 0, reduced = fals
     return;
   }
   if (phase !== 'active') {
-    if (kind === 'crusher' || kind === 'walls') {
+    if (kind === 'crusher' || kind === 'walls' || kind === 'piston') {
       drawBlock(graphics, x, y, width, height, fill, edge);
       if (otherX !== undefined) drawBlock(graphics, otherX, y, width, height, fill, edge);
     }
@@ -160,6 +196,10 @@ const hazardSounds = {
   walls: ['charge', 'impact'],
   poisonCloud: ['warning', 'poison'],
   poisonSpit: ['warning', 'poison'],
+  rotatingLaser: ['laserCharge', 'laserFire'],
+  laserGrid: ['laserCharge', 'laserFire'],
+  piston: ['charge', 'impact'],
+  charged: ['charge', 'electric'],
 };
 
 export function addDanger(scene, hazard) {
