@@ -4,7 +4,7 @@ import { LEVELS } from '../src/game/levels.js';
 import { createProgress } from '../src/game/progress.js';
 import { attackReaches } from '../src/game/combat.js';
 import { dangerHits, hazardFrame, hazardPhase } from '../src/game/danger.js';
-import { bossTier, resetExpansionBoss, updateExpansionBoss } from '../src/game/expansion-bosses.js';
+import { bossTier, phaseHealthFloor, resetExpansionBoss, updateExpansionBoss } from '../src/game/expansion-bosses.js';
 import { guardBlocks, updateExpansionEnemy } from '../src/game/expansion-enemies.js';
 import { addObstacles } from '../src/game/obstacles.js';
 import { monsters, monsterPhase, segmentIntersectsBox } from '../src/game/monster-ai.js';
@@ -242,7 +242,7 @@ test('ranged enemies warn before firing, and poison lobs while a robot fires hor
   }
 });
 
-test('both new bosses warn, attack, open and reset across three health tiers', () => {
+test('all bosses warn, attack and open across three health tiers', () => {
   const art = new Proxy({}, { get: () => () => art });
   const shots = [];
   const scene = {
@@ -251,13 +251,14 @@ test('both new bosses warn, attack, open and reset across three health tiers', (
     damage() { assert.fail('a distant player was hit'); },
   };
   for (const [kind, maxHp, patterns] of [
+    ['crown', 5, ['wave', 'sigils', 'crownfall']],
     ['queen', 6, ['spores', 'venom', 'bloom']],
     ['titan', 9, ['wave', 'bolts', 'impact']],
   ]) {
     const boss = { kind, maxHp, x: 150, start: 90, art, indicator: art, trapArt: [] };
     resetExpansionBoss(scene, boss);
     for (let tier = 0; tier < 3; tier++) {
-      boss.hp = maxHp - tier * (maxHp / 3);
+      boss.hp = maxHp - Math.ceil(tier * maxHp / 3);
       assert.equal(bossTier(boss), tier);
       const fire = (...args) => shots.push(args);
       updateExpansionBoss(scene, boss, fire);
@@ -270,11 +271,12 @@ test('both new bosses warn, attack, open and reset across three health tiers', (
       updateExpansionBoss(scene, boss, fire);
       assert.equal(boss.phase, 'open');
       assert.equal(boss.hits, 0);
+      assert(phaseHealthFloor(boss) < boss.hp);
       scene.elapsed += boss.profile.open;
     }
     resetExpansionBoss(scene, boss);
     assert.equal(boss.hp, maxHp);
     assert.equal(boss.phase, 'waiting');
   }
-  assert.equal(shots.length, 4);
+  assert.equal(shots.length, 6);
 });

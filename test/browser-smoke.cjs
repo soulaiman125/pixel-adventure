@@ -97,36 +97,6 @@ const address = process.env.PIXEL_TEST_URL || 'http://127.0.0.1:5173/';
         await page.keyboard.press('KeyX');
         await page.waitForFunction(() => !qa.enemies.getChildren()[0].active);
       }
-      if (index === 19) {
-        await page.evaluate(() => qa.player.body.reset(qa.level.flagX, 174));
-        await page.waitForTimeout(150);
-        assert(!(await page.locator('#clear-dialog').isVisible()));
-        await page.evaluate(() => {
-          qa.player.body.reset(qa.boss.x - 31, 184);
-          qa.player.setFlipX(false);
-          qa.invulnerableUntil = Infinity;
-        });
-        await page.waitForFunction(() => qa.boss.phase === 'warn');
-        await page.evaluate(() => {
-          const b = qa.boss;
-          qa.player.body.reset(b.x - 28, 184);
-        });
-        await page.keyboard.press('KeyX');
-        assert.equal(await page.evaluate(() => qa.boss.hp), 5);
-        await page.waitForFunction(() => qa.boss.phase === 'attack' && qa.projectiles.length >= 2);
-        await page.waitForFunction(() => qa.boss.phase === 'open');
-        for (let hp = 4; hp >= 0; hp--) {
-          await page.waitForFunction(() => qa.boss.phase === 'open' && qa.boss.hits < 2);
-          await page.keyboard.press('KeyX');
-          await page.waitForFunction(hp => qa.boss.hp === hp, hp, { timeout: 1500 });
-          if (hp === 3) {
-            await page.waitForFunction(() => qa.boss.cycle === 1 && qa.boss.phase === 'warn');
-            await page.waitForFunction(() => qa.boss.phase === 'attack' && qa.projectiles.some(shot => shot.vy > 0));
-          }
-          await page.waitForTimeout(370);
-        }
-        assert.equal(await page.locator('#boss-health').getAttribute('value'), '0');
-      }
       if (index === 20) {
         await page.evaluate(() => {
           qa.player.body.reset(qa.level.ground[1][0] + 19, 184);
@@ -156,7 +126,7 @@ const address = process.env.PIXEL_TEST_URL || 'http://127.0.0.1:5173/';
         await page.waitForFunction(() => qa.elapsed < 500 && qa.deaths === 0
           && qa.checkpoint === qa.level.spawnX && qa.coins.getChildren()[0].active);
       }
-      if (index === 24 || index === 29) {
+      if ([19, 24, 29].includes(index)) {
         // Controlled positioning isolates the boss and UI from the route to the arena.
         await page.evaluate(() => {
           qa.player.body.reset(qa.level.flagX, 174);
@@ -181,7 +151,8 @@ const address = process.env.PIXEL_TEST_URL || 'http://127.0.0.1:5173/';
           await page.waitForFunction(expected => qa.boss.hp === expected, remaining, { timeout: 1500 });
           await page.waitForTimeout(365);
         }
-        assert.deepEqual([...seen], index === 24 ? ['spores', 'venom', 'bloom'] : ['wave', 'bolts', 'impact']);
+        const patterns = { 19: ['wave', 'sigils', 'crownfall'], 24: ['spores', 'venom', 'bloom'], 29: ['wave', 'bolts', 'impact'] };
+        assert.deepEqual([...seen], patterns[index]);
         assert.equal(await page.locator('#boss-health').getAttribute('value'), '0');
       }
       await page.evaluate(() => qa.player.body.reset(qa.level.flagX, 174));

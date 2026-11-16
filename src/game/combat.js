@@ -1,9 +1,8 @@
 import { contact } from './obstacles.js';
 import { EXPANSION_ENEMIES, strikeEnemy, updateExpansionEnemy } from './expansion-enemies.js';
-import { updateExpansionBoss } from './expansion-bosses.js';
+import { phaseHealthFloor, updateExpansionBoss } from './expansion-bosses.js';
 import { blocksMonsterHit, monsters, terrainBlocks, updateMonster } from './monster-ai.js';
 
-const phases = ['Warn: jump the low wave', 'Warn: move away from the marker'];
 const PROJECTILE_LIMIT = 24;
 
 export function attackReaches(player, x, y, width = 12, height = 13) {
@@ -25,7 +24,7 @@ export function addCombat(scene) {
   const art = scene.add.graphics().setDepth(3);
   const indicator = scene.add.graphics().setDepth(2);
   scene.boss = { ...config, maxHp: config.hp, art, indicator, phase: 'waiting', cycle: 0, since: 0 };
-  if (config.kind) scene.boss.trapArt = [];
+  scene.boss.trapArt = [];
 }
 
 function fire(scene, x, y, vx, vy = 0, radius = 5, tint = 0xffa4ba, gravity = 0, rules) {
@@ -95,7 +94,7 @@ export function updateCombat(scene, delta) {
     const boss = scene.boss;
     if (boss?.phase === 'open' && boss.hits < 2 && attackReaches(scene.player, boss.x, 168, 28, 31)) {
       boss.hp--;
-      boss.hits++;
+      boss.hits = boss.hp === phaseHealthFloor(boss) ? 2 : boss.hits + 1;
       boss.flashUntil = now + 145;
       scene.burst(boss.x, 164, 0xffd97d, 8);
       scene.ui.playSound('bossHit');
@@ -143,59 +142,7 @@ export function updateCombat(scene, delta) {
   projectiles.length = Math.min(active, projectiles.length);
   if (scene.boss?.hp > 0) {
     const boss = scene.boss;
-    if (boss.kind) {
-      updateExpansionBoss(scene, boss, fire);
-      if (boss.phase === 'attack') contact(scene, boss.x, 170, 27, 24);
-    } else updateBoss(scene, boss);
-  }
-}
-
-function updateBoss(scene, boss) {
-  const now = scene.elapsed;
-  if (boss.phase === 'waiting' && scene.player.x >= boss.start) {
-    boss.phase = 'warn';
-    boss.since = now;
-    boss.target = scene.player.x;
-    scene.ui.playSound('bossWarning');
-  }
-  const age = now - boss.since;
-  const pattern = boss.cycle % 2;
-  if (boss.phase === 'warn' && age >= 900) {
-    boss.phase = 'attack';
-    boss.since = now;
-    scene.ui.playSound('bossStrike');
-    if (pattern === 0) {
-      const direction = scene.player.x < boss.x ? -1 : 1;
-      fire(scene, boss.x + direction * 20, 177, direction * 116, 0, 6);
-      fire(scene, boss.x + direction * 24, 176, direction * 157, 0, 5);
-    } else {
-      for (const offset of [-17, 0, 17]) fire(scene, boss.target + offset, 35 - Math.abs(offset), 0, 150);
-    }
-  } else if (boss.phase === 'attack' && age >= 980) {
-    boss.phase = 'open';
-    boss.hits = 0;
-    boss.since = now;
-  } else if (boss.phase === 'open' && age >= 2450) {
-    boss.phase = 'warn';
-    boss.cycle++;
-    boss.since = now;
-    boss.target = scene.player.x;
-    scene.ui.playSound('bossWarning');
-  }
-  const vulnerable = boss.phase === 'open' && boss.hits < 2;
-  boss.art.clear().fillStyle(vulnerable ? 0x9469a5 : 0x6a4e83).fillRoundedRect(boss.x - 18, 152, 36, 32, 4);
-  boss.art.fillStyle(vulnerable ? 0xffe192 : 0xe98ab3).fillRect(boss.x - 8, 163, 16, 5);
-  boss.art.fillStyle(0xd6aac6).fillTriangle(boss.x - 16, 153, boss.x - 14, 140, boss.x - 5, 153);
-  boss.art.fillTriangle(boss.x + 16, 153, boss.x + 14, 140, boss.x + 5, 153);
-  boss.indicator.clear();
-  if (boss.phase === 'warn') {
-    const x = pattern === 1 ? boss.target : boss.x;
-    boss.indicator.fillStyle(0xffd181).fillRect(x - 19, 180, 38, 3);
-  }
-  if (boss.phase === 'attack') contact(scene, boss.x, 170, 29, 27);
-  if (boss.phase !== 'waiting') {
-    const cue = vulnerable ? 'Attack now!' : boss.phase === 'warn' ? phases[pattern]
-      : boss.phase === 'open' ? 'Guard up · Get ready' : 'Dodge!';
-    scene.ui.onBoss(boss, cue);
+    updateExpansionBoss(scene, boss, fire);
+    if (boss.phase === 'attack') contact(scene, boss.x, 170, 27, 24);
   }
 }

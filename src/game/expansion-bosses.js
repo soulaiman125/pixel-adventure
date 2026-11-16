@@ -7,9 +7,16 @@ const names = {
   wave: 'Shockwave · Jump the low wave',
   bolts: 'Lightning rods · Leave the marked zone',
   impact: 'Impact then pulse · Clear the marked zone',
+  sigils: 'Falling sigils · Leave the marked zone',
+  crownfall: 'Crownfall · Leave the marked zone',
 };
 
 const profiles = {
+  crown: [
+    { pattern: 'wave', warning: 1000, attack: 1360, open: 2270 },
+    { pattern: 'sigils', warning: 960, attack: 1270, open: 2020 },
+    { pattern: 'crownfall', warning: 980, attack: 1400, open: 1690 },
+  ],
   queen: [
     { pattern: 'spores', warning: 960, attack: 1260, open: 2350 },
     { pattern: 'venom', warning: 880, attack: 1400, open: 2090 },
@@ -26,6 +33,10 @@ export function bossTier(boss) {
   return Math.min(2, Math.floor((boss.maxHp - boss.hp) * 3 / boss.maxHp));
 }
 
+export function phaseHealthFloor(boss) {
+  return Math.max(0, boss.maxHp - Math.ceil(((boss.tier ?? 0) + 1) * boss.maxHp / 3));
+}
+
 function attackPlan(pattern, target) {
   const field = (kind, x, y, width, height, options) =>
     ({ kind, x, y, width, height, offset: 0, warning: 0, active: 1200, period: 4000, ...options });
@@ -34,6 +45,12 @@ function attackPlan(pattern, target) {
     case 'bloom': return [-27, 0, 27].map((offset) =>
       field('poisonCloud', target + offset, 166, 22, 32, { warning: offset ? 180 : 0, active: 1080 }));
     case 'bolts': return [-20, 20].map((offset) => field('lightning', target + offset, 135, 12, 90));
+    case 'sigils': return [-18, 0, 18].map((offset) =>
+      field('crusher', target + offset, 101, 12, 22, { dy: 65, warning: offset ? 150 : 0, active: 990 }));
+    case 'crownfall': return [
+      field('crusher', target, 107, 58, 28, { dy: 61, active: 920 }),
+      field('electricPulse', target, 176, 83, 13, { warning: 580, active: 640 }),
+    ];
     case 'impact': return [
       field('crusher', target, 108, 52, 26, { dy: 60, active: 1050 }),
       field('electricPulse', target, 176, 78, 15, { warning: 610, active: 610 }),
@@ -46,7 +63,10 @@ function beginWarning(scene, boss) {
   const previousTier = boss.tier;
   boss.phase = 'warn';
   boss.tier = bossTier(boss);
-  boss.profile = profiles[boss.kind][boss.tier];
+  const pattern = profiles[boss.kind][boss.tier];
+  const pace = scene.level?.script?.bossPace ?? 1;
+  boss.profile = { ...pattern, warning: Math.max(780, pattern.warning * pace),
+    open: Math.max(1270, pattern.open * pace) };
   boss.target = Math.round(scene.player.x);
   boss.since = scene.elapsed;
   boss.traps = attackPlan(boss.profile.pattern, boss.target);
@@ -63,16 +83,25 @@ function shell(boss, reduced, time) {
   const art = boss.art;
   const x = boss.x;
   const queen = boss.kind === 'queen';
+  const crown = boss.kind === 'crown';
   const open = boss.phase === 'open' && boss.hits < 2;
   const hit = !reduced && boss.flashUntil > time;
-  const bright = queen ? 0xd0e889 : 0x9ff7ff;
-  const shellColor = queen ? 0x668849 : 0x535d9a;
+  const bright = queen ? 0xd0e889 : crown ? 0xf7bde4 : 0x9ff7ff;
+  const shellColor = queen ? 0x668849 : crown ? 0x805887 : 0x535d9a;
   const flare = reduced ? 0 : boss.phase === 'warn'
     ? Math.min(5, Math.floor((time - boss.since) / 170)) : boss.phase === 'attack' ? 5 : 0;
   art.clear().fillStyle(0x272438).fillRect(x - 20, 151, 40, 33);
   art.fillStyle(hit ? 0xffefbb : shellColor).fillRect(x - 16, 151, 32, 29);
   art.fillStyle(0x30293a).fillRect(x - 11, 160, 22, 9);
-  if (queen) {
+  if (crown) {
+    art.fillStyle(0x493656).fillRect(x - 23, 150, 46, 28);
+    art.fillStyle(shellColor).fillRect(x - 15, 146, 30, 27);
+    const teeth = 4 + flare;
+    for (let i = -1; i <= 1; i++) {
+      art.fillStyle(bright).fillRect(x + i * 9 - 2, 146 - teeth, 5, teeth + 1);
+    }
+    art.fillStyle(0x392d4c).fillRect(x - 11, 158, 22, 13);
+  } else if (queen) {
     art.fillStyle(shellColor).fillTriangle(x - 17, 158, x - 34 - flare, 140 - flare, x - 29, 172);
     art.fillTriangle(x + 17, 158, x + 34 + flare, 140 - flare, x + 29, 172);
     art.fillStyle(bright).fillTriangle(x - 18, 156, x - 28, 146, x - 23, 165);
@@ -82,6 +111,8 @@ function shell(boss, reduced, time) {
     art.fillStyle(bright).fillRect(x - 25, 147, 4, 11).fillRect(x + 21, 147, 4, 11);
     if (flare) art.fillStyle(0xffe091).fillRect(x - 25, 147 - flare, 2, flare).fillRect(x + 23, 147 - flare, 2, flare);
   }
+  art.fillStyle(0x221e35).fillRect(x - 15, 175, 30, 3);
+  art.fillStyle(bright).fillRect(x - 19, 154, 2, 10).fillRect(x + 17, 154, 2, 10);
   art.fillStyle(open ? 0xffda82 : bright).fillRect(x - 6, 162, 12, 4);
   if (open) art.lineStyle(1, 0xffda82).strokeRect(x - 9, 159, 18, 10);
   for (let step = 0; step <= (boss.tier ?? 0); step++) {
@@ -119,7 +150,7 @@ export function updateExpansionBoss(scene, boss, fire) {
     scene.ui.playSound('bossStrike');
     if (pattern === 'wave' || pattern === 'venom') {
       const side = scene.player.x < boss.x ? -1 : 1;
-      const tint = pattern === 'venom' ? 0xb4df73 : 0x85d9ff;
+      const tint = pattern === 'venom' ? 0xb4df73 : boss.kind === 'crown' ? 0xe0a8e6 : 0x85d9ff;
       fire(scene, boss.x + side * 21, 177, side * 115, 0, 5, tint);
       fire(scene, boss.x + side * 22, 173, side * 153, 0, 4, tint);
     }
