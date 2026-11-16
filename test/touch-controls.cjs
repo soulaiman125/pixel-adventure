@@ -171,8 +171,10 @@ async function testTouch(browser) {
     });
     assert.deepEqual(result, { hasRoom: true, locked: true }, `${width}×${height}`);
   }
+  await page.setViewportSize({ width: 320, height: 568 });
   await page.reload();
   await page.locator('#settings-button').tap();
+  assert(await page.locator('#settings-dialog').evaluate(dialog => dialog.scrollWidth <= dialog.clientWidth));
   assert.equal(await page.locator('#touch-size').inputValue(), 'large');
   assert.equal(await page.locator('#touch-opacity').inputValue(), '70');
   assert(await page.locator('#touch-left-handed').isChecked());

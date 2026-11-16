@@ -199,6 +199,7 @@ dialog[open] { animation: dialog-in .19s ease-out; }
 .level-ready { border-color: #587a54; background: #243e37; }
 .level-ready .level-number, .level-ready .trailing { color: var(--lime); }
 .setting { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 13px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+.setting select { min-width: 0; max-width: 58%; min-height: 34px; padding-inline: 7px; border: 1px solid #557084; border-radius: 6px; background: #263b4a; color: #f0f8ff; font: inherit; }
 .setting input[type="checkbox"] { appearance: none; flex: none; width: 42px; height: 24px; margin: 0; border: 1px solid #879ba8; border-radius: 20px; background: #273b48; cursor: pointer; }
 .setting input[type="checkbox"]::before { display: block; width: 16px; height: 16px; margin: 3px; border-radius: 50%; background: #b4c5cb; content: ""; transition: transform .16s; }
 .setting input[type="checkbox"]:checked { background: #add775; border-color: #b9e68e; }
