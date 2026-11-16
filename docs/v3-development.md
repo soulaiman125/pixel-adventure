@@ -16,3 +16,25 @@ The development branch starts at the published v2.0.0 commit. The original campa
 ## Art direction
 
 Use one low-resolution pixel grid, dark silhouettes against lighter midgrounds, cool shadows, and bright accents for interactable objects. Give all worlds a foreground terrain treatment and distinct landmarks through original code-drawn tiles. Keep the hero’s scarf and motion silhouette recognizable, with a blade visible during attacks. Reserve amber for warning and high-contrast cores for active hazards. Reduced motion keeps the required indicators and controls.
+
+## Implementation milestones
+
+1. Reviewed production history, preserved the campaign and input formats, and established the art direction.
+2. Added cached integer-pixel outfits and hero poses, plus seven world-specific landmark sets in the existing parallax layer.
+3. Added Shield Knight, Fire Demon, Stone Golem, Shadow Assassin, Venom Stalker, and Thunder Sentinel. New enemies wind up, commit, and recover using scene time. Their shots stop at solid terrain.
+4. Added rotating lasers, laser grids, spike pistons, and charged ledges using deterministic warning and live states. Nightmare also adds marked wind zones.
+5. Unified all three boss encounters under one phase controller. Each health tier has its own minimum health, including The Hollow Crown’s new third phase.
+6. Rebalanced selected encounters in Levels 8, 14–20, and 21–29. The 30 maps keep their order, platform coordinates, and coin counts.
+7. Added independent Hardcore, Nightmare, Boss Rush, Time Trial, and No-Death records, custom Boss Rush arenas, and earned outfits.
+8. Added a challenge selector and results, saved wardrobe choices, and original boss tracks including a final-phase cue.
+9. Extended Node and browser regression suites. Scene loading was verified separately from the legitimate keyboard runs.
+10. Built the unsigned 3.0.0-rc.1 Windows package and verified its embedded desktop archive. The published v2.0.0 remains the public download.
+
+## Recommended human playtest
+
+- Play Cinder Lift and The Final Gauntlet without route instructions. Check whether each trap’s warning gives enough time to choose an approach.
+- Try re-entering each boss arena after a checkpoint retry. Repeat with muted sound and reduced motion.
+- Ride moving ledges on a high-refresh monitor. Check for visible drift while standing still and while preparing a jump.
+- On a physical Android phone, try both handed layouts, rotate during a pause, and test sustained play with screen recording disabled.
+- Run Hardcore Laser Corridor and Nightmare Poison Queen. Check that challenge results and outfit unlocks agree across reloads.
+- Test an in-place installer upgrade with a disposable Windows user and a real v2.0.0 save. Verify shortcuts, progress, preferences, and offline launch.

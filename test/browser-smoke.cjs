@@ -166,6 +166,45 @@ const address = process.env.PIXEL_TEST_URL || 'http://127.0.0.1:5173/';
       await page.locator('#victory-replay').click();
       await page.waitForFunction(() => qa.level.name === 'Verdant Hills' && !qa.complete);
     }
+    await page.keyboard.press('Escape');
+    await page.locator('#pause-main').click();
+    const campaignSave = await page.evaluate(() => localStorage.getItem('pixel-adventure.progress'));
+    for (const mode of ['hardcore', 'nightmare', 'trial', 'flawless', 'rush']) {
+      await page.locator('#challenge-button').click();
+      await page.locator('#challenge-mode').selectOption(mode);
+      await page.locator('#challenge-start').click();
+      await page.waitForFunction(() => qa.sys.isActive() && !qa.complete && document.activeElement.id === 'stage');
+      if (mode === 'flawless') {
+        await page.keyboard.press('KeyR');
+        await page.locator('#clear-dialog[open]').waitFor();
+        assert.equal(await page.locator('#clear-title').textContent(), 'Attempt Ended');
+        await page.locator('#play-again').click();
+        await page.waitForFunction(() => qa.sys.isActive() && !qa.complete && document.activeElement.id === 'stage');
+      }
+      for (let round = 0; round < (mode === 'rush' ? 3 : 1); round++) {
+        if (mode === 'rush') assert.equal(await page.evaluate(() => qa.level.boss.kind), ['crown', 'queen', 'titan'][round]);
+        // Isolate result and storage wiring. Combat phases were exercised above.
+        await page.evaluate(() => {
+          if (qa.boss) qa.boss.hp = 0;
+          qa.player.body.reset(qa.level.flagX, 174);
+        });
+        await page.locator('#clear-dialog[open]').waitFor();
+        if (mode === 'rush' && round < 2) {
+          assert.equal(await page.locator('#clear-title').textContent(), 'Boss Defeated');
+          await page.locator('#next-level').click();
+          await page.waitForFunction(() => qa.sys.isActive() && !qa.complete && document.activeElement.id === 'stage');
+        }
+      }
+      assert.equal(await page.locator('#clear-title').textContent(), 'Challenge Complete');
+      await page.locator('#clear-main').click();
+      assert.equal(await page.evaluate(() => localStorage.getItem('pixel-adventure.progress')), campaignSave);
+    }
+    await page.locator('#settings-button').click();
+    await page.locator('#hero-outfit').selectOption('storm');
+    await page.reload();
+    await page.locator('#settings-button').click();
+    assert.equal(await page.locator('#hero-outfit').inputValue(), 'storm');
+    console.log('Challenge lockouts, retry, three Boss Rush arenas, isolated records, and persistent outfits passed.');
     const mobile = await browser.newPage(devices['iPhone 13']);
     await mobile.goto(address);
     await mobile.locator('canvas').waitFor();

@@ -1,6 +1,6 @@
-# Pixel Adventure 2.0
+# Pixel Adventure 3.0 · Development
 
-A free pixel-art platformer for browsers and Windows. The 2.0 expansion has 30 stages across seven worlds, with keyboard and touch controls. Players can start without an account.
+A free pixel-art platformer for browsers and Windows. The campaign has 30 stages across seven worlds, with keyboard and touch controls. This branch contains the private 3.0 release candidate. The links below lead to the public 2.0.0 release.
 
 [Play online](https://pixel-adventure-phi.vercel.app/) · [Download for Windows x64](https://github.com/soulaiman125/pixel-adventure/releases/download/v2.0.0/Pixel-Adventure-Setup-2.0.0-x64.exe) · [Release notes](https://github.com/soulaiman125/pixel-adventure/releases/tag/v2.0.0)
 
@@ -55,6 +55,20 @@ Finish a level to unlock the next. Each coin earns 100 points. A finish earns on
 Verdant Hills remains Level 1, Sunset Canyon is Level 5, and Crystal Peaks is Level 11. Earlier browser saves preserve access and records for those same stages. An existing Hollow Crown clear unlocks Level 21. A fresh adventure resets current campaign totals and preserves best records and unlocks. Final victory requires completing all 30 stages and defeating the Thunder Titan.
 
 Settings stores separate music and effects volumes, mute, reduced motion, and extra danger outlines. Music starts after a player interaction. Reduced motion limits particles and camera shake. An operating system preference for reduced motion also applies. Extra danger outlines emphasize active hazards and show the travel area of moving lasers.
+
+### Challenges
+
+Use **Challenges** from the main menu. Runs use a separate local save and retain the campaign's stage unlocks and results.
+
+| Mode | Access and rules |
+| --- | --- |
+| Hardcore | Unlocked campaign stages, faster traps, and fewer checkpoints |
+| Nightmare | Opens after The Hollow Crown. Adds laser grids, shorter boss openings, and the final checkpoint only |
+| Boss Rush | Opens after all three campaign bosses. Fight them in separate arenas and carry time and deaths through the sequence |
+| Time Trial | Replay any cleared campaign stage for a separate personal best |
+| No-Death | Replay a cleared stage with one life. A checkpoint retry ends the attempt |
+
+Clear Hardcore to earn Ember, No-Death to earn Frost, and Nightmare or Boss Rush to earn Storm. Choose earned outfits under Settings.
 
 ### Mobile controls
 
