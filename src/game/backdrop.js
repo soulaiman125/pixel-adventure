@@ -19,9 +19,17 @@ export function createBackdrop(scene, theme = 'verdant') {
     image: scene.add.tileSprite(0, 0, scene.scale.width, VIEW_HEIGHT, terrainTexture(theme, key))
       .setOrigin(0).setScrollFactor(0).setDepth(-10 + index),
   }));
+  let visible = true;
 
   return {
     layers,
+    setVisible(next) {
+      if (visible === next) return;
+      visible = next;
+      sky.setVisible(next);
+      sun.setVisible(next);
+      layers.forEach(({ image }) => image.setVisible(next));
+    },
     resize() {
       sky.setDisplaySize(scene.scale.width, VIEW_HEIGHT);
       layers.forEach(({ image }) => image.setSize(scene.scale.width, VIEW_HEIGHT));

@@ -10,6 +10,8 @@ import { createFeedback } from './feedback.js';
 import { heroPose, heroTexture } from './hero-art.js';
 import { monsters } from './monster-ai.js';
 import { isCheckpoint } from './challenges.js';
+import { createPrototypeActors } from './prototype-actors.js';
+import { createTitanHall, createValley, isVerdantPrototype, valleyObjects, valleyProps, valleySurface } from './prototype-world.js';
 
 const MOVE_SPEED = 132;
 const JUMP_SPEED = 263;
@@ -39,6 +41,8 @@ export class PlatformerScene extends Phaser.Scene {
   }
 
   create() {
+    this.valleyPrototype = isVerdantPrototype(this.level);
+    this.titanPrototype = this.level.boss?.kind === 'titan';
     this.collected = 0;
     this.deaths = 0;
     this.checkpoint = this.level.spawnX;
@@ -53,27 +57,38 @@ export class PlatformerScene extends Phaser.Scene {
     this.launchUntil = 0;
     this.animationState = {};
     this.swingUntil = 0;
+    this.visualPose = 'idle';
     this.ambientFrame = -1;
     this.riding = null;
     this.specialPlatforms = [];
     this.resetJump();
 
-    this.backdrop = createBackdrop(this, this.level.theme);
+    this.backdrop = (this.valleyPrototype && createValley(this)) || createBackdrop(this, this.level.theme);
     this.physics.world.setBounds(0, 0, this.level.width, VIEW_HEIGHT, true, true, false, false);
     this.cameras.main.setBounds(0, 0, this.level.width, VIEW_HEIGHT);
+    if (this.valleyPrototype) valleyObjects(this);
     this.createTerrain();
     this.createActors();
+    this.prototypeActors = this.valleyPrototype || this.titanPrototype ? createPrototypeActors(this,this.valleyPrototype) : null;
+    this.hall = this.titanPrototype ? createTitanHall(this) : null;
     this.feedback = createFeedback(this);
     this.obstacleUpdates = addObstacles(this, this.level.hazards);
     addCombat(this);
     this.createAmbient();
     this.resizeBackdrop();
     this.createContacts();
+    const paintPrototype = () => {
+      this.prototypeActors?.update();
+      this.boss?.presentation?.update();
+      this.hall?.update();
+    };
+    if (this.prototypeActors) this.events.on(Phaser.Scenes.Events.POST_UPDATE,paintPrototype);
     this.input.on(Phaser.Input.Events.POINTER_DOWN, this.ui.onPlayfieldPress);
     this.scale.on(Phaser.Scale.Events.RESIZE, this.resizeBackdrop, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.input.off(Phaser.Input.Events.POINTER_DOWN, this.ui.onPlayfieldPress);
       this.scale.off(Phaser.Scale.Events.RESIZE, this.resizeBackdrop, this);
+      this.events.off(Phaser.Scenes.Events.POST_UPDATE,paintPrototype);
     });
     this.ui.onReady(this.level.coins.length);
   }
@@ -104,10 +119,13 @@ export class PlatformerScene extends Phaser.Scene {
   }
 
   createTerrain() {
-    for (const [x, scale] of this.level.trees) {
-      this.add.image(x, GROUND_Y + 1, terrainTexture(this.level.theme, 'tree')).setOrigin(0.5, 1).setScale(scale).setDepth(-4);
+    this.fieldProps=this.valleyPrototype?valleyProps(this):null;
+    if(!this.valleyPrototype) {
+      for (const [x, scale] of this.level.trees) {
+        this.add.image(x, GROUND_Y + 1, terrainTexture(this.level.theme, 'tree')).setOrigin(0.5, 1).setScale(scale).setDepth(-4);
+      }
+      drawMeadow(this, this.level.ground, GROUND_Y, this.level.theme);
     }
-    drawMeadow(this, this.level.ground, GROUND_Y, this.level.theme);
     const ice = this.add.graphics().setDepth(1);
     for (const [start, end] of this.level.ice ?? []) {
       ice.fillStyle(0x9bdcee).fillRect(start, GROUND_Y, end - start, 3);
@@ -120,7 +138,9 @@ export class PlatformerScene extends Phaser.Scene {
     for (const [index, [start, end]] of this.level.ground.entries()) {
       this.addSurface(this.ground, start, GROUND_Y, end - start, 40, 'ground');
       if (isCheckpoint(this.level, index)) {
-        this.checkpointFlags.set(start, this.add.image(start + 19, GROUND_Y, 'checkpoint').setOrigin(0.25, 1).setDepth(1));
+        const flag=this.valleyPrototype ? this.add.image(start+19,GROUND_Y,'field-signs','checkpoint0').setOrigin(.5,1)
+          : this.add.image(start+19,GROUND_Y,'checkpoint').setOrigin(.25,1);
+        this.checkpointFlags.set(start,flag.setDepth(1));
       }
     }
     for (const [left, right, force] of this.windZones) {
@@ -136,12 +156,13 @@ export class PlatformerScene extends Phaser.Scene {
   }
 
   addSurface(group, x, y, width, height, key, kind) {
-    let visual = this.add.tileSprite(x, y, width, height, terrainTexture(this.level.theme, key)).setOrigin(0);
+    let visual = this.valleyPrototype ? valleySurface(this,x,y,width,height)
+      : this.add.tileSprite(x,y,width,height,terrainTexture(this.level.theme,key)).setOrigin(0);
     if (kind) {
       const marker = this.add.graphics();
       marker.fillStyle(0xffe998).fillRect(4, 3, 4, 2).fillRect(width - 8, 3, 4, 2);
       visual = this.add.container(x, y, [visual.setPosition(0, 0), marker]);
-    } else if (key === 'platform') {
+    } else if (key === 'platform' && !this.valleyPrototype) {
       const edges = this.add.graphics();
       const [shadow, light] = PLATFORM_EDGES[this.level.theme];
       edges.fillStyle(shadow).fillRect(x, y + 10, width, 2);
@@ -185,7 +206,9 @@ export class PlatformerScene extends Phaser.Scene {
       }
     }
 
-    this.add.image(this.level.flagX - 10, GROUND_Y, 'flag').setOrigin(0, 1).setDepth(1);
+    const flag=this.valleyPrototype ? this.add.image(this.level.flagX,GROUND_Y,'field-signs','exit0').setOrigin(.5,1)
+      : this.add.image(this.level.flagX-10,GROUND_Y,'flag').setOrigin(0,1);
+    flag.setDepth(1);
     this.finish = this.add.zone(this.level.flagX + 1, GROUND_Y - 21, 21, 42);
     this.physics.add.existing(this.finish, true);
   }
@@ -215,7 +238,8 @@ export class PlatformerScene extends Phaser.Scene {
       if (!this.complete && this.checkpointFlags.has(start) && start > this.checkpoint && this.player.x > start + 15) {
         this.checkpoint = start + 19;
         const flag = this.checkpointFlags.get(start);
-        flag.setTexture('checkpoint-active');
+        if(this.valleyPrototype) flag.setFrame('active0');
+        else flag.setTexture('checkpoint-active');
         this.burst(flag.x + 6, flag.y - 17, 0xd5f77e, 8);
         this.ui.onCheckpoint();
       }
@@ -275,7 +299,9 @@ export class PlatformerScene extends Phaser.Scene {
     enemy.getData('warning')?.setVisible(false);
     enemy.getData('signal')?.clear();
     this.burst(enemy.x, enemy.y - 6, 0xa9e169);
-    if (!this.ui.reduceMotion) {
+    const updated = this.prototypeActors?.foeHit(enemy);
+    if(updated && !this.ui.reduceMotion) this.cameras.main.shake(90,.0028);
+    if (!updated && !this.ui.reduceMotion) {
       const fall = this.add.image(enemy.x, enemy.y, enemy.texture.key).setOrigin(.5, 1).setFlipX(enemy.flipX).setDepth(4);
       this.tweens.add({ targets: fall, y: enemy.y - 9, scaleY: .25, alpha: 0, duration: 235, onComplete: () => fall.destroy() });
     }
@@ -292,7 +318,7 @@ export class PlatformerScene extends Phaser.Scene {
     const x = this.player.x;
     const y = this.player.y;
     this.riding = null;
-    this.feedback.death(this.player);
+    if(!this.prototypeActors?.collapse(this.player)) this.feedback.death(this.player);
     this.clearProjectiles();
     this.player.body.reset(this.checkpoint, GROUND_Y - 2);
     for (const enemy of this.enemies.getChildren()) {
@@ -303,6 +329,7 @@ export class PlatformerScene extends Phaser.Scene {
       signal.clear();
     }
     this.player.setTexture(heroTexture('respawn', this.ui.costume)).setFlipX(false);
+    this.visualPose='respawn';
     this.resetJump();
     this.landUntil = 0;
     this.swingUntil = 0;
@@ -381,7 +408,8 @@ export class PlatformerScene extends Phaser.Scene {
     visual.launch = this.launchUntil;
     visual.swing = this.swingUntil;
     visual.grace = this.invulnerableUntil;
-    const texture = heroTexture(heroPose(visual), this.ui.costume);
+    this.visualPose = heroPose(visual);
+    const texture = heroTexture(this.visualPose, this.ui.costume);
     if (player.texture.key !== texture) player.setTexture(texture);
   }
 
@@ -399,6 +427,7 @@ export class PlatformerScene extends Phaser.Scene {
     }
     this.updatePlayer(this.elapsed);
     this.updateAmbient();
+    this.fieldProps?.update(this.ui.reduceMotion?0:this.elapsed);
     updatePlatforms(this);
     this.obstacleUpdates.forEach((update) => update(this.elapsed));
     updateCombat(this, delta);

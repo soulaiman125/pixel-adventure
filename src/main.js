@@ -598,6 +598,14 @@ const scene = new PlatformerScene(controls, {
       syncMusic();
     }
     const hud = byId('boss-hud');
+    const forged=boss.kind==='titan';
+    if(forged) {
+      hud.dataset.boss='titan';
+      hud.dataset.tier=String((boss.tier??0)+1);
+    }else if(hud.dataset.boss) {
+      delete hud.dataset.boss;
+      delete hud.dataset.tier;
+    }
     const meter = byId('boss-health');
     if (hud.hidden) {
       const name = boss.name ?? 'The Hollow Crown';
@@ -662,6 +670,8 @@ const game = new Phaser.Game({
   roundPixels: true,
   banner: false,
   audio: { noAudio: true },
+  // Offline Electron allows local image sources while blocking XHR and fetch.
+  loader: { imageLoadType: 'HTMLImageElement' },
   input: {
     // Phaser handles canvas interaction. The HTML controls retain browser pointer IDs.
     keyboard: false, activePointers: 2, touch: { capture: false },

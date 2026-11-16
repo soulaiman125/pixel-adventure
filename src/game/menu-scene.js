@@ -1,11 +1,16 @@
 import Phaser from 'phaser';
 import { drawMeadow } from './art.js';
 import { createBackdrop } from './backdrop.js';
+import { preloadPrototype } from './prototype-world.js';
 
 export class MenuScene extends Phaser.Scene {
   constructor(reduceMotion) {
     super('menu');
     this.reduceMotion = reduceMotion;
+  }
+
+  preload() {
+    preloadPrototype(this);
   }
 
   create() {

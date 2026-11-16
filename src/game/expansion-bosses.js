@@ -1,4 +1,5 @@
 import { dangerHits, hazardFrame, paintDanger } from './danger.js';
+import { paintTitanField } from './prototype-titan.js';
 
 const names = {
   spores: 'Spore mark · Move away',
@@ -80,6 +81,7 @@ function beginWarning(scene, boss) {
 }
 
 function shell(boss, reduced, time) {
+  if(boss.presentation) return;
   const art = boss.art;
   const x = boss.x;
   const queen = boss.kind === 'queen';
@@ -151,8 +153,12 @@ export function updateExpansionBoss(scene, boss, fire) {
     if (pattern === 'wave' || pattern === 'venom') {
       const side = scene.player.x < boss.x ? -1 : 1;
       const tint = pattern === 'venom' ? 0xb4df73 : boss.kind === 'crown' ? 0xe0a8e6 : 0x85d9ff;
-      fire(scene, boss.x + side * 21, 177, side * 115, 0, 5, tint);
-      fire(scene, boss.x + side * 22, 173, side * 153, 0, 4, tint);
+      const style=boss.presentation?{titanWave:true}:undefined;
+      fire(scene, boss.x + side * 21, 177, side * 115, 0, 5, tint,0,style);
+      fire(scene, boss.x + side * 22, 173, side * 153, 0, 4, tint,0,style);
+    } else if(boss.presentation && pattern==='impact' && !scene.ui.reduceMotion) {
+      scene.cameras.main.shake(145,.0055);
+      scene.burst(boss.target,181,0xc6ceff,12);
     }
   } else if (boss.phase === 'attack' && age >= attack) {
     boss.phase = 'open';
@@ -177,6 +183,7 @@ export function updateExpansionBoss(scene, boss, fire) {
     hazardFrame(field, now - boss.since, frame);
     if (boss.phase === 'warn') frame.phase = 'warning';
     paintDanger(art, field, frame, now, scene.ui.reduceMotion, scene.ui.dangerGuides);
+    if(boss.presentation) paintTitanField(art,field,frame,now,scene.ui.reduceMotion);
     if (dangerHits(scene.player.body, field, frame)) scene.damage();
   });
   if (boss.phase === 'waiting') return;

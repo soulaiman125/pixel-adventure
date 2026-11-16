@@ -2,6 +2,8 @@ import { contact } from './obstacles.js';
 import { EXPANSION_ENEMIES, strikeEnemy, updateExpansionEnemy } from './expansion-enemies.js';
 import { phaseHealthFloor, updateExpansionBoss } from './expansion-bosses.js';
 import { blocksMonsterHit, monsters, terrainBlocks, updateMonster } from './monster-ai.js';
+import { paintPrototypeSlash } from './prototype-actors.js';
+import { addTitanPresentation } from './prototype-titan.js';
 
 const PROJECTILE_LIMIT = 24;
 
@@ -25,6 +27,7 @@ export function addCombat(scene) {
   const indicator = scene.add.graphics().setDepth(2);
   scene.boss = { ...config, maxHp: config.hp, art, indicator, phase: 'waiting', cycle: 0, since: 0 };
   scene.boss.trapArt = [];
+  if(scene.titanPrototype) scene.boss.presentation=addTitanPresentation(scene,scene.boss);
 }
 
 function fire(scene, x, y, vx, vy = 0, radius = 5, tint = 0xffa4ba, gravity = 0, rules) {
@@ -42,6 +45,8 @@ function fire(scene, x, y, vx, vy = 0, radius = 5, tint = 0xffa4ba, gravity = 0,
   shot.radius = radius;
   shot.expires = scene.elapsed + (rules?.lifetime ?? 2700);
   shot.stopsOnTerrain = rules?.ground === true;
+  shot.titanWave = rules?.titanWave === true;
+  if (shot.titanWave) shot.dot.setStrokeStyle(1,0xdeffff);
   scene.projectiles.push(shot);
 }
 
@@ -96,6 +101,7 @@ export function updateCombat(scene, delta) {
       boss.hp--;
       boss.hits = boss.hp === phaseHealthFloor(boss) ? 2 : boss.hits + 1;
       boss.flashUntil = now + 145;
+      if (scene.prototypeActors?.enabled()) scene.prototypeActors.hit(boss.x,164,true);
       scene.burst(boss.x, 164, 0xffd97d, 8);
       scene.ui.playSound('bossHit');
       if (!scene.ui.reduceMotion) scene.cameras.main.shake(boss.hp === 0 ? 240 : 135, boss.hp === 0 ? .009 : .005);
@@ -113,7 +119,10 @@ export function updateCombat(scene, delta) {
     }
   }
   scene.attackEffect.clear();
-  if (now < scene.swingUntil && !scene.ui.reduceMotion) {
+  if (now < scene.swingUntil && scene.prototypeActors?.enabled()) {
+    const sign=scene.player.flipX?-1:1;
+    paintPrototypeSlash(scene.attackEffect,scene.player.x,scene.player.y-17,sign,scene.swingUntil-now,scene.ui.reduceMotion);
+  } else if (now < scene.swingUntil && !scene.ui.reduceMotion) {
     const sign = scene.player.flipX ? -1 : 1;
     const x = scene.player.x + sign * 9;
     const y = scene.player.y - 13;
@@ -135,7 +144,15 @@ export function updateCombat(scene, delta) {
       || (shot.stopsOnTerrain && terrainBlocks(scene, x, y, shot.dot.x, shot.dot.y))) {
       shot.dot.setActive(false).setVisible(false);
     }
-    else contact(scene, shot.dot.x, shot.dot.y, shot.radius * 1.65, shot.radius * 1.65);
+    else {
+      if (shot.titanWave) {
+        const side=Math.sign(shot.vx);
+        const {x,y}=shot.dot;
+        scene.attackEffect.fillStyle(0x8ad8ff,.46).fillTriangle(x,y-4,x-side*11,y+2,x,y+5);
+        scene.attackEffect.fillStyle(0xf3ffff).fillRect(x-2,y-2,4,4);
+      }
+      contact(scene, shot.dot.x, shot.dot.y, shot.radius * 1.65, shot.radius * 1.65);
+    }
     if (shot.dot.active) projectiles[active++] = shot;
   }
   // A hit can empty the list during the loop.
