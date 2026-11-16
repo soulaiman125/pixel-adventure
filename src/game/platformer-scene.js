@@ -12,6 +12,8 @@ import { monsters } from './monster-ai.js';
 import { isCheckpoint } from './challenges.js';
 import { createPrototypeActors } from './prototype-actors.js';
 import { createTitanHall, createValley, isVerdantPrototype, valleyObjects, valleyProps, valleySurface } from './prototype-world.js';
+import { clearShadow, createShadow, updateDash } from './shadow-combat.js';
+import { createShadowPresentation } from './shadow-presentation.js';
 
 const MOVE_SPEED = 132;
 const JUMP_SPEED = 263;
@@ -36,8 +38,9 @@ export class PlatformerScene extends Phaser.Scene {
     this.ui = ui;
   }
 
-  init({ level }) {
+  init({ level, shadow }) {
     this.level = level;
+    this.shadowEnabled = Boolean(shadow);
   }
 
   create() {
@@ -69,6 +72,8 @@ export class PlatformerScene extends Phaser.Scene {
     if (this.valleyPrototype) valleyObjects(this);
     this.createTerrain();
     this.createActors();
+    this.ninja = this.shadowEnabled ? createShadow(this) : null;
+    this.shadowPresentation = this.ninja ? createShadowPresentation(this) : null;
     this.prototypeActors = this.valleyPrototype || this.titanPrototype ? createPrototypeActors(this,this.valleyPrototype) : null;
     this.hall = this.titanPrototype ? createTitanHall(this) : null;
     this.feedback = createFeedback(this);
@@ -77,12 +82,13 @@ export class PlatformerScene extends Phaser.Scene {
     this.createAmbient();
     this.resizeBackdrop();
     this.createContacts();
-    const paintPrototype = () => {
+    const paintPrototype = (time) => {
       this.prototypeActors?.update();
       this.boss?.presentation?.update();
       this.hall?.update();
+      this.shadowPresentation?.update(time);
     };
-    if (this.prototypeActors) this.events.on(Phaser.Scenes.Events.POST_UPDATE,paintPrototype);
+    if (this.prototypeActors || this.shadowPresentation) this.events.on(Phaser.Scenes.Events.POST_UPDATE,paintPrototype);
     this.input.on(Phaser.Input.Events.POINTER_DOWN, this.ui.onPlayfieldPress);
     this.scale.on(Phaser.Scale.Events.RESIZE, this.resizeBackdrop, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -135,6 +141,7 @@ export class PlatformerScene extends Phaser.Scene {
     this.windZones = this.level.script?.air ?? [];
     this.ground = this.physics.add.staticGroup();
     this.platforms = this.physics.add.staticGroup();
+    this.solidWalls = this.level.solidWalls ? this.physics.add.staticGroup() : null;
     for (const [index, [start, end]] of this.level.ground.entries()) {
       this.addSurface(this.ground, start, GROUND_Y, end - start, 40, 'ground');
       if (isCheckpoint(this.level, index)) {
@@ -152,6 +159,9 @@ export class PlatformerScene extends Phaser.Scene {
     for (const [x, y, width, kind, a, b, period] of this.level.platforms) {
       const objects = this.addSurface(this.platforms, x, y, width, 12, 'platform', kind);
       if (kind) this.specialPlatforms.push({ ...objects, x, y, kind, a, b, period });
+    }
+    for (const [x, y, width, height] of this.level.solidWalls ?? []) {
+      this.addSurface(this.solidWalls, x, y, width, height, 'platform');
     }
   }
 
@@ -192,11 +202,22 @@ export class PlatformerScene extends Phaser.Scene {
     for (const [left, distance, speed, type] of this.level.enemies) {
       const monster = monsters[type];
       const expansion = EXPANSION_ENEMIES.has(type) || monster;
-      const texture = expansion ? `${type}-rest` : terrainTexture(this.level.theme, 'slime-rest');
+      const texture = type === 'dummy' ? 'target-dummy' : expansion ? `${type}-rest` : terrainTexture(this.level.theme, 'slime-rest');
+      if (type === 'dummy' && !this.textures.exists(texture)) {
+        const dummy = this.textures.createCanvas(texture, 24, 30);
+        const context = dummy.context;
+        for (const [color, x, y, width, height] of [
+          ['#24232e', 3, 5, 18, 16], ['#806148', 5, 6, 14, 14], ['#b39261', 7, 8, 10, 10],
+          ['#c85850', 9, 10, 6, 6], ['#f2c38a', 11, 12, 2, 2], ['#533d37', 10, 21, 4, 9],
+          ['#8a6e52', 5, 27, 14, 3],
+        ]) { context.fillStyle = color; context.fillRect(x, y, width, height); }
+        dummy.refresh();
+      }
       const homeY = type === 'flying' || type === 'bat' || monster?.flying ? 148 : GROUND_Y;
       const slime = this.enemies.create(left, homeY, texture)
         .setOrigin(0.5, 1).setDepth(3).setVelocityX(speed);
-      slime.body.setSize(15, expansion ? 13 : 11, false).setOffset(1, expansion ? 5 : 2);
+      if (type === 'dummy') slime.body.setSize(18, 17, false).setOffset(3, 5);
+      else slime.body.setSize(15, expansion ? 13 : 11, false).setOffset(1, expansion ? 5 : 2);
       slime.setData({ left, right: left + distance, speed, type, homeY });
       if (monster) {
         slime.setData({ brain: { phase: 'patrol', until: 0, facing: 1 }, signal: this.add.graphics().setDepth(6) });
@@ -233,6 +254,7 @@ export class PlatformerScene extends Phaser.Scene {
   }
 
   createContacts() {
+    if (this.solidWalls) this.physics.add.collider(this.player, this.solidWalls);
     this.physics.add.collider(this.player, this.ground, (_player, ground) => {
       const start = ground.body.left;
       if (!this.complete && this.checkpointFlags.has(start) && start > this.checkpoint && this.player.x > start + 15) {
@@ -251,7 +273,9 @@ export class PlatformerScene extends Phaser.Scene {
         && player.body.prev.y + player.body.height <= platform.body.top + 2;
     });
     this.physics.add.overlap(this.player, this.coins, (_player, coin) => this.collect(coin));
-    this.physics.add.overlap(this.player, this.enemies, (_player, enemy) => this.hitSlime(enemy));
+    this.physics.add.overlap(this.player, this.enemies, (_player, enemy) => {
+      if (enemy.getData('type') !== 'dummy') this.hitSlime(enemy);
+    });
     this.physics.add.overlap(this.player, this.finish, () => this.finishLevel());
   }
 
@@ -318,13 +342,16 @@ export class PlatformerScene extends Phaser.Scene {
     const x = this.player.x;
     const y = this.player.y;
     this.riding = null;
-    if(!this.prototypeActors?.collapse(this.player)) this.feedback.death(this.player);
+    if (this.shadowPresentation) this.shadowPresentation.collapse();
+    else if(!this.prototypeActors?.collapse(this.player)) this.feedback.death(this.player);
     this.clearProjectiles();
+    clearShadow(this, true);
     this.player.body.reset(this.checkpoint, GROUND_Y - 2);
     for (const enemy of this.enemies.getChildren()) {
       const { brain, signal, left, homeY, speed } = enemy.data.values;
       if (!brain || left <= this.checkpoint + 28) continue;
       enemy.enableBody(true, left, homeY, true, true).setVelocityX(speed).setFlipX(false);
+      this.ninja?.enemyHp.delete(enemy);
       Object.assign(brain, { phase: 'patrol', until: 0, facing: 1 });
       signal.clear();
     }
@@ -346,8 +373,9 @@ export class PlatformerScene extends Phaser.Scene {
   }
 
   finishLevel() {
-    if (this.complete || this.boss?.hp > 0) return;
+    if (this.complete || (this.boss && this.boss.hp !== 0)) return;
     this.complete = true;
+    clearShadow(this);
     this.player.setVelocity(0);
     this.player.setAcceleration(0);
     this.player.setTexture(heroTexture('victory', this.ui.costume));
@@ -360,9 +388,9 @@ export class PlatformerScene extends Phaser.Scene {
     const body = player.body;
     // Arcade overlap callbacks (coins and enemies) can set touching.down in midair.
     const grounded = body.velocity.y >= 0 && body.blocked.down;
-    if (grounded && !this.wasGrounded && this.lastFallSpeed > 145) {
-      this.landUntil = time + 115;
-      this.dust(player.x, player.y);
+    if (grounded && !this.wasGrounded) {
+      if (this.ninja || this.lastFallSpeed > 145) this.landUntil = time + (this.ninja ? 138 : 115);
+      if (this.lastFallSpeed > 145) this.dust(player.x, player.y);
     }
     this.wasGrounded = grounded;
     this.lastFallSpeed = body.velocity.y;
@@ -395,8 +423,11 @@ export class PlatformerScene extends Phaser.Scene {
     const onIce = grounded && player.y >= GROUND_Y - 1
       && this.level.ice?.some(([start, end]) => player.x >= start && player.x < end);
     const wind = !grounded && this.windZones.find(([left, right]) => player.x >= left && player.x <= right);
-    player.setAccelerationX(direction * (onIce ? 540 : 880) + (wind ? wind[2] : 0)).setDragX(onIce ? 300 : 1250);
-    if (direction !== 0) player.setFlipX(direction < 0);
+    const dashing = this.ninja && updateDash(this, grounded && body.velocity.y >= 0 && time >= this.dropUntil, direction);
+    if (!dashing) {
+      player.setAccelerationX(direction * (onIce ? 540 : 880) + (wind ? wind[2] : 0)).setDragX(onIce ? 300 : 1250);
+      if (direction !== 0 && !this.ninja?.attack && !this.ninja?.throw) player.setFlipX(direction < 0);
+    }
     const visual = this.animationState;
     visual.time = time;
     visual.grounded = grounded;
@@ -435,6 +466,11 @@ export class PlatformerScene extends Phaser.Scene {
     this.enemies.children.iterate((enemy) => {
       if (!enemy.active) return;
       const { left, right, speed, type } = enemy.data.values;
+      if (this.ninja) {
+        const hit = enemy.getData('shadowHitUntil') > this.elapsed;
+        enemy.setAlpha(hit && !this.ui.reduceMotion ? .76 : 1);
+      }
+      if (type === 'dummy') return;
       if (type === 'ice') {
         const velocity = speed * (1 + 0.4 * Math.sin(this.elapsed / 380 + left));
         enemy.setVelocityX(enemy.body.velocity.x < 0 ? -velocity : velocity);

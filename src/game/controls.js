@@ -6,17 +6,23 @@ const keysByAction = {
   jump: ['KeyW', 'ArrowUp', 'Space'],
   drop: ['KeyS', 'ArrowDown'],
   attack: ['KeyX', 'KeyJ'],
+  dash: ['ShiftLeft', 'ShiftRight', 'KeyC'],
+  throw: ['KeyZ', 'KeyK'],
 };
 const gameplayKeys = new Set(Object.values(keysByAction).flat());
 
-export function createControls(container, isPlaying, hapticFeedback) {
+export function createControls(container, isPlaying, hapticFeedback, shadowEnabled = () => false) {
   const heldKeys = new Set();
   let jumpPressed = false;
   let attackPressed = false;
+  let dashPressed = false;
+  let throwPressed = false;
   const touch = createTouchControls(container, isPlaying, (action) => {
     if (action === 'jump') jumpPressed = true;
     if (action === 'attack') attackPressed = true;
-    if (action === 'jump' || action === 'attack') hapticFeedback();
+    if (action === 'dash' && shadowEnabled()) dashPressed = true;
+    if (action === 'throw' && shadowEnabled()) throwPressed = true;
+    if (action !== 'left' && action !== 'right') hapticFeedback();
   });
 
   function clear() {
@@ -24,6 +30,8 @@ export function createControls(container, isPlaying, hapticFeedback) {
     touch.clear();
     jumpPressed = false;
     attackPressed = false;
+    dashPressed = false;
+    throwPressed = false;
   }
 
   function keyboardDown(action) {
@@ -38,10 +46,15 @@ export function createControls(container, isPlaying, hapticFeedback) {
     if (!isPlaying() || event.altKey || event.ctrlKey || event.metaKey
       || document.activeElement?.closest('button, input, select, textarea, a, [contenteditable]')
       || !gameplayKeys.has(event.code)) return;
+    const dash = keysByAction.dash.includes(event.code);
+    const throwStar = keysByAction.throw.includes(event.code);
+    if ((dash || throwStar) && !shadowEnabled()) return;
     event.preventDefault();
     if (!event.repeat) {
       if (keysByAction.jump.includes(event.code) && !keyboardDown('jump')) jumpPressed = true;
       if (keysByAction.attack.includes(event.code)) attackPressed = true;
+      if (dash && !keyboardDown('dash')) dashPressed = true;
+      if (throwStar && !keyboardDown('throw')) throwPressed = true;
       heldKeys.add(event.code);
     }
   });
@@ -65,6 +78,16 @@ export function createControls(container, isPlaying, hapticFeedback) {
     consumeAttack() {
       const pressed = attackPressed;
       attackPressed = false;
+      return pressed;
+    },
+    consumeDash() {
+      const pressed = dashPressed;
+      dashPressed = false;
+      return pressed;
+    },
+    consumeThrow() {
+      const pressed = throwPressed;
+      throwPressed = false;
       return pressed;
     },
   };

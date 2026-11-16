@@ -4,6 +4,7 @@ import { phaseHealthFloor, updateExpansionBoss } from './expansion-bosses.js';
 import { blocksMonsterHit, monsters, terrainBlocks, updateMonster } from './monster-ai.js';
 import { paintPrototypeSlash } from './prototype-actors.js';
 import { addTitanPresentation } from './prototype-titan.js';
+import { updateShadowCombat } from './shadow-combat.js';
 
 const PROJECTILE_LIMIT = 24;
 
@@ -82,10 +83,39 @@ function updateEnemyShots(scene, enemy) {
   warning.setPosition(enemy.x, enemy.y - 17).setVisible(shotAt - scene.elapsed < 515);
 }
 
+function hitBoss(scene, damage) {
+  const boss = scene.boss;
+  if (!boss || boss.phase !== 'open' || boss.hits >= 2 || !Number.isFinite(damage)) return false;
+  const floor = phaseHealthFloor(boss);
+  if (boss.hp <= floor) return false;
+  const landed = Math.min(damage, 2 - boss.hits, boss.hp - floor);
+  boss.hp -= landed;
+  boss.hits = boss.hp === floor ? 2 : boss.hits + landed;
+  boss.flashUntil = scene.elapsed + 145;
+  if (!scene.ninja && scene.prototypeActors?.enabled()) scene.prototypeActors.hit(boss.x,164,true);
+  scene.burst(boss.x, 164, 0xffd97d, 8);
+  scene.ui.playSound('bossHit');
+  if (!scene.ui.reduceMotion) scene.cameras.main.shake(boss.hp === 0 ? 240 : 135, boss.hp === 0 ? .009 : .005);
+  if (boss.hp === 0) {
+    boss.phase = 'defeated';
+    boss.art.clear();
+    boss.indicator.clear();
+    boss.trapArt?.forEach(({ art }) => art.clear());
+    scene.clearProjectiles();
+    scene.burst(boss.x, 161, 0xd8ffff, 14);
+    scene.burst(boss.x, 149, 0xffdc96, 10);
+    scene.ui.playSound('bossDefeat');
+    scene.ui.onBoss(boss, 'Boss defeated · Reach the flag');
+  }
+  return true;
+}
+
 export function updateCombat(scene, delta) {
   const now = scene.elapsed;
   const swing = scene.controls.consumeAttack();
-  if (swing && now >= scene.attackAfter) {
+  if (scene.ninja) {
+    updateShadowCombat(scene, delta, swing, (damage) => hitBoss(scene, damage));
+  } else if (swing && now >= scene.attackAfter) {
     scene.attackAfter = now + 335;
     scene.swingUntil = now + 150;
     scene.ui.playSound('attack');
@@ -97,26 +127,7 @@ export function updateCombat(scene, delta) {
       } else strikeEnemy(scene, enemy);
     });
     const boss = scene.boss;
-    if (boss?.phase === 'open' && boss.hits < 2 && attackReaches(scene.player, boss.x, 168, 28, 31)) {
-      boss.hp--;
-      boss.hits = boss.hp === phaseHealthFloor(boss) ? 2 : boss.hits + 1;
-      boss.flashUntil = now + 145;
-      if (scene.prototypeActors?.enabled()) scene.prototypeActors.hit(boss.x,164,true);
-      scene.burst(boss.x, 164, 0xffd97d, 8);
-      scene.ui.playSound('bossHit');
-      if (!scene.ui.reduceMotion) scene.cameras.main.shake(boss.hp === 0 ? 240 : 135, boss.hp === 0 ? .009 : .005);
-      if (boss.hp === 0) {
-        boss.phase = 'defeated';
-        boss.art.clear();
-        boss.indicator.clear();
-        boss.trapArt?.forEach(({ art }) => art.clear());
-        scene.clearProjectiles();
-        scene.burst(boss.x, 161, 0xd8ffff, 14);
-        scene.burst(boss.x, 149, 0xffdc96, 10);
-        scene.ui.playSound('bossDefeat');
-        scene.ui.onBoss(boss, 'Boss defeated · Reach the flag');
-      }
-    }
+    if (boss && attackReaches(scene.player, boss.x, 168, 28, 31)) hitBoss(scene, 1);
   }
   scene.attackEffect.clear();
   if (now < scene.swingUntil && scene.prototypeActors?.enabled()) {

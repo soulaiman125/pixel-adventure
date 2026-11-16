@@ -1,6 +1,13 @@
 const effects = {
   click: ['triangle', [[530, 0, .055]]],
   attack: ['triangle', [[298, 0, .065, 650]]],
+  katana1: ['triangle', [[520, 0, .075, 170]]],
+  katana2: ['triangle', [[290, 0, .10, 750]]],
+  katana3: ['triangle', [[124, 0, .14, 62], [590, .07, .085, 240]]],
+  katanaHit: ['triangle', [[310, 0, .09, 120], [850, 0, .045, 430]]],
+  shuriken: ['triangle', [[890, 0, .10, 250]]],
+  shurikenHit: ['sine', [[1080, 0, .08, 410]]],
+  dash: ['triangle', [[240, 0, .14, 95]]],
   jump: ['sine', [[370, 0, .12, 630]]],
   coin: ['triangle', [[785, 0, .07], [1175, .06, .125], [1568, .115, .1]]],
   stomp: ['triangle', [[205, 0, .12, 102], [350, .037, .09, 260]]],

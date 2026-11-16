@@ -49,7 +49,7 @@ export function createPrototypeActors(scene, valley) {
       const active=this.enabled();
       const player=scene.player;
       player.setVisible(!active);
-      hero.setVisible(active);
+      hero.setVisible(active && !scene.ninja);
       const key=heroAtlas(scene,scene.ui.costume);
       if (hero.texture.key!==key) hero.setTexture(key,'idle0');
       hero.setPosition(Math.round(player.x),Math.round(player.y)).setFlipX(player.flipX);
@@ -80,7 +80,8 @@ export function createPrototypeActors(scene, valley) {
         const flip=velocity.x<0;
         const separation=player.x-body.x;
         const approaching=Math.abs(separation)<54 && Math.sign(separation)===Math.sign(velocity.x)&&Math.abs(player.y-body.y)<21;
-        const pose=approaching?(Math.abs(separation)<23?'lunge':'windup'):Math.abs(velocity.x)>8?'patrol':'idle';
+        const pose=body.getData('shadowHitUntil')>now?'hurt':
+          approaching?(Math.abs(separation)<23?'lunge':'windup'):Math.abs(velocity.x)>8?'patrol':'idle';
         const frameAge=approaching?(54-Math.abs(separation))*8:now;
         visual.setPosition(Math.round(body.x),Math.round(body.y)).setFlipX(flip)
           .setFrame(clipFrame(brambleClips,pose,reduced&&pose==='idle'?0:frameAge,pose==='patrol'?550:390,!approaching));

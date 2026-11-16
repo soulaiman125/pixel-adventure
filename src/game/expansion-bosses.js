@@ -129,6 +129,7 @@ export function resetExpansionBoss(scene, boss) {
   boss.cycle = 0;
   boss.hits = 0;
   boss.flashUntil = 0;
+  delete boss.rangedCycle;
   for (const { art } of boss.trapArt) art.clear();
   boss.indicator.clear();
   scene.ui.onBoss(boss, 'Re-enter the arena');

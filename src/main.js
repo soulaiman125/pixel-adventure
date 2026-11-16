@@ -10,10 +10,15 @@ import { MenuScene } from './game/menu-scene.js';
 import { createProgress, ratingFor } from './game/progress.js';
 import { createSound } from './game/sound.js';
 import { PlatformerScene } from './game/platformer-scene.js';
+import { SHADOW_ARENA } from './game/shadow-arena.js';
 import './styles.css';
 
 const byId = (id) => document.getElementById(id);
 const shell = byId('shell');
+const shadowAllowed = import.meta.env.DEV || import.meta.env.MODE === 'shadow';
+const shadowChoice = shadowAllowed ? new URLSearchParams(location.search).get('shadow') ??
+  (import.meta.env.MODE === 'shadow' ? 'verdant' : null) : null;
+const shadowArena = import.meta.env.DEV && shadowChoice === 'arena';
 // The packaged game blocks web navigation and keeps its menu usable offline.
 byId('menu-release-links').hidden = !['http:', 'https:'].includes(location.protocol);
 const stage = byId('stage');
@@ -99,6 +104,57 @@ let tutorialPurpose;
 let toastTimeout;
 let landscapeAnimation;
 let settingsFromPause = false;
+const shadowButton = shadowChoice && document.createElement('button');
+const shadowDebug = shadowArena && document.createElement('output');
+const shadowCharges = byId('shadow-charges');
+const shadowTouchButtons = [];
+
+if (shadowButton) {
+  shadowButton.className = 'button shadow-entry';
+  shadowButton.type = 'button';
+  shadowButton.id = 'shadow-play';
+  const index = Number(shadowChoice) - 1;
+  const target = Number.isInteger(index) && LEVELS[index] ? index : 0;
+  shadowButton.textContent = shadowArena ? 'Train as Shadow Ninja' : `Shadow Ninja · ${LEVELS[target].name}`;
+  byId('play-game').after(shadowButton);
+  for (const [action, label, display] of [['dash', 'Dash', 'Dash'], ['throw', 'Throw shuriken', '✦']]) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'button touch-button shadow-touch';
+    button.dataset.action = action;
+    button.setAttribute('aria-label', label);
+    button.textContent = display;
+    button.hidden = true;
+    document.querySelector('.touch-actions [data-action="attack"]').before(button);
+    shadowTouchButtons.push(button);
+  }
+  shadowButton.addEventListener('click', () => {
+    if (!game.isBooted) return;
+    runMode = 'shadow';
+    startRun(target);
+  });
+}
+if (shadowDebug) {
+  shadowDebug.id = 'shadow-debug';
+  shadowDebug.className = 'shadow-debug';
+  shadowDebug.hidden = true;
+  stage.appendChild(shadowDebug);
+}
+
+function shadowHud(active) {
+  shadowCharges.hidden = !active;
+  for (const button of shadowTouchButtons) button.hidden = !active;
+  if (shadowDebug) shadowDebug.hidden = !active;
+  byId('help-button').title = active ? 'Move A/D · Jump Space · Katana X · Shuriken Z · Dash C or Shift · Pause Esc' : '';
+  const hints = byId('keyboard-hints');
+  hints.querySelector('.shadow-hints')?.remove();
+  if (active) {
+    const details = document.createElement('span');
+    details.className = 'shadow-hints';
+    details.innerHTML = '<kbd>Z</kbd> Shuriken <kbd>C</kbd> Dash';
+    hints.append(details);
+  }
+}
 
 function savePreferences() {
   try {
@@ -319,12 +375,16 @@ function startRun(index) {
   byId('boss-hud').hidden = true;
   bossMusic = undefined;
   currentLevel = index;
-  const level = challengeLevel(LEVELS[index], runMode);
+  const shadow = runMode === 'shadow';
+  const level = shadowArena && shadow ? SHADOW_ARENA : challengeLevel(LEVELS[index], runMode);
+  shadowHud(shadow);
+  if (shadow) byId('pause-level').dataset.shadow = 'A/D Move · Space Jump · X Katana · Z Shuriken · C Dash';
+  else delete byId('pause-level').dataset.shadow;
   shell.dataset.mode = runMode;
   shell.dataset.theme = level.theme;
   byId('hud-level-number').textContent = pad(index + 1);
   byId('hud-level-name').textContent = level.name;
-  byId('pause-level').textContent = runMode === 'normal' ? `Level ${index + 1} · ${level.name}`
+  byId('pause-level').textContent = shadow ? `Shadow Ninja · ${level.name}` : runMode === 'normal' ? `Level ${index + 1} · ${level.name}`
     : `${challenges[runMode].name} · ${level.name}`;
   showScore(0);
   showTime(0);
@@ -335,7 +395,7 @@ function startRun(index) {
   game.scene.stop('menu');
   game.scene.stop('platformer');
   resize();
-  game.scene.start('platformer', { level });
+  game.scene.start('platformer', { level, shadow });
   transitionLandscape();
 }
 
@@ -350,6 +410,7 @@ function showMainMenu() {
   setMode('menu');
   delete shell.dataset.theme;
   delete shell.dataset.mode;
+  shadowHud(false);
   resize();
   game.scene.start('menu');
   transitionLandscape();
@@ -523,7 +584,7 @@ window.addEventListener('keydown', (event) => {
 
 const panel = byId('touch-controls');
 const hapticFeedback = setupTouchSettings(panel, preferences, savePreferences);
-const controls = createControls(panel, () => mode === 'playing', hapticFeedback);
+const controls = createControls(panel, () => mode === 'playing', hapticFeedback, () => runMode === 'shadow');
 window.matchMedia('(orientation: portrait)').addEventListener('change', controls.clear);
 document.addEventListener('fullscreenchange', controls.clear);
 const maxCoins = LEVELS.reduce((sum, level) => sum + level.coins.length, 0);
@@ -571,11 +632,26 @@ const scene = new PlatformerScene(controls, {
     byId('coin-total').textContent = pad(coinTotal);
     showScore(0);
     showTime(0);
+    if (runMode === 'shadow') this.onShadowCharges(3);
+    if (shadowDebug && runMode === 'shadow') shadowDebug.dataset.dummy = '40/40';
     setMode('playing');
     focusStage();
   },
   onScore: showScore,
   onTime: showTime,
+  onShadowCharges(count) {
+    shadowCharges.dataset.charges = count;
+    shadowCharges.setAttribute('aria-label', `${count} of 3 Shuriken`);
+    for (const [index, star] of [...shadowCharges.children].entries()) star.classList.toggle('ready', index < count);
+  },
+  onShadowDummy: shadowDebug ? (hp, max) => { shadowDebug.dataset.dummy = `${hp}/${max}`; } : undefined,
+  onShadowStatus: shadowDebug ? (pose, state) => {
+    const attack = state.attack;
+    const line = `${pose} · ${attack ? `Katana ${attack.index + 1} · ${Math.round(scene.elapsed - attack.since)} ms` :
+      state.dash ? `Dash · ${Math.round(scene.elapsed - state.dash.since)} ms` : 'Air Dash ' + (state.airUsed ? 'spent' : 'ready')}` +
+      ` · ${state.charges}/3 shuriken${shadowDebug.dataset.dummy ? ' · Dummy ' + shadowDebug.dataset.dummy : ''}`;
+    if (shadowDebug.textContent !== line) shadowDebug.textContent = line;
+  } : undefined,
   onCheckpoint() { showToast('Checkpoint reached', 'checkpoint'); },
   onRespawn(deaths, reason) {
     byId('deaths').textContent = deaths;
@@ -617,7 +693,8 @@ const scene = new PlatformerScene(controls, {
     if (meter.value !== boss.hp) meter.value = boss.hp;
     const phase = boss.phase === 'open' && boss.hits >= 2 ? 'guarded' : boss.phase;
     if (hud.dataset.phase !== phase) hud.dataset.phase = phase;
-    if (byId('boss-state').textContent !== state) byId('boss-state').textContent = state;
+    const label = runMode === 'shadow' && (phase === 'warn' || phase === 'attack') ? state + ' · Guarded' : state;
+    if (byId('boss-state').textContent !== label) byId('boss-state').textContent = label;
   },
   onComplete(count, coinTotal, elapsed, deaths) {
     setMode('complete');
@@ -625,6 +702,22 @@ const scene = new PlatformerScene(controls, {
     hideToast();
     showTime(elapsed);
     sound.play('finish');
+    if (runMode === 'shadow') {
+      byId('clear-title').textContent = 'Prototype Complete';
+      byId('result-level').textContent = scene.level.name;
+      byId('result-stars').hidden = true;
+      byId('result-coins').textContent = `${count} / ${coinTotal}`;
+      byId('result-time').textContent = preciseTime(elapsed);
+      byId('result-score').textContent = formatScore(count);
+      byId('result-deaths').textContent = deaths;
+      byId('result-best').textContent = '';
+      byId('rating-note').textContent = '';
+      byId('continue-note').hidden = true;
+      nextLevel.hidden = true;
+      viewVictory.hidden = true;
+      clear.showModal();
+      return;
+    }
     if (runMode !== 'normal') {
       showChallengeResult(count, coinTotal, elapsed, deaths);
       return;
