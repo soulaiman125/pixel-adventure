@@ -1,6 +1,7 @@
 import { VIEW_HEIGHT } from './level-one.js';
 import { costumes, drawHeroSprite, heroPoses, heroTexture } from './hero-art.js';
 import { drawLandmarks } from './landmark-art.js';
+import { monsters } from './monster-ai.js';
 
 function texture(scene, key, width, height, draw) {
   const canvas = scene.textures.createCanvas(key, width, height);
@@ -235,7 +236,7 @@ export function createArt(scene) {
   texture(scene, 'checkpoint', 18, 24, (ctx) => drawCheckpoint(ctx, false));
   texture(scene, 'checkpoint-active', 18, 24, (ctx) => drawCheckpoint(ctx, true));
   texture(scene, 'flag', 39, 50, drawFlag);
-  for (const type of ['guard', 'bat', 'charger', 'poison', 'robot']) {
+  for (const type of ['guard', 'bat', 'charger', 'poison', 'robot', ...Object.keys(monsters)]) {
     for (const pose of ['rest', 'hop']) {
       texture(scene, `${type}-${pose}`, 18, 18, (ctx) => drawExpansionEnemy(ctx, type, pose === 'hop'));
     }
@@ -243,6 +244,14 @@ export function createArt(scene) {
 }
 
 function drawExpansionEnemy(context, type, alternate) {
+  const variant = {
+    knight: ['#292f49', '#737e9a', '#ecdc9a', 'guard'],
+    demon: ['#592b44', '#c46251', '#ffc080', 'bat'],
+    golem: ['#4b414c', '#a68b79', '#ffe2a6', 'golem'],
+    assassin: ['#2c2448', '#6d4b91', '#e5aefa', 'charger'],
+    stalker: ['#374657', '#779353', '#d3f59b', 'poison'],
+    sentinel: ['#323950', '#5b82ad', '#c9ffff', 'robot'],
+  }[type];
   const colors = {
     guard: ['#394155', '#8494a4', '#dbe5cf'],
     bat: ['#4b3659', '#9670af', '#ecd1fc'],
@@ -250,13 +259,19 @@ function drawExpansionEnemy(context, type, alternate) {
     poison: ['#43573d', '#8baf59', '#e3f88e'],
     robot: ['#3d4370', '#7290b9', '#a1fff4'],
   }[type];
-  const [edge, base, detail] = colors;
-  if (type === 'bat') {
+  const [edge, base, detail] = variant ?? colors;
+  const design = variant?.[3] ?? type;
+  if (design === 'bat') {
     const tip = alternate ? 1 : 8;
     shape(context, base, [[0, tip], [5, 6], [8, 11], [10, 11], [13, 6], [18, tip], [16, 12], [12, 14],
       [10, 17], [6, 17], [5, 14], [2, 12]]);
     box(context, edge, 5, 9, 8, 7);
     box(context, detail, 8, 11, 5, 2);
+    if (type === 'demon') {
+      box(context, detail, 6, 5, 2, 5);
+      box(context, detail, 11, 5, 2, 5);
+      box(context, base, 8, 15, 2, 3);
+    }
     return;
   }
   box(context, edge, 2, 5, 13, 11);
@@ -264,13 +279,20 @@ function drawExpansionEnemy(context, type, alternate) {
   box(context, detail, 8, 8, 5, 2);
   box(context, edge, alternate ? 4 : 2, 16, 5, 2);
   box(context, edge, alternate ? 11 : 12, 16, 5, 2);
-  if (type === 'guard') {
+  if (design === 'golem') {
+    box(context, edge, 0, 8, 18, 6);
+    box(context, base, 1, 9, 16, 4);
+    box(context, detail, 7, 9, 4, 4);
+    box(context, base, 5, 2, 9, 5);
+  } else if (design === 'guard') {
     box(context, edge, 12, 6, 6, 11);
     box(context, base, 13, 6, 5, 9);
     box(context, detail, 14, 7, 2, 6);
-  } else if (type === 'charger') {
+    if (type === 'knight') box(context, detail, 6, 2, 3, 3);
+  } else if (design === 'charger') {
     shape(context, detail, [[12, 8], [18, 5], [17, 11], [13, 12]]);
-  } else if (type === 'poison') {
+    if (type === 'assassin') box(context, base, 1, 3, 10, 2);
+  } else if (design === 'poison') {
     box(context, detail, 2, 3, 4, 5);
     box(context, base, 11, 2, 4, 4);
     box(context, detail, 11, 12, 2, 2);
@@ -278,6 +300,7 @@ function drawExpansionEnemy(context, type, alternate) {
     box(context, detail, 6, 2, 2, 5);
     box(context, base, 12, 12, 6, 3);
     box(context, detail, 16, 12, 2, 2);
+    if (type === 'sentinel') box(context, detail, 2, 5, 3, 1);
   }
 }
 

@@ -8,6 +8,7 @@ import { EXPANSION_ENEMIES } from './expansion-enemies.js';
 import { resetExpansionBoss } from './expansion-bosses.js';
 import { createFeedback } from './feedback.js';
 import { heroPose, heroTexture } from './hero-art.js';
+import { monsters } from './monster-ai.js';
 
 const MOVE_SPEED = 132;
 const JUMP_SPEED = 263;
@@ -160,13 +161,17 @@ export class PlatformerScene extends Phaser.Scene {
 
     this.enemies = this.physics.add.group({ allowGravity: false, immovable: true });
     for (const [left, distance, speed, type] of this.level.enemies) {
-      const expansion = EXPANSION_ENEMIES.has(type);
+      const monster = monsters[type];
+      const expansion = EXPANSION_ENEMIES.has(type) || monster;
       const texture = expansion ? `${type}-rest` : terrainTexture(this.level.theme, 'slime-rest');
-      const slime = this.enemies.create(left, type === 'flying' || type === 'bat' ? 148 : GROUND_Y, texture)
+      const homeY = type === 'flying' || type === 'bat' || monster?.flying ? 148 : GROUND_Y;
+      const slime = this.enemies.create(left, homeY, texture)
         .setOrigin(0.5, 1).setDepth(3).setVelocityX(speed);
       slime.body.setSize(15, expansion ? 13 : 11, false).setOffset(1, expansion ? 5 : 2);
-      slime.setData({ left, right: left + distance, speed, type });
-      if (type === 'shooter' || expansion) {
+      slime.setData({ left, right: left + distance, speed, type, homeY });
+      if (monster) {
+        slime.setData({ brain: { phase: 'patrol', until: 0, facing: 1 }, signal: this.add.graphics().setDepth(6) });
+      } else if (type === 'shooter' || expansion) {
         const glow = this.add.rectangle(left, GROUND_Y - 16, 4, 4, 0xffcf78).setDepth(5).setVisible(false);
         slime.setData('warning', glow);
       }
@@ -260,6 +265,7 @@ export class PlatformerScene extends Phaser.Scene {
   defeatEnemy(enemy) {
     enemy.disableBody(true, true);
     enemy.getData('warning')?.setVisible(false);
+    enemy.getData('signal')?.clear();
     this.burst(enemy.x, enemy.y - 6, 0xa9e169);
     if (!this.ui.reduceMotion) {
       const fall = this.add.image(enemy.x, enemy.y, enemy.texture.key).setOrigin(.5, 1).setFlipX(enemy.flipX).setDepth(4);
@@ -281,6 +287,13 @@ export class PlatformerScene extends Phaser.Scene {
     this.feedback.death(this.player);
     this.clearProjectiles();
     this.player.body.reset(this.checkpoint, GROUND_Y - 2);
+    for (const enemy of this.enemies.getChildren()) {
+      const { brain, signal, left, homeY, speed } = enemy.data.values;
+      if (!brain || left <= this.checkpoint + 28) continue;
+      enemy.enableBody(true, left, homeY, true, true).setVelocityX(speed).setFlipX(false);
+      Object.assign(brain, { phase: 'patrol', until: 0, facing: 1 });
+      signal.clear();
+    }
     this.player.setTexture(heroTexture('respawn', this.ui.costume)).setFlipX(false);
     this.resetJump();
     this.landUntil = 0;
@@ -388,10 +401,13 @@ export class PlatformerScene extends Phaser.Scene {
         const velocity = speed * (1 + 0.4 * Math.sin(this.elapsed / 380 + left));
         enemy.setVelocityX(enemy.body.velocity.x < 0 ? -velocity : velocity);
       }
-      if (enemy.x <= left) enemy.setVelocityX(speed);
-      if (enemy.x >= right) enemy.setVelocityX(-speed);
+      if (!monsters[type]) {
+        if (enemy.x <= left) enemy.setVelocityX(speed);
+        if (enemy.x >= right) enemy.setVelocityX(-speed);
+      }
       const pose = Math.floor((this.elapsed + left) / 180) % 2 ? 'hop' : 'rest';
-      const texture = EXPANSION_ENEMIES.has(type) ? `${type}-${pose}` : terrainTexture(this.level.theme, `slime-${pose}`);
+      const texture = EXPANSION_ENEMIES.has(type) || monsters[type]
+        ? `${type}-${pose}` : terrainTexture(this.level.theme, `slime-${pose}`);
       if (enemy.texture.key !== texture) enemy.setTexture(texture);
     });
     this.coins.children.iterate((coin, index) => {

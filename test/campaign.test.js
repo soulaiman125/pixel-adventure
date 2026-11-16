@@ -7,11 +7,32 @@ import { dangerHits, hazardFrame, hazardPhase } from '../src/game/danger.js';
 import { bossTier, resetExpansionBoss, updateExpansionBoss } from '../src/game/expansion-bosses.js';
 import { guardBlocks, updateExpansionEnemy } from '../src/game/expansion-enemies.js';
 import { addObstacles } from '../src/game/obstacles.js';
+import { monsters, monsterPhase, segmentIntersectsBox } from '../src/game/monster-ai.js';
 
 test('the campaign has 30 uniquely named stages, with bosses on levels 20, 25, and 30', () => {
   assert.equal(LEVELS.length, 30);
   assert.equal(new Set(LEVELS.map(({ name }) => name)).size, 30);
   assert.deepEqual(LEVELS.flatMap((level, index) => level.boss ? [index + 1] : []), [20, 25, 30]);
+});
+
+test('all six v3 enemies are placed and cannot fire without a visible warning', () => {
+  const placed = new Set(LEVELS.flatMap(level => level.enemies.map((enemy) => enemy[3])));
+  for (const [type, spec] of Object.entries(monsters)) {
+    assert(placed.has(type), type);
+    assert(spec.warning >= 650, type);
+  }
+  assert.equal(monsterPhase({ phase: 'patrol' }, 0, false), 'patrol');
+  assert.equal(monsterPhase({ phase: 'patrol' }, 0, true), 'prepare');
+  assert.equal(monsterPhase({ phase: 'prepare', until: 750 }, 749, true), 'prepare');
+  assert.equal(monsterPhase({ phase: 'prepare', until: 750 }, 750, false), 'recover');
+  assert.equal(monsterPhase({ phase: 'prepare', until: 750 }, 750, true), 'attack');
+});
+
+test('swept projectile segments hit solid ledges between frames', () => {
+  assert(segmentIntersectsBox(0, 10, 50, 10, 21, 7, 23, 14));
+  assert(segmentIntersectsBox(22, 0, 22, 20, 21, 7, 23, 14));
+  assert(!segmentIntersectsBox(0, 5, 50, 5, 21, 7, 23, 14));
+  assert(!segmentIntersectsBox(18, 10, 20, 10, 21, 7, 23, 14));
 });
 
 test('an attack hits only at close range and in the direction of travel', () => {

@@ -1,6 +1,7 @@
 import { contact } from './obstacles.js';
 import { EXPANSION_ENEMIES, strikeEnemy, updateExpansionEnemy } from './expansion-enemies.js';
 import { updateExpansionBoss } from './expansion-bosses.js';
+import { blocksMonsterHit, monsters, terrainBlocks, updateMonster } from './monster-ai.js';
 
 const phases = ['Warn: jump the low wave', 'Warn: move away from the marker'];
 const PROJECTILE_LIMIT = 24;
@@ -27,7 +28,7 @@ export function addCombat(scene) {
   if (config.kind) scene.boss.trapArt = [];
 }
 
-function fire(scene, x, y, vx, vy = 0, radius = 5, tint = 0xffa4ba, gravity = 0) {
+function fire(scene, x, y, vx, vy = 0, radius = 5, tint = 0xffa4ba, gravity = 0, rules) {
   let shot = scene.projectilePool.find(({ dot }) => !dot.active);
   if (!shot) {
     if (scene.projectilePool.length >= PROJECTILE_LIMIT) return;
@@ -40,12 +41,17 @@ function fire(scene, x, y, vx, vy = 0, radius = 5, tint = 0xffa4ba, gravity = 0)
   shot.vy = vy;
   shot.gravity = gravity;
   shot.radius = radius;
-  shot.expires = scene.elapsed + 2700;
+  shot.expires = scene.elapsed + (rules?.lifetime ?? 2700);
+  shot.stopsOnTerrain = rules?.ground === true;
   scene.projectiles.push(shot);
 }
 
 function updateEnemyShots(scene, enemy) {
   const { type, left } = enemy.data.values;
+  if (monsters[type]) {
+    updateMonster(scene, enemy, fire);
+    return;
+  }
   if (EXPANSION_ENEMIES.has(type)) {
     updateExpansionEnemy(scene, enemy, fire);
     return;
@@ -56,7 +62,8 @@ function updateEnemyShots(scene, enemy) {
   }
   if (type !== 'shooter') return;
   const warning = enemy.getData('warning');
-  const near = Math.abs(enemy.x - scene.player.x) < 165;
+  const near = Math.abs(enemy.x - scene.player.x) < 156
+    && enemy.x >= scene.cameraX && enemy.x <= scene.cameraX + scene.scale.width;
   if (!near) {
     enemy.setData('shotAt', 0);
     warning.setVisible(false);
@@ -65,7 +72,7 @@ function updateEnemyShots(scene, enemy) {
   const shotAt = enemy.getData('shotAt') || scene.elapsed + 650;
   enemy.setData('shotAt', shotAt);
   if (scene.elapsed >= shotAt) {
-    fire(scene, enemy.x, enemy.y - 7, scene.player.x < enemy.x ? -84 : 84);
+    fire(scene, enemy.x, enemy.y - 7, scene.player.x < enemy.x ? -84 : 84, 0, 5, 0xffa4ba, 0, { ground: true });
     enemy.setData('shotAt', scene.elapsed + 2200);
   }
   warning.setPosition(enemy.x, enemy.y - 17).setVisible(shotAt - scene.elapsed < 515);
@@ -79,7 +86,11 @@ export function updateCombat(scene, delta) {
     scene.swingUntil = now + 150;
     scene.ui.playSound('attack');
     scene.enemies.children.iterate((enemy) => {
-      if (enemy.active && attackReaches(scene.player, enemy.x, enemy.y - 6)) strikeEnemy(scene, enemy);
+      if (!enemy.active || !attackReaches(scene.player, enemy.x, enemy.y - 6)) return;
+      if (blocksMonsterHit(enemy, scene.player)) {
+        scene.burst(enemy.x, enemy.y - 11, 0xffd690);
+        scene.ui.playSound('block');
+      } else strikeEnemy(scene, enemy);
     });
     const boss = scene.boss;
     if (boss?.phase === 'open' && boss.hits < 2 && attackReaches(scene.player, boss.x, 168, 28, 31)) {
@@ -116,10 +127,13 @@ export function updateCombat(scene, delta) {
   const projectiles = scene.projectiles;
   for (const shot of projectiles) {
     if (!shot.dot.active) continue;
+    const x = shot.dot.x;
+    const y = shot.dot.y;
     shot.vy += shot.gravity * delta / 1000;
     shot.dot.x += shot.vx * delta / 1000;
     shot.dot.y += shot.vy * delta / 1000;
-    if (now >= shot.expires || shot.dot.x < 0 || shot.dot.x > scene.level.width || shot.dot.y > 188) {
+    if (now >= shot.expires || shot.dot.x < 0 || shot.dot.x > scene.level.width || shot.dot.y > 188
+      || (shot.stopsOnTerrain && terrainBlocks(scene, x, y, shot.dot.x, shot.dot.y))) {
       shot.dot.setActive(false).setVisible(false);
     }
     else contact(scene, shot.dot.x, shot.dot.y, shot.radius * 1.65, shot.radius * 1.65);
