@@ -4,8 +4,9 @@ import { phaseHealthFloor, updateExpansionBoss } from './expansion-bosses.js';
 import { blocksMonsterHit, monsters, terrainBlocks, updateMonster } from './monster-ai.js';
 import { paintPrototypeSlash } from './prototype-actors.js';
 import { addTitanPresentation } from './prototype-titan.js';
-import { updateShadowCombat } from './shadow-combat.js';
+import { parryAttack, updateShadowCombat } from './shadow-combat.js';
 import { addCampaignBoss } from './campaign-boss-art.js';
+import { updateUltimateEnemy } from './ultimate-enemies.js';
 
 const PROJECTILE_LIMIT = 24;
 
@@ -57,6 +58,12 @@ function updateEnemyShots(scene, enemy) {
   const { type, left } = enemy.data.values;
   if (scene.ninja && scene.elapsed < (enemy.getData('shadowHitUntil') ?? 0)) {
     enemy.setVelocity(0);
+    return;
+  }
+  if (enemy.getData('ultimateState')) {
+    updateUltimateEnemy(scene,enemy,fire,x => {
+      if (!parryAttack(scene,x)) scene.damage();
+    });
     return;
   }
   if (scene.ninja && !monsters[type]
@@ -173,7 +180,10 @@ export function updateCombat(scene, delta) {
         scene.attackEffect.fillStyle(0x8ad8ff,.46).fillTriangle(x,y-4,x-side*11,y+2,x,y+5);
         scene.attackEffect.fillStyle(0xf3ffff).fillRect(x-2,y-2,4,4);
       }
-      contact(scene, shot.dot.x, shot.dot.y, shot.radius * 1.65, shot.radius * 1.65);
+      contact(scene, shot.dot.x, shot.dot.y, shot.radius * 1.65, shot.radius * 1.65, () => {
+        if (parryAttack(scene, x)) shot.dot.setActive(false).setVisible(false);
+        else scene.damage();
+      });
     }
     if (shot.dot.active) projectiles[active++] = shot;
   }

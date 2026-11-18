@@ -3,10 +3,10 @@ import { addDanger } from './danger.js';
 const WARNING_MS = 620;
 const CYCLE_MS = 2700;
 
-export function contact(scene, x, y, width, height) {
+export function contact(scene, x, y, width, height, onContact = () => scene.damage()) {
   const body = scene.player.body;
   if (body.right > x - width / 2 && body.left < x + width / 2
-    && body.bottom > y - height / 2 && body.top < y + height / 2) scene.damage();
+    && body.bottom > y - height / 2 && body.top < y + height / 2) onContact();
 }
 
 function spikes(scene, x, y, width) {

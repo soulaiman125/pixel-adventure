@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { canDash, DASH, horizontalEntry, intersects, KATANA, refill, SHURIKEN, spendCharge, stepStrike, strikeBox } from '../src/game/shadow-rules.js';
+import { canDash, DASH, horizontalEntry, intersects, KATANA, stepStrike, strikeBox } from '../src/game/shadow-rules.js';
 import { shadowFrames } from '../src/game/shadow-art.js';
 import { updateDash, updateShadowCombat } from '../src/game/shadow-combat.js';
 import { updateCombat } from '../src/game/combat.js';
 
-test('Shadow Ninja has 33 authored pose sets with consistent integer anchors', () => {
-  assert.equal(Object.keys(shadowFrames).length, 33);
+test('Shadow Ninja has 43 authored pose sets with consistent integer anchors', () => {
+  assert.equal(Object.keys(shadowFrames).length, 43);
   for (const frames of Object.values(shadowFrames)) {
     assert(frames.length > 2);
     assert(frames.every(({ hips, chest, head }) => [...hips, ...chest, ...head].every(Number.isInteger)));
@@ -62,16 +62,22 @@ test('ground dash honors a cooldown and air dash cannot refresh from a wall or a
   assert(DASH.cooldown > DASH.duration);
 });
 
-test('shuriken has three charges and refills one charge at a time without overfilling', () => {
-  const state = { charges: 3, rechargeAt: Infinity };
-  for (let i = 0; i < 3; i++) assert(spendCharge(state, i * 400));
-  assert(!spendCharge(state, 1200));
-  refill(state, SHURIKEN.recharge - 1);
-  assert.equal(state.charges, 0);
-  refill(state, SHURIKEN.recharge);
-  assert.equal(state.charges, 1);
-  refill(state, 60000);
-  assert.equal(state.charges, 3);
+test('Shuriken remains usable beyond three throws but obeys the interval between throws', () => {
+  const ninja = { projectiles:[], dodgeUntil:0, readyAt:{}, uses:{} };
+  const scene = { ninja, elapsed:0, player:{setFlipX(){}}, enemies:{getChildren:()=>[]},
+    controls:{isDown:()=>false,consumeThrow:()=>true}, ui:{playSound(){}} };
+  const tap = time => {
+    scene.elapsed = time;
+    if (ninja.throw) ninja.throw.released = true;
+    updateShadowCombat(scene,16,false,()=>false);
+  };
+  tap(0);
+  for (let i=0;i<4;i++) {
+    tap(350*i + 315);
+    assert.equal(ninja.uses.shuriken,i+1);
+    tap(350*(i+1));
+    assert.equal(ninja.uses.shuriken,i+2);
+  }
 });
 
 test('swept shuriken uses the first radius-aware contact in either direction', () => {

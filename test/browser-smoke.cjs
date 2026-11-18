@@ -94,10 +94,10 @@ const address = process.env.PIXEL_TEST_URL || 'http://127.0.0.1:5173/';
           qa.player.body.reset(enemy.x - 21, 184);
           qa.player.setFlipX(false);
         });
-        await page.keyboard.press('KeyX');
-        await page.waitForFunction(() => !qa.ninja.attack);
-        if (await page.evaluate(() => qa.enemies.getChildren()[0].active)) {
+        for (let hit = 0; hit < 3 && await page.evaluate(() => qa.enemies.getChildren()[0].active); hit++) {
+          const count = await page.evaluate(() => qa.ninja.uses.katana ?? 0);
           await page.keyboard.press('KeyX');
+          await page.waitForFunction(swings => qa.ninja.uses.katana > swings && !qa.ninja.attack, count);
         }
         await page.waitForFunction(() => !qa.enemies.getChildren()[0].active);
       }

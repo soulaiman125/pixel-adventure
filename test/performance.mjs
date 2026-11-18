@@ -8,8 +8,8 @@ const browser = await chromium.launch({
 });
 const results = [];
 const versions = {
-  prototype: process.env.PIXEL_BASELINE_URL || "http://127.0.0.1:4196/",
-  candidate: process.env.PIXEL_TEST_URL || "http://127.0.0.1:4200/",
+  prototype: process.env.PIXEL_BASELINE_URL || "http://127.0.0.1:4209/",
+  candidate: process.env.PIXEL_TEST_URL || "http://127.0.0.1:4210/",
 };
 const outputDirectory = resolve(process.env.PIXEL_REVIEW_DIR || "artifacts/ninja-review");
 await mkdir(outputDirectory, {recursive:true});
@@ -49,8 +49,8 @@ async function benchmark(label, options, rate, version, stage) {
       '{"version":2,"unlocked":30}',
     );
   });
-  const dashKey = version === "candidate" ? "KeyZ" : "KeyC";
-  const throwKey = version === "candidate" ? "KeyC" : "KeyZ";
+  const dashKey = "KeyZ";
+  const throwKey = "KeyC";
   await page.goto(versions[version]);
   await page.locator("canvas").waitFor();
   await page.locator("#level-select").click();
@@ -280,6 +280,56 @@ async function benchmarkExecution() {
   await page.close();
 }
 
+async function benchmarkSurvival() {
+  const results = [];
+  for (const rate of [1,4]) {
+    const page = await browser.newPage({ viewport:{width:839,height:393}, isMobile:true, hasTouch:true });
+    const cdp = await page.context().newCDPSession(page);
+    if (rate > 1) await cdp.send("Emulation.setCPUThrottlingRate",{rate});
+    await exposeScene(page);
+    await page.goto(versions.candidate);
+    await page.locator("#survival-button").click();
+    await page.waitForFunction(() => qaScene.survival && qaScene.player.body.blocked.down);
+    // Controlled six-enemy workload. The separate Survival playthrough advances by defeating waves.
+    await page.evaluate(() => { const {run}=qaScene.survival; run.wave=10; run.until=0; });
+    await page.waitForFunction(() => qaScene.enemies.getChildren().filter(enemy=>enemy.active).length === 6);
+    const capture = page.evaluate(() => new Promise(resolve => {
+      const intervals = [];
+      let from,previous;
+      let peakEnemyProjectiles = 0, peakPlayerProjectiles = 0;
+      function frame(now) {
+        from ??= now;
+        if (previous !== undefined) intervals.push(now-previous);
+        previous = now;
+        peakEnemyProjectiles = Math.max(peakEnemyProjectiles,qaScene.projectilePool.length);
+        peakPlayerProjectiles = Math.max(peakPlayerProjectiles,qaScene.ninja.projectiles.length);
+        if (now-from<4900) return requestAnimationFrame(frame);
+        intervals.sort((a,b)=>a-b);
+        const pct = fraction => intervals[Math.floor((intervals.length-1)*fraction)];
+        resolve({ fps:+(1000*intervals.length/(now-from)).toFixed(1), medianFps:+(1000/pct(.5)).toFixed(1),
+          p95:+pct(.95).toFixed(1), p99:+pct(.99).toFixed(1), long:intervals.filter(x=>x>=50).length,
+          pooledEnemies:qaScene.enemies.getChildren().length, peakEnemyProjectiles,peakPlayerProjectiles });
+      }
+      requestAnimationFrame(frame);
+    }));
+    await page.keyboard.down("KeyD");
+    await page.waitForTimeout(615);
+    await page.keyboard.up("KeyD");
+    await page.keyboard.press("KeyV");
+    await page.waitForTimeout(550);
+    await page.keyboard.press("KeyF");
+    await page.waitForTimeout(700);
+    await page.keyboard.press("KeyC");
+    const sample = { rate, ...await capture };
+    assert.equal(sample.pooledEnemies,9);
+    assert(sample.peakEnemyProjectiles<=24);
+    results.push(sample);
+    console.log(JSON.stringify(sample));
+    await page.close();
+  }
+  await writeFile(resolve(outputDirectory,"survival-performance.json"),JSON.stringify(results,null,2));
+}
+
 try {
   const phone = {
     viewport: { width: 839, height: 393 },
@@ -287,7 +337,8 @@ try {
     hasTouch: true,
     deviceScaleFactor: 1,
   };
-  if (process.env.PIXEL_EXECUTION_BENCH) await benchmarkExecution();
+  if (process.env.PIXEL_SURVIVAL_BENCH) await benchmarkSurvival();
+  else if (process.env.PIXEL_EXECUTION_BENCH) await benchmarkExecution();
   else for (const [label, options, rate] of [
     ["desktop", { viewport: { width: 1200, height: 850 } }, 1],
     ["phone emulation", phone, 1],

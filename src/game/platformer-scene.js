@@ -12,11 +12,15 @@ import { monsters } from './monster-ai.js';
 import { isCheckpoint } from './challenges.js';
 import { createPrototypeActors } from './prototype-actors.js';
 import { createTitanHall, createValley, isVerdantPrototype, valleyObjects, valleyProps, valleySurface } from './prototype-world.js';
-import { clearShadow, createShadow, specialMovement, updateDash } from './shadow-combat.js';
+import { clearShadow, createShadow, parryAttack, specialMovement, updateDash } from './shadow-combat.js';
 import { SPRINT_SPEED } from './combat-techniques.js';
 import { createShadowPresentation } from './shadow-presentation.js';
 import { campaignSurface, createCampaignActors } from './campaign-art.js';
 import { createCampaignBackdrop } from './campaign-backdrop.js';
+import { canWallJump, wallSide, WALL_FALL, WALL_JUMP_SPEED, WALL_LOCK } from './wall-movement.js';
+import { createTally } from './ultimate-progress.js';
+import { createSurvival } from './ultimate-levels.js';
+import { loadUltimateEnemies, ultimateEnemyFrame, ULTIMATE_ENEMIES } from './ultimate-enemies.js';
 
 const MOVE_SPEED = 132;
 const JUMP_SPEED = 263;
@@ -50,6 +54,7 @@ export class PlatformerScene extends Phaser.Scene {
     this.valleyPrototype = isVerdantPrototype(this.level);
     this.titanPrototype = this.level.boss?.kind === 'titan';
     this.collected = 0;
+    this.runTally = createTally();
     this.deaths = 0;
     this.checkpoint = this.level.spawnX;
     this.complete = false;
@@ -79,6 +84,7 @@ export class PlatformerScene extends Phaser.Scene {
     this.createActors();
     this.ninja = this.shadowEnabled ? createShadow(this) : null;
     this.shadowPresentation = this.ninja ? createShadowPresentation(this) : null;
+    this.survival = this.level.survival && this.ninja ? createSurvival(this) : null;
     this.campaignActors = this.ninja && !this.valleyPrototype ? createCampaignActors(this) : null;
     this.prototypeActors = this.valleyPrototype || this.titanPrototype ? createPrototypeActors(this,this.valleyPrototype) : null;
     this.hall = this.titanPrototype ? createTitanHall(this) : null;
@@ -207,10 +213,12 @@ export class PlatformerScene extends Phaser.Scene {
     });
 
     this.enemies = this.physics.add.group({ allowGravity: false, immovable: true });
+    if (this.level.enemies.some(([, , , type]) => Object.hasOwn(ULTIMATE_ENEMIES,type))) loadUltimateEnemies(this);
     for (const [left, distance, speed, type] of this.level.enemies) {
       const monster = monsters[type];
+      const ultimate = Object.hasOwn(ULTIMATE_ENEMIES,type);
       const expansion = EXPANSION_ENEMIES.has(type) || monster;
-      const texture = type === 'dummy' ? 'target-dummy' : expansion ? `${type}-rest` : terrainTexture(this.level.theme, 'slime-rest');
+      const texture = ultimate ? type : type === 'dummy' ? 'target-dummy' : expansion ? `${type}-rest` : terrainTexture(this.level.theme, 'slime-rest');
       if (type === 'dummy' && !this.textures.exists(texture)) {
         const dummy = this.textures.createCanvas(texture, 24, 30);
         const context = dummy.context;
@@ -221,13 +229,16 @@ export class PlatformerScene extends Phaser.Scene {
         ]) { context.fillStyle = color; context.fillRect(x, y, width, height); }
         dummy.refresh();
       }
-      const homeY = type === 'flying' || type === 'bat' || monster?.flying ? 148 : GROUND_Y;
-      const slime = this.enemies.create(left, homeY, texture)
+      const homeY = type === 'flying' || type === 'bat' || type === 'nightHunter' || monster?.flying ? 148 : GROUND_Y;
+      const slime = this.enemies.create(left, homeY, texture, ultimate ? 'patrol0' : undefined)
         .setOrigin(0.5, 1).setDepth(3).setVelocityX(speed);
-      if (type === 'dummy') slime.body.setSize(18, 17, false).setOffset(3, 5);
+      if (ultimate) slime.body.setSize(16,22,false).setOffset(11,11);
+      else if (type === 'dummy') slime.body.setSize(18, 17, false).setOffset(3, 5);
       else slime.body.setSize(15, expansion ? 13 : 11, false).setOffset(1, expansion ? 5 : 2);
       slime.setData({ left, right: left + distance, speed, type, homeY });
-      if (monster) {
+      if (ultimate) {
+        slime.setData({ ultimateState:{phase:'patrol',until:0,facing:1}, signal:this.add.graphics().setDepth(6) });
+      } else if (monster) {
         slime.setData({ brain: { phase: 'patrol', until: 0, facing: 1 }, signal: this.add.graphics().setDepth(6) });
       } else if (type === 'shooter' || expansion) {
         const glow = this.add.rectangle(left, GROUND_Y - 16, 4, 4, 0xffcf78).setDepth(5).setVisible(false);
@@ -235,6 +246,18 @@ export class PlatformerScene extends Phaser.Scene {
       }
     }
 
+    if (this.level.secret) {
+      const { x,y,id } = this.level.secret;
+      const color = id === 'grove' ? 0xeb7298 : 0xcfa4ff;
+      this.add.graphics().setDepth(2).fillStyle(color,.9)
+        .fillRect(30,151,3,5).fillRect(25,158,3,5).fillRect(20,165,3,5)
+        .fillRect(x-8,y-4,16,12).fillStyle(0x342b46).fillRect(x-6,y-2,12,8)
+        .fillStyle(0xffffbf).fillRect(x-2,y,4,4);
+      this.secret = this.add.zone(x,y,17,15);
+      this.physics.add.existing(this.secret,true);
+    } else this.secret = null;
+    this.finish = null;
+    if (this.level.survival) return;
     const flag=this.valleyPrototype ? this.add.image(this.level.flagX,GROUND_Y,'field-signs','exit0').setOrigin(.5,1)
       : this.add.image(this.level.flagX-10,GROUND_Y,'flag').setOrigin(0,1);
     flag.setDepth(1);
@@ -284,7 +307,13 @@ export class PlatformerScene extends Phaser.Scene {
     this.physics.add.overlap(this.player, this.enemies, (_player, enemy) => {
       if (enemy.getData('type') !== 'dummy') this.hitSlime(enemy);
     });
-    this.physics.add.overlap(this.player, this.finish, () => this.finishLevel());
+    if (this.finish) this.physics.add.overlap(this.player, this.finish, () => this.finishLevel());
+    if (this.secret) this.physics.add.overlap(this.player,this.secret,() => {
+      this.secret.body.enable = false;
+      this.burst(this.secret.x,this.secret.y,0xeebaff,12);
+      this.ui.playSound('secret');
+      this.ui.onSecret?.(this.level.secret);
+    });
   }
 
   collect(coin) {
@@ -316,22 +345,34 @@ export class PlatformerScene extends Phaser.Scene {
     if (this.complete || this.elapsed < this.invulnerableUntil) return;
     if (this.ninja && this.elapsed < (enemy.getData('shadowHitUntil') ?? 0)) return;
     const body = this.player.body;
+    if (enemy.getData('ultimateState')) return;
     if (body.velocity.y > 0 && body.prev.y + body.height <= enemy.body.top + 4) {
       this.defeatEnemy(enemy);
-      this.player.setVelocityY(-172);
+      if (!this.ninja?.attack?.dive) this.player.setVelocityY(-172);
       this.jumpUntil = -Infinity;
       this.groundedUntil = -Infinity;
       this.cuttableJump = false;
       return;
     }
-    this.respawn();
+    this.damage();
   }
 
   defeatEnemy(enemy) {
+    this.runTally.defeats++;
+    this.survival?.defeat();
     enemy.disableBody(true, true);
     enemy.getData('warning')?.setVisible(false);
     enemy.getData('signal')?.clear();
     this.burst(enemy.x, enemy.y - 6, 0xa9e169);
+    if (enemy.getData('ultimateState')) {
+      const echo = this.add.image(enemy.x,enemy.y,enemy.texture.key,'fall0').setOrigin(.5,1).setDepth(4).setFlipX(enemy.flipX);
+      this.tweens.addCounter({ from:0, to:4, duration:210, onUpdate:tween=>{
+        const age = tween.getValue();
+        echo.setFrame('fall'+Math.min(3,Math.floor(age))).setAlpha(1-age/4);
+      }, onComplete:()=>echo.destroy() });
+      this.ui.playSound('stomp');
+      return;
+    }
     const updated = this.prototypeActors?.foeHit(enemy) || Boolean(this.campaignActors);
     if(updated && !this.ui.reduceMotion) this.cameras.main.shake(90,.0028);
     if (!updated && !this.ui.reduceMotion) {
@@ -357,11 +398,12 @@ export class PlatformerScene extends Phaser.Scene {
     clearShadow(this, true);
     this.player.body.reset(this.checkpoint, GROUND_Y - 2);
     for (const enemy of this.enemies.getChildren()) {
-      const { brain, signal, left, homeY, speed } = enemy.data.values;
-      if (!brain || left <= this.checkpoint + 28) continue;
+      const { brain, ultimateState, signal, left, homeY, speed } = enemy.data.values;
+      if (!(brain || ultimateState) || this.survival || left <= this.checkpoint + 28) continue;
       enemy.enableBody(true, left, homeY, true, true).setVelocityX(speed).setFlipX(false);
       this.ninja?.enemyHp.delete(enemy);
-      Object.assign(brain, { phase: 'patrol', until: 0, facing: 1 });
+      Object.assign(brain ?? ultimateState, { phase:'patrol', until:0, facing:1 });
+      enemy.setData({shadowHitUntil:0,shadowStaggerReady:0});
       signal.clear();
     }
     this.player.setTexture(heroTexture('respawn', this.ui.costume)).setFlipX(false);
@@ -378,7 +420,16 @@ export class PlatformerScene extends Phaser.Scene {
   }
 
   damage() {
-    if (!this.complete && this.elapsed >= this.invulnerableUntil) this.respawn();
+    if (this.complete || this.elapsed < this.invulnerableUntil) return;
+    this.runTally.hurt();
+    if (this.survival && !this.survival.hurt()) {
+      this.invulnerableUntil = this.elapsed + 900;
+      clearShadow(this);
+      this.burst(this.player.x,this.player.y-10,0xffa7a4,8);
+      this.ui.playSound('respawn');
+      return;
+    }
+    this.respawn();
   }
 
   finishLevel() {
@@ -406,6 +457,10 @@ export class PlatformerScene extends Phaser.Scene {
     const jumpDown = this.controls.isDown('jump');
     const dropDown = this.controls.isDown('drop');
     const direction = Number(this.controls.isDown('right')) - Number(this.controls.isDown('left'));
+    const ninja = this.ninja;
+    const wall = !grounded && ninja && !ninja.dash && time >= (ninja.wallJumpUntil ?? 0)
+      ? wallSide(body,this.solidWalls,direction) : 0;
+    if (ninja) ninja.wallSlide = wall && body.velocity.y > 0 && !ninja.attack?.dive ? wall : 0;
     if (grounded) this.groundedUntil = time + COYOTE_TIME;
     if (this.controls.consumeJump()) this.jumpUntil = time + JUMP_BUFFER;
 
@@ -422,7 +477,19 @@ export class PlatformerScene extends Phaser.Scene {
       this.launchUntil = time + 75;
       this.dust(player.x, player.y);
       this.ui.playSound('jump');
+      if (ninja?.sprint) ninja.sprintJumpUntil = time + 240;
+    } else if (ninja && canWallJump(ninja,wall,time <= this.jumpUntil)) {
+      ninja.wallJumpUsed = true;
+      ninja.wallJumpUntil = time + WALL_LOCK;
+      ninja.wallJumpDirection = -wall;
+      ninja.wallSlide = 0;
+      this.jumpUntil = -Infinity;
+      this.groundedUntil = -Infinity;
+      this.cuttableJump = true;
+      player.setFlipX(wall > 0).setVelocity(-wall * MOVE_SPEED,-WALL_JUMP_SPEED);
+      this.ui.playSound('jump');
     }
+    if (ninja?.wallSlide) body.velocity.y = Math.min(body.velocity.y,WALL_FALL);
     if (!jumpDown && this.cuttableJump && body.velocity.y < -116) {
       player.setVelocityY(-116);
       this.cuttableJump = false;
@@ -432,7 +499,7 @@ export class PlatformerScene extends Phaser.Scene {
     const onIce = grounded && player.y >= GROUND_Y - 1
       && this.level.ice?.some(([start, end]) => player.x >= start && player.x < end);
     const wind = !grounded && this.windZones.find(([left, right]) => player.x >= left && player.x <= right);
-    const dashing = this.ninja && updateDash(this, grounded && body.velocity.y >= 0 && time >= this.dropUntil, direction);
+    const dashing = ninja && updateDash(this, grounded && body.velocity.y >= 0 && time >= this.dropUntil, direction);
     if (!dashing) {
       const state=this.ninja;
       const sprint=state && grounded && body.velocity.y>=0 && direction!==0 && this.controls.isDown('sprint') && !state.special;
@@ -457,9 +524,10 @@ export class PlatformerScene extends Phaser.Scene {
       const braking = grounded && time - (state?.sprintStop ?? -Infinity) < 135;
       const accel = sprint ? sprintTier >= 2 && turning ? 1810 : sprintTier >= 1 ? 1450 : 1140 : onIce ? 540 : 880;
       const drag = sprintTier >= 2 && braking ? 1520 : onIce ? 300 : 1250;
-      const motion=state?specialMovement(this,direction,grounded):direction;
+      const kick = time < (state?.wallJumpUntil ?? 0);
+      const motion=kick ? state.wallJumpDirection : state?specialMovement(this,direction,grounded):direction;
       player.setAccelerationX(motion*accel+(wind?wind[2]:0)).setDragX(drag);
-      if(direction!==0&&!state?.attack&&!state?.throw&&!state?.special&&!state?.charging)player.setFlipX(direction<0);
+      if(direction!==0&&!kick&&!state?.attack&&!state?.throw&&!state?.special&&!state?.charging&&!state?.parry)player.setFlipX(direction<0);
     }
     const visual = this.animationState;
     visual.time = time;
@@ -480,6 +548,8 @@ export class PlatformerScene extends Phaser.Scene {
   update(_time, delta) {
     if (this.complete) return;
     this.elapsed += delta;
+    this.controls.readGamepad?.();
+    if (this.controls.consume?.('pause') && this.ui.onPause?.()) return;
     const second = Math.floor(this.elapsed / 1000);
     if (second !== this.lastSecond) {
       this.lastSecond = second;
@@ -495,6 +565,7 @@ export class PlatformerScene extends Phaser.Scene {
     updatePlatforms(this);
     this.obstacleUpdates.forEach((update) => update(this.elapsed));
     updateCombat(this, delta);
+    this.survival?.update();
     this.feedback.update();
     this.enemies.children.iterate((enemy) => {
       if (!enemy.active) return;
@@ -504,6 +575,10 @@ export class PlatformerScene extends Phaser.Scene {
         enemy.setAlpha(hit && !this.ui.reduceMotion ? .76 : 1);
       }
       if (type === 'dummy') return;
+      if (enemy.getData('ultimateState')) {
+        enemy.setFrame(ultimateEnemyFrame(enemy,this.elapsed,this.ui.reduceMotion));
+        return;
+      }
       if (type === 'ice') {
         const velocity = speed * (1 + 0.4 * Math.sin(this.elapsed / 380 + left));
         enemy.setVelocityX(enemy.body.velocity.x < 0 ? -velocity : velocity);

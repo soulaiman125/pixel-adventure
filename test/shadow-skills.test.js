@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { activeWindows, adjustEnergy, energyCost, inRadius, SPECIALS } from '../src/game/combat-techniques.js';
+import { activeWindows, cooldown, inRadius, SPECIALS } from '../src/game/combat-techniques.js';
 import { createShadowSkills, SKILLS } from '../src/game/shadow-skills.js';
 
 test('a legacy campaign has no skill spending and each milestone can be redeemed only once', () => {
@@ -39,7 +39,7 @@ test('malformed or unknown Shadow save data defaults to unspent abilities', () =
   }
 });
 
-test('special attack windows close on time, radial contact uses body edges and Energy stays bounded', () => {
+test('special attack windows close on time, radial contact uses body edges and cooldowns stay bounded', () => {
   for (const [kind, { windows, duration }] of Object.entries(SPECIALS)) {
     const action = { kind, since: 500 };
     for (const [index, [open, close]] of windows.entries()) {
@@ -52,11 +52,17 @@ test('special attack windows close on time, radial contact uses body edges and E
   const box = { left: 4, right: 7, top: 3, bottom: 8 };
   assert(inRadius(box, 0, 0, 5));
   assert(!inRadius(box, 0, 0, 4.99));
-  assert.equal(energyCost('cyclone', 2), 24);
-  assert.equal(energyCost('execution', 3), 60);
-  const state = { energy: 70 };
-  adjustEnergy(state, 40);
-  assert.equal(state.energy, 100);
-  adjustEnergy(state, -101);
-  assert.equal(state.energy, 0);
+  assert.equal(cooldown('cyclone', 2), 2500);
+  assert.equal(cooldown('execution', 3), 6000);
+  assert.equal(cooldown('charged'), 1500);
+  assert.equal(cooldown('dash'), 700);
+});
+
+test('v1 skill purchases, requirements and milestones migrate to v2', () => {
+  let saved = JSON.stringify({version:1,tiers:{cyclone:2,execution:3},milestones:Array.from({length:9},(_,i)=>`award-${i}`)});
+  const skills = createShadowSkills({getItem:()=>saved,setItem:(_,text)=>{saved=text;}});
+  assert.equal(skills.tier('cyclone'),2);
+  assert.equal(skills.tier('execution'),3);
+  assert.equal(skills.points(),0);
+  assert.equal(JSON.parse(saved).version,2);
 });

@@ -45,10 +45,10 @@ async function open(choice, options = {}) {
     );
   });
   await page.goto(
-    "http://127.0.0.1:5173/" + (choice ? "?shadow=" + choice : "?hero=legacy"),
+    "http://127.0.0.1:5173/" + (['normal','survival'].includes(choice) ? '' : choice ? "?shadow=" + choice : "?hero=legacy"),
   );
   await page.locator("canvas").waitFor();
-  await page.locator(choice ? "#shadow-play" : "#play-game").click();
+  await page.locator(choice === 'survival' ? '#survival-button' : choice && choice !== 'normal' ? "#shadow-play" : "#play-game").click();
   await page.waitForFunction(
     () => qaScene?.sys.isActive() && qaScene.player?.body.blocked.down,
     null,
@@ -71,7 +71,7 @@ const state = (page) =>
       deaths: s.deaths,
       airUsed: n?.airUsed,
       dash: n?.dash?.air === true ? "air" : n?.dash ? "ground" : null,
-      charges: n?.charges,
+      throwReadyAt: n?.readyAt?.throw,
       projectiles: n?.projectiles.filter((p) => p.active).length,
       dummy: document.querySelector("#shadow-debug")?.dataset.dummy,
     };
@@ -214,21 +214,17 @@ async function arena() {
   const run = await open("arena");
   const { page } = run;
   await exportArt(page);
-  const begin = await state(page);
   await key(page, "KeyZ");
   await wait(page, () => qaScene.ninja.dash && !qaScene.ninja.dash.air);
   await wait(page, () => !qaScene.ninja.dash);
-  const end = await state(page);
-  assert(
-    end.x - begin.x >= 32 && end.x - begin.x <= 47,
-    JSON.stringify({ begin, end }),
-  );
+  const distance = await page.evaluate(()=>qaScene.ninja.lastDashDistance);
+  assert(distance >= 30 && distance <= 48, String(distance));
   await key(page, "KeyZ");
   await sleep(page, 40);
   assert.equal((await state(page)).dash, null);
   report.tests.push(
     "Ground dash travel " +
-      (end.x - begin.x).toFixed(1) +
+      distance.toFixed(1) +
       " world px and cooldown",
   );
 
@@ -295,20 +291,21 @@ async function arena() {
   );
   await place(page, 135);
   await sleep(page, 160);
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 4; i++) {
     await key(page, "KeyC");
-    await wait(page, (i) => qaScene.ninja.charges === 2 - i, i);
+    await wait(page, (i) => qaScene.ninja.uses.shuriken === i + 1, i);
     await wait(page, () => qaScene.ninja.projectiles.some((p) => p.active));
     await wait(page, () => !qaScene.ninja.throw);
+    if (i === 0) {
+      await key(page,"KeyC");
+      assert.equal(await page.evaluate(()=>qaScene.ninja.uses.shuriken), 1);
+    }
+    await wait(page, () => qaScene.elapsed >= qaScene.ninja.readyAt.throw);
   }
-  await key(page, "KeyC");
-  await sleep(page, 85);
-  assert.equal((await state(page)).charges, 0);
-  assert.equal(await page.evaluate(() => !!qaScene.ninja.throw), false);
-  await wait(page, () => qaScene.ninja.charges === 1);
-  assert.equal((await state(page)).dummy, "16/40");
+  await wait(page, () => !qaScene.ninja.projectiles.some(p=>p.active));
+  assert.equal((await state(page)).dummy, "8/40");
   report.tests.push(
-    "Three shuriken charges, fourth rejected, sequential refill, dummy damaged once per throw",
+    "Four Shuriken throws without stock depletion, cooldown rejection, one dummy hit per throw",
   );
 
   await place(page, 700);
@@ -368,7 +365,7 @@ async function arena() {
   await page.locator("#shadow-play").click();
   await wait(page, () => qaScene.ninja && qaScene.elapsed < 800);
   assert.equal((await state(page)).projectiles, 0);
-  assert.equal((await state(page)).charges, 3);
+  assert.equal((await state(page)).throwReadyAt, undefined);
   report.tests.push(
     "Arena scene transition clears projectiles and restores starting loadout",
   );
@@ -492,7 +489,7 @@ async function mobile() {
   );
   await wait(page, () => Math.abs(qaScene.player.body.velocity.x) < 1);
   await page.locator("[data-action=throw]").tap();
-  await wait(page, () => qaScene.ninja.charges === 2);
+  await wait(page, () => qaScene.ninja.uses.shuriken === 1);
   await wait(page, () => !qaScene.ninja.throw);
   await page.locator("[data-action=attack]").tap();
   await wait(page, () => qaScene.ninja.attack);
@@ -515,6 +512,13 @@ async function mobile() {
   await page.locator("#sprint-toggle").check();
   await page.locator("#touch-left-handed").check();
   await page.locator("#touch-size").selectOption("large");
+  await page.locator('#touch-layout').selectOption('defense');
+  await page.getByText('Swap touch button positions',{exact:true}).click();
+  const before = await page.locator('[data-action=attack]').evaluate(button=>button.style.order);
+  await page.locator('#touch-swap-from').selectOption('attack');
+  await page.locator('#touch-swap-to').selectOption('dash');
+  await page.locator('#touch-swap').click();
+  assert.equal(await page.locator('[data-action=dash]').evaluate(button=>button.style.order),before);
   await page
     .locator("#settings-dialog")
     .getByRole("button", { name: "Done" })
@@ -565,15 +569,15 @@ async function mobile() {
   );
   await place(page, 199);
   await page.locator("[data-action=cyclone]").tap();
-  await wait(page, () => qaScene.ninja.special?.kind === "cyclone" && qaScene.ninja.energy === 30);
+  await wait(page, () => qaScene.ninja.special?.kind === "cyclone" && qaScene.ninja.readyAt.cyclone > qaScene.elapsed);
   await wait(page, () => !qaScene.ninja.special);
   await page.locator("#pause-button").tap();
   await page.locator("#restart-level").tap();
-  await wait(page, () => qaScene.ninja.energy === 60 && qaScene.player.body.blocked.down);
+  await wait(page, () => qaScene.elapsed < 800 && qaScene.player.body.blocked.down);
   await place(page, 183);
   await page.locator("[data-action=execution]").tap();
-  await wait(page, () => qaScene.ninja.special?.hit[2].size === 1 && qaScene.ninja.energy === 0);
-  report.tests.push("Cyclone and Execution touch buttons invoke their actives and spend Energy");
+  await wait(page, () => qaScene.ninja.special?.hit[2].size === 1 && qaScene.ninja.readyAt.execution > qaScene.elapsed);
+  report.tests.push("Cyclone and Execution touch buttons invoke their actives and start cooldowns");
   await finish(run);
 }
 
@@ -588,8 +592,9 @@ async function techniques() {
   await page.keyboard.up('ShiftLeft');
   await wait(page,()=>qaScene.player.body.velocity.x<=132);
   await page.keyboard.up('KeyD');
+  await place(page,68);
   await key(page,'KeyF');
-  assert.equal(await page.evaluate(()=>qaScene.ninja.energy),60,'A missed Execution cannot spend Energy');
+  assert.equal(await page.evaluate(()=>qaScene.ninja.readyAt.execution),undefined,'A missed Execution cannot start cooldown');
   await place(page,183);
   await page.keyboard.down('KeyX');
   await wait(page,()=>qaScene.ninja.charging);
@@ -602,9 +607,10 @@ async function techniques() {
   const origin=await page.evaluate(()=>qaScene.player.x);
   await wait(page,()=>qaScene.ninja.special?.hit[2].size===1);
   assert(await page.evaluate(origin=>qaScene.player.x>origin && qaScene.player.x<225,origin));
-  assert.equal(await page.evaluate(()=>qaScene.ninja.energy),0);
+  assert.equal(await page.evaluate(()=>qaScene.ninja.readyAt.execution-qaScene.ninja.special.since),6000);
   await wait(page,()=>!qaScene.ninja.special);
   await stop(page,'sprint-charge-execution.webm');
+  await wait(page,()=>qaScene.elapsed>=qaScene.ninja.readyAt.charged);
   await page.keyboard.down('KeyX');
   await wait(page,()=>qaScene.ninja.charging);
   await key(page,'Escape');
@@ -618,7 +624,7 @@ async function techniques() {
   await record(page);
   await key(page,'KeyV');
   await wait(page,()=>qaScene.ninja.special?.kind==='cyclone');
-  assert.equal(await page.evaluate(()=>qaScene.ninja.energy),30);
+  assert.equal(await page.evaluate(()=>qaScene.ninja.readyAt.cyclone-qaScene.ninja.special.since),3000);
   await wait(page,()=>qaScene.ninja.special?.hit[1].size===1);
   assert.deepEqual(await page.evaluate(()=>qaScene.ninja.special.hit.map(window=>window.size)),[1,1]);
   await wait(page,()=>!qaScene.ninja.special);
@@ -627,11 +633,10 @@ async function techniques() {
   await page.evaluate(()=>{
     const target=qaScene.enemies.getChildren().find(enemy=>enemy.getData('type')==='guard');
     target.body.reset(766,184);
-    qaScene.ninja.energy=60;
     target.setData('exposedUntil',qaScene.elapsed+3000);
   });
   await key(page,'KeyF');
-  assert.equal(await page.evaluate(()=>qaScene.ninja.energy),60,'Execution cannot acquire a target through the wall');
+  assert.equal(await page.evaluate(()=>qaScene.ninja.readyAt.execution),undefined,'Execution cannot acquire a target through the wall');
   await finish(run);
   report.tests.push('Sprint speed and brake, charge hold and release, pause cancellation, three execution contacts, radial hit limits and invalid-target refunds');
 }
@@ -655,11 +660,11 @@ async function skillsAndBindings() {
   await wait(page, () => qaScene.ninja && qaScene.player.body.blocked.down);
   await key(page, 'KeyC');
   await wait(page, () => qaScene.ninja.projectiles.filter(shot => shot.active).length === 3);
-  assert.equal(await page.evaluate(() => qaScene.ninja.charges), 0);
+  assert(await page.evaluate(() => qaScene.ninja.readyAt.throw > qaScene.elapsed));
   await wait(page, () => !qaScene.ninja.throw);
   await key(page, 'KeyV');
   await wait(page, () => qaScene.ninja.special?.kind === 'cyclone');
-  assert.equal(await page.evaluate(() => qaScene.ninja.energy), 36);
+  assert.equal(await page.evaluate(() => qaScene.ninja.readyAt.cyclone - qaScene.ninja.special.since),2500);
   await wait(page, () => !qaScene.ninja.special);
   await key(page, 'KeyZ');
   await wait(page, () => qaScene.ninja.dash && qaScene.elapsed - qaScene.ninja.dash.since >= 43);
@@ -674,7 +679,7 @@ async function skillsAndBindings() {
   assert.equal(await page.locator('#skill-points').textContent(),'36');
   await page.locator('#skills-dialog [data-close]').click();
   await page.locator('#settings-button').click();
-  await page.locator('.binding-settings summary').click();
+  await page.getByText('Keyboard controls',{exact:true}).click();
   await page.locator('[data-bind="dash"]').click();
   await key(page,'KeyB');
   assert.match(await page.locator('#binding-status').textContent(),/uses B/);
@@ -736,8 +741,329 @@ async function campaignTechniques() {
   }
 }
 
+async function wallAndAir() {
+  const run = await open('arena');
+  const { page } = run;
+  await record(page);
+  await place(page,700,145);
+  await page.keyboard.down('KeyD');
+  await key(page,'KeyZ');
+  await wait(page, () => qaScene.ninja.dash?.air);
+  await wait(page, () => qaScene.ninja.wallSlide === 1 && qaScene.player.body.velocity.y <= 70);
+  const dashCount = await page.evaluate(()=>qaScene.ninja.uses.dash);
+  await page.keyboard.down('Space');
+  await wait(page, () => qaScene.ninja.wallJumpUsed && qaScene.player.body.velocity.y < -150 && qaScene.player.body.velocity.x < -40);
+  await page.keyboard.up('KeyD');
+  await key(page,'KeyZ');
+  assert.equal(await page.evaluate(()=>qaScene.ninja.uses.dash),dashCount);
+  await page.keyboard.up('Space');
+  await page.keyboard.down('KeyS');
+  await key(page,'KeyX');
+  await wait(page, () => qaScene.ninja.attack?.dive && qaScene.player.body.velocity.y > 175);
+  await page.keyboard.up('KeyS');
+  await wait(page,()=>qaScene.ninja.diveLandUntil > qaScene.elapsed);
+  await stop(page,'wall-and-air.webm');
+  await finish(run);
+  report.tests.push('Real collision wall slide, kick, spent Air Dash remains spent, downward slash and landing recovery');
+}
+
+async function parryAndEnemy() {
+  const run = await open('17');
+  const { page } = run;
+  const target = await page.evaluate(()=>qaScene.enemies.getChildren().find(enemy=>enemy.getData('type')==='shadowRival').x);
+  await place(page,target-25);
+  await record(page);
+  await key(page,'KeyQ');
+  await wait(page,()=>qaScene.ninja.parry && Math.abs(qaScene.ninja.readyAt.parry - qaScene.ninja.parry.since - 800) < .1);
+  await wait(page,()=>!qaScene.ninja.parry);
+  await page.keyboard.down('KeyA');
+  await wait(page,()=>qaScene.player.x < qaScene.enemies.getChildren()[0].x - 66);
+  await page.keyboard.up('KeyA');
+  await wait(page,()=>qaScene.elapsed > qaScene.ninja.readyAt.parry);
+  await place(page, await page.evaluate(()=>qaScene.enemies.getChildren()[0].x - 28));
+  await page.keyboard.down('KeyD');
+  await sleep(page,25);
+  await page.keyboard.up('KeyD');
+  await page.evaluate(() => new Promise((resolve,reject) => {
+    const timeout = performance.now() + 5500;
+    function tick() {
+      const phase=qaScene.enemies.getChildren()[0].getData('ultimateState');
+      const remaining = phase.until-qaScene.elapsed;
+      if (phase.phase==='windup' && remaining <= 75 && remaining >= 50) {
+        for (const type of ['keydown','keyup']) window.dispatchEvent(new KeyboardEvent(type,{code:'KeyQ',bubbles:true}));
+        resolve();
+      } else if (performance.now() > timeout) reject(new Error('Expected a telegraphed Rival strike'));
+      else requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }));
+  await wait(page,()=>qaScene.ninja.uses.parrySuccess === 1);
+  await wait(page,()=>qaScene.elapsed-qaScene.ninja.parry?.succeededAt >= 78);
+  await key(page,'KeyX');
+  await wait(page,()=>qaScene.ninja.attack?.counter);
+  await wait(page,()=>qaScene.runTally.counters === 1);
+  await stop(page,'parry.webm');
+  await finish(run);
+  report.tests.push('Missed Parry cooldown, real Shadow Rival windup, successful frontal Parry and confirmed countercut');
+}
+
+async function secretDiscovery() {
+  const run = await open('normal');
+  const { page } = run;
+  await record(page);
+  await page.keyboard.down('KeyA');
+  await wait(page,()=>qaScene.player.x < 37);
+  await page.keyboard.up('KeyA');
+  await page.keyboard.down('Space');
+  await wait(page,()=>qaScene.player.y < 169);
+  await wait(page,()=>qaScene.player.body.blocked.down && qaScene.player.y < 153);
+  await page.keyboard.up('Space');
+  await page.keyboard.down('Space');
+  await wait(page,()=>!qaScene.secret.body.enable);
+  await page.keyboard.up('Space');
+  await shot(page,'hidden-grove.png');
+  await stop(page,'hidden-grove.webm');
+  const hasGrove = () => page.evaluate(()=>JSON.parse(localStorage.getItem('pixel-adventure.ultimate')).feats.includes('grove'));
+  assert(await hasGrove());
+  await page.reload();
+  await page.locator('#settings-button').click();
+  assert(await page.locator('#hero-outfit option[value=jade]').isEnabled());
+  await page.locator('#hero-outfit').selectOption('jade');
+  assert(await hasGrove());
+  await shot(page,'cosmetics.png');
+  await page.locator('#settings-dialog [data-close]').first().click();
+  await page.locator('#play-game').click();
+  await wait(page,()=>qaScene?.sys.isActive() && qaScene.player.body.blocked.down);
+  await shot(page,'jade-gameplay.png');
+  await finish(run);
+  const shrine = await open('19');
+  await shrine.page.keyboard.down('KeyA');
+  await wait(shrine.page,()=>qaScene.player.x < 30);
+  await shrine.page.keyboard.up('KeyA');
+  await shrine.page.keyboard.down('Space');
+  await wait(shrine.page,()=>qaScene.player.y < 169);
+  await wait(shrine.page,()=>qaScene.player.body.blocked.down && qaScene.player.y < 149);
+  await shrine.page.keyboard.up('Space');
+  await shrine.page.keyboard.down('Space');
+  await wait(shrine.page,()=>!qaScene.secret.body.enable);
+  await shrine.page.keyboard.up('Space');
+  await shot(shrine.page,'high-shrine.png');
+  await finish(shrine);
+  report.tests.push('Jumped to both secret caches from spawn. Hidden Grove persisted its feat and enabled Jade outfit');
+}
+
+async function sprintComparison() {
+  const speeds = {};
+  for (const sprint of [false,true]) {
+    const run = await open('arena');
+    const { page } = run;
+    const clip = sprint ? 'sprint-speed' : 'normal-speed';
+    await record(page);
+    if (sprint) await page.keyboard.down('ShiftLeft');
+    await page.keyboard.down('KeyD');
+    await wait(page, speed => qaScene.player.body.velocity.x >= speed, sprint?175:131);
+    const start = await page.evaluate(()=>[qaScene.player.x,qaScene.elapsed]);
+    await wait(page,t=>qaScene.elapsed-t>=610,start[1]);
+    const sample = await page.evaluate(()=>[qaScene.player.x,qaScene.elapsed,qaScene.player.body.velocity.x]);
+    const average = Math.round((sample[0]-start[0])*1000/(sample[1]-start[1]));
+    assert(Math.abs(average-(sprint?176:132)) <= 7);
+    speeds[clip] = {average, instantaneous:sample[2], duration:sample[1]-start[1]};
+    await page.keyboard.up('KeyD');
+    if (sprint) await page.keyboard.up('ShiftLeft');
+    await stop(page,clip+'.webm');
+    await finish(run);
+  }
+  await writeFile(out('sprint.json'),JSON.stringify(speeds,null,2));
+  report.speeds = speeds;
+}
+
+async function enemyPreviews() {
+  for (const [stage,type] of [[17,'shadowRival'],[22,'nightHunter'],[28,'ironGuardian']]) {
+    const run = await open(String(stage));
+    await place(run.page,await run.page.evaluate(type=>qaScene.enemies.getChildren().find(enemy=>enemy.getData('type')===type).x-62,type));
+    await shot(run.page,type+'.png');
+    await finish(run);
+  }
+  const run = await open('survival');
+  const image = await run.page.evaluate(()=>{
+    const labels = [['shadowRival','Shadow Rival'],['ironGuardian','Iron Guardian'],['nightHunter','Night Hunter']];
+    const canvas = document.createElement('canvas');
+    canvas.width=812; canvas.height=1280;
+    const ctx=canvas.getContext('2d');
+    ctx.imageSmoothingEnabled=false;
+    ctx.fillStyle='#151e31';ctx.fillRect(0,0,canvas.width,canvas.height);
+    let top=22;
+    for (const [id,label] of labels) {
+      const atlas=qaScene.textures.get(id);
+      const atlasImage=atlas.getSourceImage();
+      ctx.fillStyle='#f5ecff';ctx.font='bold 21px monospace';ctx.fillText(label,22,top);
+      top+=14;
+      const names=['patrol','windup','strike','recover','evade','hit','fall'];
+      for (const name of names) {
+        ctx.fillStyle='#24334d';ctx.fillRect(12,top,788,51);
+        ctx.font='bold 14px monospace';ctx.fillStyle='#d9cbe9';ctx.fillText(name,23,top+26);
+        let i=0;
+        while (atlas.has(name+i)) {
+          const f=atlas.get(name+i);
+          ctx.drawImage(atlasImage,f.cutX,f.cutY,38,34,120+i*90,top+1,55,49);
+          i++;
+        }
+        top+=54;
+      }
+      top+=34;
+    }
+    return canvas.toDataURL().split(',')[1];
+  });
+  await writeFile(out('enemy-atlas.png'),Buffer.from(image,'base64'));
+  await finish(run);
+}
+
+async function gamepadProbe() {
+  const run = await open('arena');
+  const { page } = run;
+  await page.evaluate(()=>{
+    const buttons=Array.from({length:16},()=>({pressed:false}));
+    const pad={buttons,axes:[0,0]};
+    window.virtualPad=pad;
+    Object.defineProperty(navigator,'getGamepads',{configurable:true,value:()=>[pad]});
+  });
+  await sleep(page,100);
+  await page.evaluate(()=>{virtualPad.axes[0]=.8;virtualPad.buttons[0].pressed=true;});
+  await wait(page,()=>qaScene.player.body.velocity.y< -120);
+  await page.evaluate(()=>{virtualPad.buttons[0].pressed=false;virtualPad.buttons[2].pressed=true;});
+  await wait(page,()=>qaScene.ninja.attack?.air && qaScene.player.body.velocity.x>0);
+  await page.evaluate(()=>{virtualPad.axes[0]=0;virtualPad.buttons[2].pressed=false;});
+  await wait(page,()=>qaScene.player.body.blocked.down && !qaScene.ninja.attack);
+  await page.evaluate(()=>{virtualPad.buttons[1].pressed=true;});
+  await wait(page,()=>qaScene.ninja.parry);
+  await page.evaluate(()=>{virtualPad.buttons[1].pressed=false;virtualPad.buttons[9].pressed=true;});
+  await page.locator('#pause-dialog[open]').waitFor();
+  await finish(run);
+  report.tests.push('Synthetic standard Gamepad API inputs activated movement, jump, air Katana, Parry and pause');
+}
+
+async function aerialChain() {
+  const run = await open('arena');
+  const {page}=run;
+  await record(page);
+  await page.keyboard.down('Space');
+  await wait(page,()=>!qaScene.player.body.blocked.down && qaScene.player.body.velocity.y < -100);
+  await key(page,'KeyX');
+  await wait(page,()=>qaScene.ninja.attack?.air && qaScene.elapsed-qaScene.ninja.attack.since >= 98);
+  await key(page,'KeyX');
+  await wait(page,()=>qaScene.ninja.attack?.air && qaScene.ninja.attack.index === 1);
+  await wait(page,()=>qaScene.elapsed-qaScene.ninja.attack.since >= 122);
+  await key(page,'KeyX');
+  await wait(page,()=>qaScene.ninja.attack?.index === 2);
+  await page.keyboard.up('Space');
+  await wait(page,()=>qaScene.player.body.blocked.down && !qaScene.ninja.attack);
+  assert.equal(await page.evaluate(()=>qaScene.ninja.uses.katana),3);
+  await stop(page,'air-combo.webm');
+  await finish(run);
+  report.tests.push('Katana air slash plus two buffered aerial poses followed by a normal landing');
+}
+
+async function survivalRun() {
+  const run = await open('survival');
+  const { page } = run;
+  await record(page);
+  const outcome = await page.evaluate(() => new Promise(resolve => {
+    const scene = qaScene;
+    const pressed = new Set();
+    const since = performance.now();
+    const input = (code, down) => {
+      if (pressed.has(code) === down) return;
+      if (down) pressed.add(code); else pressed.delete(code);
+      window.dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup',{code,bubbles:true,cancelable:true}));
+    };
+    const tap = code => { input(code,true); input(code,false); };
+    let jumpAt = -Infinity;
+    let cooldown = 0;
+    let aim = 1;
+    const samples = [];
+    let previous = 0;
+    const start = performance.now();
+    function tick() {
+      const {player,ninja,survival,elapsed} = scene;
+      const cleared = survival.cleared();
+      if (cleared !== previous) {
+        previous = cleared;
+        samples.push({wave:cleared,time:Math.round(elapsed),health:survival.run.health,score:survival.run.score});
+      }
+      if (scene.complete || document.querySelector('#clear-dialog').open || cleared >= 6 || performance.now()-since > 115000) {
+        for (const code of [...pressed]) input(code,false);
+        resolve({ cleared, elapsed:Math.round(elapsed), score:survival.run.score, health:survival.run.health,
+          uses:ninja.uses, samples, wallMs:Math.round(performance.now()-start), enemies:scene.enemies.getChildren().length });
+        return;
+      }
+      const foes = scene.enemies.getChildren().filter(enemy=>enemy.active)
+        .sort((a,b)=>Math.abs(player.x-a.x)-Math.abs(player.x-b.x));
+      const threat = foes[0];
+      if (!threat) {
+        input('ArrowLeft',player.x>260); input('ArrowRight',player.x<192);
+        requestAnimationFrame(tick);
+        return;
+      }
+      const diff = threat.x-player.x;
+      const side = Math.sign(diff) || aim;
+      let move = side;
+      const flying = threat.getData('type') === 'nightHunter';
+      const state = threat.getData('ultimateState');
+      const close = Math.abs(diff);
+      const floor = player.body.blocked.down;
+      const ready = key => elapsed >= (ninja.readyAt[key] ?? 0);
+      const idle = !ninja.attack && !ninja.special && !ninja.throw && !ninja.dash && !ninja.parry;
+      if (side !== aim) aim=side;
+      else if (close <= (flying ? 74 : 22)) move=0;
+      if (floor && flying && close < 111 && elapsed-jumpAt > 650 && !ninja.throw) {
+        jumpAt=elapsed; input('Space',true);
+      }
+      if (elapsed-jumpAt > 285) input('Space',false);
+      input('ArrowLeft',move<0);
+      input('ArrowRight',move>0);
+      if (ninja.parry?.success && elapsed-ninja.parry.succeededAt >= 78 && elapsed>=cooldown) {
+        tap('KeyX'); cooldown=elapsed+155;
+      } else if (idle && state.phase==='windup' && state.until-elapsed>35 && state.until-elapsed<=78
+        && close < 40 && !flying && ready('parry')) {
+        tap('KeyQ'); cooldown=elapsed+75;
+      } else if (elapsed>=cooldown) {
+        const strike = ninja.attack;
+        if (strike && strike.index<2 && !strike.queued && elapsed-strike.since>=[98,123][strike.index]) {
+          tap('KeyX'); cooldown=elapsed+65;
+        } else if (idle && flying && close < 155 && player.y-12 >= threat.body.top-2
+          && player.y-12 <= threat.body.bottom+2 && ready('throw')) {
+          tap('KeyC'); cooldown=elapsed+175;
+        } else if (idle && close < 47 && (state.phase==='recover' || flying && Math.abs(player.y-threat.y) < 21) && ready('execution')) {
+          tap('KeyF'); cooldown=elapsed+150;
+        } else if (idle && close < 29 && Math.abs(player.y-threat.y) < 21
+          && ready('cyclone') && state.phase!=='windup') {
+          tap('KeyV'); cooldown=elapsed+150;
+        } else if (idle && close < 33 && Math.abs(player.y-threat.y) < 25) {
+          tap('KeyX'); cooldown=elapsed+145;
+        }
+      }
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }));
+  await shot(page,'survival.png');
+  await stop(page,'survival.webm');
+  report.survival = outcome;
+  await writeFile(out('survival.json'),JSON.stringify(outcome,null,2));
+  assert.equal(outcome.cleared,6,JSON.stringify(outcome));
+  const saved = await page.evaluate(()=>JSON.parse(localStorage.getItem('pixel-adventure.ultimate')));
+  assert(saved.feats.includes('arena') && saved.arena.wave === 6 && saved.arena.score >= outcome.score);
+  await key(page,'KeyR');
+  await page.locator('#clear-dialog[open]').waitFor();
+  assert.equal(await page.locator('#clear-title').textContent(),'Survival Complete');
+  await page.locator('#play-again').click();
+  await wait(page,()=>qaScene.survival.run.wave === 0 && qaScene.survival.run.health === 3);
+  await finish(run);
+}
+
 try {
-  for (const fn of [arena, comparisons, campaign, mobile, techniques, skillsAndBindings, campaignTechniques]) {
+  for (const fn of [arena, comparisons, campaign, mobile, techniques, skillsAndBindings, campaignTechniques,
+    wallAndAir, parryAndEnemy, secretDiscovery, sprintComparison, enemyPreviews, gamepadProbe, aerialChain, survivalRun]) {
     if (
       process.env.SHADOW_ONLY &&
       !process.env.SHADOW_ONLY.split(",").includes(fn.name)

@@ -1,7 +1,7 @@
 import { clipFrame } from "./prototype-sprites.js";
 import { loadShadowArt, shadowClips, shadowFrames } from "./shadow-art.js";
 import { DASH, KATANA, SHURIKEN, strikeBox } from "./shadow-rules.js";
-import { activeWindows, SPECIALS } from "./combat-techniques.js";
+import { activeWindows, AIR_DIVE, SPECIALS } from "./combat-techniques.js";
 
 const SIZE = 0.62;
 const poses = {
@@ -25,6 +25,8 @@ const clips = {
   chargePrep: 480, chargeRelease: 390, airSlash: 182,
   cycloneStart: 128, cycloneSpin: 190, cycloneEnd: 172,
   executionPrep: 112, executionRush: 255, executionFinal: 109, executionEnd: 134,
+  sprintJump:240, wallSlide:275, wallJump:145, diveSlash:285, parryStart:260, parrySuccess:190,
+  dashBrake:110, victoryBow:800,
 };
 
 function techniquePose(state, now) {
@@ -47,6 +49,9 @@ function techniquePose(state, now) {
 export function createShadowPresentation(scene) {
   let costume = scene.ui.costume;
   let texture = loadShadowArt(scene, costume);
+  for (const key of scene.textures.getTextureKeys()) {
+    if (key.startsWith('shadow-ninja-') && key !== texture) scene.textures.remove(key);
+  }
   function sprite(depth) {
     return scene.add
       .image(0, 0, texture, "idle0")
@@ -88,10 +93,12 @@ export function createShadowPresentation(scene) {
       const reduced = scene.ui.reduceMotion;
       const player = scene.player;
       if (scene.ui.costume !== costume) {
+        const previous = texture;
         costume = scene.ui.costume;
         texture = loadShadowArt(scene, costume);
         for (const image of [hero, echo, ...trail.map((item) => item.image)])
           image.setTexture(texture, "idle0");
+        if (previous !== texture && previous !== 'shadow-ninja') scene.textures.remove(previous);
       }
       const travel = Math.abs(player.x - previousX);
       previousX = player.x;
@@ -100,16 +107,21 @@ export function createShadowPresentation(scene) {
       let name = poses[scene.visualPose] ?? scene.visualPose;
       const technique=techniquePose(state,now);
       if (name === "hurt" || name === "respawn") name = "idle";
-      if (scene.complete) name = "victory";
+      if (scene.complete) name = costume === 'dawn' || costume === 'silver' ? 'victoryBow' : 'victory';
       else if (state.dash) name = state.dash.air ? "dashAir" : "dashGround";
       else if (technique) name=technique[0];
       else if (state.attack) {
-        const {air,sprint,counter,index,since,queued}=state.attack;
-        name=counter?'dodgeCounter':sprint?'sprintAttack':air&&index===0?'airSlash':
+        const {air,sprint,counter,index,since,queued,dive}=state.attack;
+        name=dive?'diveSlash':counter?'dodgeCounter':sprint?'sprintAttack':air?['airSlash','airFollow','airHeavy'][index]:
           queued&&now-since>=KATANA[index].duration-45?'comboLink':KATANA[index].pose;
       }
+      else if (state.parry) name = state.parry.success ? 'parrySuccess' : 'parryStart';
       else if (state.throw) name = "throw";
       else if (now < afterDeath) name = "respawn";
+      else if (state.wallSlide) name = 'wallSlide';
+      else if (now < state.wallJumpUntil) name = 'wallJump';
+      else if (grounded && now < state.dashBrakeUntil) name = 'dashBrake';
+      else if (!grounded && now < state.sprintJumpUntil) name = 'sprintJump';
       else if (state.sprint) name=now-state.sprintSince<160?'sprintStart':'sprintLoop';
       else if (grounded&&now-(state.sprintStop??-Infinity)<135) name='sprintStop';
       else if (grounded && now < scene.landUntil) name = "land";
@@ -118,10 +130,10 @@ export function createShadowPresentation(scene) {
         started = now;
       }
       if (name === "run" || name==='sprintLoop') runDistance += Math.min(travel, 8);
-      if (name === "victory") victoryAt ??= clock;
-      const spec = state.attack && KATANA[state.attack.index];
+      if (scene.complete) victoryAt ??= clock;
+      const spec = state.attack && (state.attack.dive ? AIR_DIVE : KATANA[state.attack.index]);
       const age =
-        name === "victory"
+        scene.complete
           ? clock - victoryAt
           : state.dash
             ? now - state.dash.since
@@ -134,7 +146,7 @@ export function createShadowPresentation(scene) {
         clips[name] ??
         spec?.duration ??
         (state.dash ? DASH.duration : SHURIKEN.duration);
-      const looping = name === "idle" || name === "run" || name==='sprintLoop';
+      const looping = name === "idle" || name === "run" || name==='sprintLoop' || name==='wallSlide';
       const impactAge =
         spec && state.lastHit ? state.lastHit.time - state.attack.since : -1;
       const holdStrike =
@@ -207,7 +219,7 @@ export function createShadowPresentation(scene) {
         hitboxes.clear();
         const { attack, special, projectiles } = state;
         if (attack) {
-          const attackSpec = KATANA[attack.index];
+          const attackSpec = attack.dive ? AIR_DIVE : KATANA[attack.index];
           const age = now - attack.since;
           if (age >= attackSpec.open && age < attackSpec.close) {
             const reach = attack.sprint || attack.counter ? { ...attackSpec, w:attackSpec.w + 6 } : attackSpec;
@@ -239,7 +251,8 @@ function paintEffects(scene,hero,pose) {
     effect.fillStyle(0xeb92ba,.85).fillRect(hero.x-12,hero.y-4,
       Math.min(24,(now-charging.since-320)/20),2);
   }
-  const swing=attack && now-attack.since>=KATANA[attack.index].open && now-attack.since<KATANA[attack.index].close;
+  const spec = attack && (attack.dive ? AIR_DIVE : KATANA[attack.index]);
+  const swing = spec && now-attack.since>=spec.open && now-attack.since<spec.close;
   const phase = special && now - special.since;
   const tracing = special && !special.interrupted &&
     SPECIALS[special.kind].windows.some(([open, close]) => phase >= open && phase < close);
@@ -252,7 +265,10 @@ function paintEffects(scene,hero,pose) {
       const x=value=>hero.x+(value-32)*SIZE*side;
       const y=value=>hero.y+(value-74)*SIZE;
       const heavy = attack?.index === 2 || pose === 'executionFinal';
-      effect.fillStyle(special || heavy ? 0xef7498 : 0xaedfed,.65);
+      const costume = scene.ui.costume;
+      const trail = costume === 'jade' ? 0x84e3ab : costume === 'plum' ? 0xe2acff
+        : costume === 'dawn' ? 0xffcf91 : costume === 'silver' ? 0xd9f6ff : special || heavy ? 0xef7498 : 0xaedfed;
+      effect.fillStyle(trail,.65);
       effect.fillTriangle(x(current.hand[0]),y(current.hand[1]),x(previous.blade[0]),y(previous.blade[1]),x(current.blade[0]),y(current.blade[1]));
       effect.lineStyle(1,0xffecd1,.92).lineBetween(x(current.hand[0]),y(current.hand[1]),x(current.blade[0]),y(current.blade[1]));
       if (!reduced) effect.fillStyle(0xd9f1fa, .75)

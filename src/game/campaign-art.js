@@ -346,7 +346,7 @@ export function createCampaignActors(scene) {
     .getChildren()
     .map((body) => {
       const type = body.getData("type");
-      if (type === "dummy") return null;
+      if (type === "dummy" || body.getData('ultimateState')) return null;
       const key = "campaign-" + scene.level.theme + "-" + (type ?? "slime");
       atlas(scene, key, 44, 40, CLIPS, (ctx, x, y, clip, frame) =>
         creature(ctx, x, y, clip, frame, type, scene.level.theme),

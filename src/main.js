@@ -14,6 +14,8 @@ import { SHADOW_ARENA } from './game/shadow-arena.js';
 import { createShadowSkills } from './game/shadow-skills.js';
 import { setupCombatSettings, setupSkillTree } from './game/shadow-ui.js';
 import { cancelCharge } from './game/shadow-combat.js';
+import { createUltimateProgress, FEATS } from './game/ultimate-progress.js';
+import { SURVIVAL_LEVEL, ultimateLevel } from './game/ultimate-levels.js';
 import './styles.css';
 
 const byId = (id) => document.getElementById(id);
@@ -97,6 +99,7 @@ function readPreferences() {
 }
 
 const preferences = { ...readPreferences() };
+const ultimate = createUltimateProgress(localStorage);
 const skills = createShadowSkills(shadowArena ? {getItem(){return null;},setItem(){}} : localStorage);
 for(const [index, level] of LEVELS.entries()){
   if(progress.record(index)){
@@ -117,10 +120,10 @@ let landscapeAnimation;
 let settingsFromPause = false;
 const shadowButton = shadowChoice && document.createElement('button');
 const shadowDebug = shadowArena && document.createElement('output');
-const shadowCharges = byId('shadow-charges');
 const shadowTouchButtons = [];
-let previousDashUnavailable;
-let previousThrowUnavailable;
+const combatClocks = new Map([...document.querySelectorAll('[data-clock]')].map(node=>[node.dataset.clock,node]));
+const clockValues = new Map();
+let nextClockPaint = 0;
 
 if (shadowButton) {
   shadowButton.className = 'button shadow-entry';
@@ -139,7 +142,7 @@ if (shadowButton) {
 if (useShadowNinja) {
   for (const [action, label, display] of [
     ['dash','Shadow Dash','Dash'], ['throw','Shuriken','✦'], ['sprint','Shadow Sprint','Run'],
-    ['cyclone','Blade Cyclone','Spin'], ['execution','Shadow Execution','Finish'],
+    ['cyclone','Blade Cyclone','Spin'], ['execution','Shadow Execution','Finish'], ['parry','Perfect Parry','Parry'],
   ]) {
     const button = document.createElement('button');
     button.type = 'button';
@@ -158,21 +161,22 @@ if (shadowDebug) {
   shadowDebug.hidden = true;
   stage.appendChild(shadowDebug);
 }
-const dashTouch = shadowTouchButtons.find(button => button.dataset.action === 'dash');
-const throwTouch = shadowTouchButtons.find(button => button.dataset.action === 'throw');
+const actionButtons = new Map(shadowTouchButtons.map(button=>[button.dataset.action,button]));
+const clockLabels = {throw:'✦',dash:'»',charged:'刀',parry:'Q',cyclone:'V',execution:'F'};
 
 function shadowHud(active) {
-  shadowCharges.hidden = !active;
-  byId('shadow-energy').hidden = !active;
+  byId('combat-hud').hidden = !active;
+  byId('arena-hud').hidden = !active || runMode !== 'survival';
+  nextClockPaint = 0;
   for (const button of shadowTouchButtons) button.hidden = !active;
   if (shadowDebug) shadowDebug.hidden = !active;
-  byId('help-button').title = active ? 'Move A/D · Jump Space · Katana X · Shuriken C · Dash Z · Sprint Left Shift · Cyclone V · Execution F' : '';
+  byId('help-button').title = active ? 'Move A/D · Jump Space · Katana X · Shuriken C · Dash Z · Sprint Shift · Cyclone V · Execution F · Parry Q' : '';
   const hints = byId('keyboard-hints');
   hints.querySelector('.shadow-hints')?.remove();
   if (active) {
     const details = document.createElement('span');
     details.className = 'shadow-hints';
-    details.innerHTML = '<kbd>C</kbd> Shuriken <kbd>Z</kbd> Dash <kbd>⇧</kbd> Sprint <kbd>V</kbd> Cyclone <kbd>F</kbd> Execute';
+    details.innerHTML = '<kbd>C</kbd> Shuriken <kbd>Z</kbd> Dash <kbd>⇧</kbd> Sprint <kbd>V</kbd> Cyclone <kbd>F</kbd> Execute <kbd>Q</kbd> Parry';
     hints.append(details);
   }
 }
@@ -271,6 +275,10 @@ function refreshOutfits() {
     ['ember', 'Ember · Clear Hardcore', challengeRecords.count('hardcore') > 0],
     ['frost', 'Frost · Clear No-Death', challengeRecords.count('flawless') > 0],
     ['storm', 'Storm · Clear Nightmare or Boss Rush', challengeRecords.count('nightmare') + challengeRecords.count('rush') > 0],
+    ['jade', 'Jade · Discover the Hidden Grove', ultimate.has('grove')],
+    ['plum', 'Plum · Discover the High Shrine', ultimate.has('shrine')],
+    ['dawn', 'Dawn · Clear six Survival waves', ultimate.has('arena')],
+    ['silver', 'Silver · Land a Parry counter in a clear', ultimate.has('parry')],
   ];
   outfit.replaceChildren(...choices.map(([key, name, open]) => {
     const option = new Option(name, key);
@@ -379,6 +387,8 @@ function updateLevelSelect() {
     if (record) {
       const badge = record.bestDeaths === 0 ? ' · No deaths' : '';
       label.textContent = `${record.coins}/${LEVELS[index].coins.length} coins · ${record.stars} ★ · Best ${formatTime(record.elapsed)}${badge}`;
+      const rank = ultimate.rank(index);
+      if (rank) label.textContent += ` · Rank ${rank.rank}`;
     }
   });
   worldRows.forEach(({ start, count, jump }, index) => {
@@ -397,16 +407,19 @@ function startRun(index) {
   bossMusic = undefined;
   currentLevel = index;
   const shadow = useShadowNinja;
-  const level = shadowArena && runMode === 'shadow' ? SHADOW_ARENA : challengeLevel(LEVELS[index], runMode);
+  const level = runMode === 'survival' ? SURVIVAL_LEVEL : shadowArena && runMode === 'shadow' ? SHADOW_ARENA
+    : ultimateLevel(challengeLevel(LEVELS[index], runMode),index);
   shadowHud(shadow);
   shell.dataset.hero = shadow ? 'shadow' : 'legacy';
-  if (shadow) byId('pause-level').dataset.shadow = 'X Katana · C Shuriken · Z Dash · Shift Sprint · V Cyclone · F Execute';
+  if (shadow) byId('pause-level').dataset.shadow = 'X Katana · C Shuriken · Z Dash · Shift Sprint · V Cyclone · F Execute · Q Parry';
   else delete byId('pause-level').dataset.shadow;
   shell.dataset.mode = runMode;
   shell.dataset.theme = level.theme;
-  byId('hud-level-number').textContent = pad(index + 1);
+  byId('hud-level-number').textContent = runMode === 'survival' ? '∞' : pad(index + 1);
   byId('hud-level-name').textContent = level.name;
-  byId('pause-level').textContent = runMode === 'shadow' ? `Shadow Ninja · ${level.name}` : runMode === 'normal' ? `Level ${index + 1} · ${level.name}`
+  byId('retry-checkpoint').textContent = runMode === 'survival' ? 'End Survival Run' : 'Retry Checkpoint';
+  byId('pause-level').textContent = runMode === 'survival' ? 'Survival · '+level.name
+    : runMode === 'shadow' ? `Shadow Ninja · ${level.name}` : runMode === 'normal' ? `Level ${index + 1} · ${level.name}`
     : `${challenges[runMode].name} · ${level.name}`;
   showScore(0);
   showTime(0);
@@ -524,6 +537,25 @@ updateLevelSelect();
 refreshOutfits();
 for (const [key, { name }] of Object.entries(challenges)) challengeMode.add(new Option(name, key));
 byId('challenge-button').addEventListener('click', () => { refreshChallengeStages(); challengeDialog.showModal(); });
+byId('survival-button').addEventListener('click', () => {
+  if (!game.isBooted || !useShadowNinja) return;
+  runMode = 'survival';
+  startRun(0);
+});
+byId('combat-awards').addEventListener('click', () => {
+  const best = ultimate.bestArena();
+  byId('arena-best').textContent = `Survival best · ${best.wave} waves · ${best.score} points`;
+  byId('combat-feats').replaceChildren(...Object.entries(FEATS).map(([id,[name,detail]]) => {
+    const li = document.createElement('li');
+    const title = document.createElement('strong');
+    title.textContent = `${ultimate.has(id) ? '✓ ' : ''}${name}`;
+    const description = document.createElement('span');
+    description.textContent = detail;
+    li.append(title,description);
+    return li;
+  }));
+  byId('awards-dialog').showModal();
+});
 challengeMode.addEventListener('change', refreshChallengeStages);
 challengeStage.addEventListener('change', showChallengeRecord);
 byId('challenge-start').addEventListener('click', () => {
@@ -657,53 +689,64 @@ const scene = new PlatformerScene(controls, {
   get dangerGuides() { return dangerSetting.checked; },
   get costume() { return outfitKey; },
   onPlayfieldPress: focusStage,
+  onPause() { if (mode === 'playing') { openPause(); return true; } return false; },
   onReady(coinTotal) {
     byId('coin-total').textContent = pad(coinTotal);
     showScore(0);
     showTime(0);
-    if (useShadowNinja) {
-      this.onShadowCharges(3);
-      this.onShadowEnergy(60);
-    }
+    if (runMode !== 'survival') this.onSurvival({health:1});
+    if (useShadowNinja) this.onShadowAvailability(scene.ninja,0);
     if (shadowDebug && runMode === 'shadow') shadowDebug.dataset.dummy = '40/40';
     setMode('playing');
     focusStage();
   },
   onScore: showScore,
   onTime: showTime,
-  onShadowEnergy(value) {
-    byId('energy-meter').value=value;
-    byId('energy-value').textContent=value;
-    byId('shadow-energy').dataset.energy=value;
-    for(const button of shadowTouchButtons){
-      const action=button.dataset.action;
-      if(action==='cyclone'||action==='execution')button.dataset.unready=String(value<(action==='execution'?60:this.shadowTier('cyclone')>=2?24:30));
-    }
-  },
   onShadowFeedback(message) { showToast(message,'checkpoint'); },
   onShadowAvailability(state,time) {
-    const dashUnavailable = Boolean(state.dash) || (scene.animationState.grounded ? time < state.groundDashAt : state.airUsed);
-    const throwUnavailable = state.charges === 0;
-    if (dashUnavailable !== previousDashUnavailable) {
-      previousDashUnavailable = dashUnavailable;
-      if (dashTouch) dashTouch.dataset.unready = String(dashUnavailable);
+    if (!state || time < nextClockPaint) return;
+    nextClockPaint = time + 80;
+    const grounded = scene.animationState.grounded;
+    for (const [action,node] of combatClocks) {
+      const wait = (action === 'dash' ? grounded ? state.groundDashAt : 0 : state.readyAt[action] ?? 0) - time;
+      const remaining = action === 'dash' && !grounded && state.airUsed ? 'air' : wait > 0 ? (Math.ceil(wait/100)/10).toFixed(1) : '';
+      if (clockValues.get(action) === remaining) continue;
+      clockValues.set(action,remaining);
+      node.textContent = remaining === 'air' ? 'Land' : remaining ? `${clockLabels[action]} ${remaining}` : clockLabels[action];
+      node.classList.toggle('cooling',Boolean(remaining));
+      const button = actionButtons.get(action);
+      if (button) button.dataset.unready = String(Boolean(remaining));
     }
-    if (throwUnavailable !== previousThrowUnavailable) {
-      previousThrowUnavailable = throwUnavailable;
-      if (throwTouch) throwTouch.dataset.unready = String(throwUnavailable);
+    const tally = scene.runTally;
+    const combo = tally && time-tally.lastHit < 4000 && tally.chain > 1 ? `${tally.chain} hits` : '';
+    if (byId('combo-count').textContent !== combo) byId('combo-count').textContent = combo;
+  },
+  onSurvival(run,message) {
+    const heart = byId('player-health');
+    heart.textContent = '♥'.repeat(run.health) || '♡';
+    heart.setAttribute('aria-label',`Health ${run.health} of ${runMode === 'survival' ? 3 : 1}`);
+    if (runMode !== 'survival') return;
+    if (message) byId('arena-wave').textContent = message;
+    byId('arena-score').textContent = `${run.score} points`;
+    if (message?.includes('cleared')) {
+      ultimate.arena(run.wave,run.score);
+      if (ultimate.has('arena')) skills.award('survival-six');
     }
   },
-  onShadowCharges(count) {
-    shadowCharges.dataset.charges = count;
-    shadowCharges.setAttribute('aria-label', `${count} of 3 Shuriken`);
-    for (const [index, star] of [...shadowCharges.children].entries()) star.classList.toggle('ready', index < count);
+  onSecret(secret) {
+    if (runMode !== 'normal' && runMode !== 'shadow') return;
+    if (runMode === 'normal' && ultimate.award(secret.id)) {
+      skills.award('secret-'+secret.id);
+      refreshOutfits();
+    }
+    showToast(secret.id === 'grove' ? 'Hidden Grove found' : 'High Shrine found','checkpoint');
   },
   onShadowDummy: shadowDebug ? (hp, max) => { shadowDebug.dataset.dummy = `${hp}/${max}`; } : undefined,
   onShadowStatus: shadowDebug ? (pose, state) => {
     const attack = state.attack;
     const line = `${pose} · ${attack ? `Katana ${attack.index + 1} · ${Math.round(scene.elapsed - attack.since)} ms` :
       state.dash ? `Dash · ${Math.round(scene.elapsed - state.dash.since)} ms` : 'Air Dash ' + (state.airUsed ? 'spent' : 'ready')}` +
-      ` · ${state.charges}/3 shuriken · ${state.energy} Energy · ${Math.round(game.loop.actualFps)} FPS / ${game.loop.delta.toFixed(1)} ms` +
+      ` · ${Math.round(Math.abs(scene.player.body.velocity.x))} px/s · ${Math.round(game.loop.actualFps)} FPS / ${game.loop.delta.toFixed(1)} ms` +
       ` · ${state.special?.kind ?? (state.sprint ? 'Sprint' : 'Ready')} · ${scene.animationState.grounded ? 'Grounded' : 'Airborne'}` +
       (state.lastHit && scene.elapsed - state.lastHit.time < 650 ? ` · ${state.lastHit.heavy ? 'Heavy impact' : 'Impact'} at ${Math.round(state.lastHit.x)}` : '') +
       (shadowDebug.dataset.dummy ? ' · Dummy ' + shadowDebug.dataset.dummy : '');
@@ -712,6 +755,29 @@ const scene = new PlatformerScene(controls, {
   onCheckpoint() { showToast('Checkpoint reached', 'checkpoint'); },
   onRespawn(deaths, reason) {
     byId('deaths').textContent = deaths;
+    if (runMode === 'survival') {
+      const { run } = scene.survival;
+      ultimate.arena(scene.survival.cleared(),run.score);
+      if (ultimate.has('arena')) skills.award('survival-six');
+      refreshOutfits();
+      setMode('complete');
+      controls.clear();
+      game.scene.pause('platformer');
+      byId('clear-title').textContent = 'Survival Complete';
+      byId('result-level').textContent = scene.level.name;
+      byId('result-stars').hidden = true;
+      byId('result-coins').textContent = '0 / 0';
+      byId('result-time').textContent = preciseTime(scene.elapsed);
+      byId('result-score').textContent = run.score;
+      byId('result-deaths').textContent = deaths;
+      byId('rating-note').textContent = `${scene.survival.cleared()} waves cleared`;
+      byId('result-best').textContent = `Best ${ultimate.bestArena().wave} waves · ${ultimate.bestArena().score} points`;
+      byId('continue-note').hidden = true;
+      nextLevel.hidden = true;
+      viewVictory.hidden = true;
+      clear.showModal();
+      return;
+    }
     if (runMode === 'flawless') {
       setMode('complete');
       controls.clear();
@@ -782,6 +848,8 @@ const scene = new PlatformerScene(controls, {
     byId('clear-title').textContent = 'Level Complete!';
     byId('result-stars').hidden = false;
     const unlocked = progress.finish(currentLevel, count, elapsed, deaths);
+    const rank = ultimate.finish(currentLevel,scene.level,{...scene.runTally,elapsed,deaths,coins:count,total:coinTotal},scene.ninja?.uses);
+    refreshOutfits();
     skills.award('level-'+currentLevel);
     if(LEVELS[currentLevel].boss)skills.award('boss-'+currentLevel);
     updateLevelSelect();
@@ -800,7 +868,7 @@ const scene = new PlatformerScene(controls, {
     byId('result-time').textContent = formatTime(elapsed);
     byId('result-score').textContent = formatScore(count);
     byId('result-deaths').textContent = deaths;
-    byId('result-best').textContent = `Best time ${formatTime(progress.record(currentLevel).elapsed)}${deaths === 0 ? ' · No deaths' : ''}`;
+    byId('result-best').textContent = `Rank ${rank.rank} · ${rank.score}/100 · Par ${formatTime(rank.par)} · Best ${ultimate.rank(currentLevel).rank} · ${scene.runTally.damage} hits taken`;
     byId('result-level').textContent = LEVELS[currentLevel].name;
     byId('continue-note').textContent = unlocked ? `${following.name} unlocked` : '';
     byId('continue-note').hidden = !unlocked;

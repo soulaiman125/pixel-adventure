@@ -1,5 +1,5 @@
-export const DASH = { speed: 252, duration: 155, cooldown: 475 };
-export const SHURIKEN = { capacity: 3, recharge: 2100, duration: 385, release: 108, speed: 240, life: 650, damage: 8 };
+export const DASH = { speed: 252, duration: 155, cooldown: 700 };
+export const SHURIKEN = { duration: 300, release: 77, speed: 245, life: 630, damage: 8 };
 export const KATANA = [
   { pose: 'slash1', duration: 182, open: 48, close: 105, buffer: 94, damage: 10, x: 6, y: -16, w: 23, h: 13 },
   { pose: 'slash2', duration: 215, open: 60, close: 135, buffer: 119, damage: 12, x: 5, y: -30, w: 23, h: 25 },
@@ -16,19 +16,6 @@ export function intersects(a, b) {
   return a.left <= b.right && a.right >= b.left && a.top <= b.bottom && a.bottom >= b.top;
 }
 
-export function spendCharge(state, now, recharge = SHURIKEN.recharge) {
-  if (!state.charges) return false;
-  if (state.charges-- === SHURIKEN.capacity) state.rechargeAt = now + recharge;
-  return true;
-}
-
-export function refill(state, now, recharge = SHURIKEN.recharge) {
-  while (state.charges < SHURIKEN.capacity && now >= state.rechargeAt) {
-    state.charges++;
-    state.rechargeAt += recharge;
-  }
-}
-
 export function startStrike(state, now, direction, index = 0) {
   state.attack = { index, since: now, direction, queued: false, hit: new Set() };
 }
@@ -41,7 +28,7 @@ export function stepStrike(state, now, pressed, direction, canStart, bufferBonus
   }
   const spec = KATANA[strike.index];
   const age = now - strike.since;
-  if (pressed && strike.index < 2 && age >= spec.buffer - bufferBonus && age < spec.duration) strike.queued = true;
+  if (pressed && !strike.dive && strike.index < 2 && age >= spec.buffer - bufferBonus && age < spec.duration) strike.queued = true;
   if (age < spec.duration) return;
   state.attack = null;
   if (strike.queued) startStrike(state, now, direction, strike.index + 1);
@@ -49,7 +36,8 @@ export function stepStrike(state, now, pressed, direction, canStart, bufferBonus
 }
 
 export function canDash(state, time, grounded) {
-  return !state.dash && !state.attack && !state.throw && !state.special && !state.charging
+  return !state.dash && !state.attack && !state.throw && !state.special && !state.charging && !state.parry
+    && time >= (state.diveLandUntil ?? 0)
     && (grounded ? time >= state.groundDashAt : !state.airUsed);
 }
 

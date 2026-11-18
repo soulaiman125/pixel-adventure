@@ -1,9 +1,9 @@
-import { DEFAULT_KEYS } from './controls.js';
+import { bindingsFor, DEFAULT_KEYS } from './controls.js';
 import { SKILLS } from './shadow-skills.js';
 
 const ACTION_LABELS = {
   left:'Move left',right:'Move right',jump:'Jump',drop:'Drop',attack:'Katana Rush',throw:'Shuriken',
-  dash:'Shadow Dash',sprint:'Shadow Sprint',cyclone:'Blade Cyclone',execution:'Shadow Execution',pause:'Pause',
+  dash:'Shadow Dash',sprint:'Shadow Sprint',cyclone:'Blade Cyclone',execution:'Shadow Execution',parry:'Perfect Parry',pause:'Pause',
 };
 const labelKey = code => code.replace(/^Key/,'').replace(/^Digit/,'').replace('ShiftLeft','Left Shift');
 
@@ -12,7 +12,7 @@ export function setupCombatSettings(preferences, save, clear) {
   const status=document.querySelector('#binding-status');
   let pending;
   const nodes=new Map();
-  const bindings=(action)=>preferences.keys?.[action]?[preferences.keys[action]]:DEFAULT_KEYS[action];
+  const bindings = action => bindingsFor(preferences,action);
   function refresh(){
     for(const [action,button] of nodes)button.textContent=action===pending?'Press a key':bindings(action).map(labelKey).join(' / ');
   }

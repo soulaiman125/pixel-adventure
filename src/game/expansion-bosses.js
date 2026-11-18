@@ -3,9 +3,9 @@ import { paintTitanField } from './prototype-titan.js';
 
 const names = {
   spores: 'Spore mark · Move away',
-  venom: 'Venom sweep · Jump the low wave',
+  venom: 'Venom sweep · Jump or parry the approaching shot',
   bloom: 'Spore bloom · Leave the marked zone',
-  wave: 'Shockwave · Jump the low wave',
+  wave: 'Shockwave · Jump or parry the approaching shot',
   bolts: 'Lightning rods · Leave the marked zone',
   impact: 'Impact then pulse · Clear the marked zone',
   sigils: 'Falling sigils · Leave the marked zone',
@@ -76,6 +76,7 @@ function beginWarning(scene, boss) {
   }
   if (previousTier !== undefined && previousTier !== boss.tier) {
     scene.burst?.(boss.x, 150, 0xe4ebaa, 10);
+    if (!scene.ui.reduceMotion) scene.cameras?.main.shake(120,.003);
   }
   scene.ui.playSound(previousTier !== undefined && previousTier !== boss.tier ? 'bossPhase' : 'bossWarning');
 }
@@ -173,7 +174,15 @@ export function updateExpansionBoss(scene, boss, fire) {
   shell(boss, scene.ui.reduceMotion, now);
   boss.indicator.clear();
   if (boss.phase === 'warn' && boss.traps.length === 0) {
-    boss.indicator.fillStyle(0xffd787).fillRect(boss.x - 30, 181, 60, 3);
+    const side = Math.sign(boss.target - boss.x) || -1;
+    const length = Math.min(61,22 + Math.floor(age / 22));
+    const start = Math.min(boss.x-3,boss.x+side*length);
+    boss.indicator.fillStyle(0x74dce4,.9).fillRect(start,177,length,2)
+      .fillStyle(0xffd787).fillRect(boss.x - 24,181,48,2);
+    for (let i=10;i<length;i+=12) {
+      const x=boss.x+side*i;
+      boss.indicator.fillTriangle(x,173,x+side*5,177,x,181);
+    }
   }
   boss.trapArt.forEach(({ art, frame }, index) => {
     const field = boss.traps[index];

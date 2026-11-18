@@ -42,10 +42,10 @@
         <div class="hud" id="hud" hidden>
           <div class="hud-level"><span class="level-chip" id="hud-level-number">01</span><h1 id="hud-level-name">Verdant Hills</h1></div>
           <dl class="stats">
-            <div class="stat"><dt><svg aria-hidden="true"><use href="#coin"/></svg>Coins</dt><dd><span id="coins">00</span><span class="stat-total"> / <span id="coin-total">18</span></span></dd></div>
-            <div class="stat"><dt><svg class="lime" aria-hidden="true"><use href="#spark"/></svg>Score</dt><dd id="score">0000</dd></div>
+            <div class="stat campaign-stat"><dt><svg aria-hidden="true"><use href="#coin"/></svg>Coins</dt><dd><span id="coins">00</span><span class="stat-total"> / <span id="coin-total">18</span></span></dd></div>
+            <div class="stat campaign-stat"><dt><svg class="lime" aria-hidden="true"><use href="#spark"/></svg>Score</dt><dd id="score">0000</dd></div>
             <div class="stat"><dt><svg aria-hidden="true"><use href="#clock"/></svg>Time</dt><dd id="time">00:00</dd></div>
-            <div class="stat stat-deaths"><dt>Deaths</dt><dd id="deaths">0</dd></div>
+            <div class="stat stat-deaths campaign-stat"><dt>Deaths</dt><dd id="deaths">0</dd></div>
           </dl>
           <button class="button hud-pause" id="pause-button" type="button" aria-label="Pause game"><svg aria-hidden="true"><use href="#pause"/></svg><span>Pause</span></button>
         </div>
@@ -53,13 +53,14 @@
         <div class="stage" id="stage" tabindex="-1" role="region" aria-label="Pixel Adventure playfield">
           <div class="game-mount" id="game-mount" aria-hidden="true"></div>
           <div id="boss-hud" class="boss-hud" hidden><div><strong id="boss-name"></strong><span id="boss-state"></span></div><meter id="boss-health" aria-label="Boss health" min="0" max="5" value="5"></meter><span class="titan-phase" aria-hidden="true"><i></i><i></i><i></i></span></div>
-          <div class="shadow-loadout" id="shadow-charges" aria-label="3 of 3 Shuriken" hidden>
-            <svg aria-hidden="true"><use href="#star"/></svg><svg aria-hidden="true"><use href="#star"/></svg><svg aria-hidden="true"><use href="#star"/></svg>
+          <div id="combat-hud" class="combat-hud" role="group" aria-label="Combat status" hidden>
+            <strong id="player-health" aria-label="Health 1 of 1">♥</strong>
+            <span data-clock="throw" title="Shuriken">✦</span><span data-clock="dash" title="Dash">»</span>
+            <span data-clock="charged" title="Charged Slash">刀</span><span data-clock="parry" title="Parry">Q</span>
+            <span data-clock="cyclone" title="Cyclone">V</span><span data-clock="execution" title="Execution">F</span>
+            <span id="combo-count"></span>
           </div>
-          <div id="shadow-energy" class="shadow-energy" hidden>
-            <label for="energy-meter">Shadow <output id="energy-value">60</output></label>
-            <meter id="energy-meter" min="0" max="100" value="60">60 / 100</meter>
-          </div>
+          <div id="arena-hud" class="arena-hud" hidden><strong id="arena-wave"></strong><span id="arena-score"></span></div>
           <p class="loading-label" id="loading-label" role="status" hidden>Loading level…</p>
           <section class="menu" id="main-menu" aria-labelledby="menu-title">
             <div class="menu-content">
@@ -71,6 +72,8 @@
                 <button class="button" id="settings-button" type="button"><svg aria-hidden="true"><use href="#settings"/></svg>Settings</button>
                 <button class="button" id="skill-tree" type="button">✦ Shadow Skills</button>
                 <button class="button mode-entry" id="challenge-button" type="button"><svg aria-hidden="true"><use href="#star"/></svg>Challenges</button>
+                <button class="button mode-entry" id="survival-button" type="button">Survival Arena</button>
+                <button class="button" id="combat-awards" type="button">Combat Trials</button>
               </nav>
               <div class="menu-release-links" id="menu-release-links" hidden>
                 <a class="button download-button" href="https://github.com/soulaiman125/pixel-adventure/releases/download/v2.0.0/Pixel-Adventure-Setup-2.0.0-x64.exe" target="_blank" rel="noopener noreferrer">
@@ -93,6 +96,7 @@
             <div class="touch-direction">
               <button class="button touch-button" type="button" data-action="left" aria-label="Move left"><svg aria-hidden="true"><use href="#arrow"/></svg></button>
               <button class="button touch-button" type="button" data-action="right" aria-label="Move right"><svg class="arrow-right" aria-hidden="true"><use href="#arrow"/></svg></button>
+              <button class="button touch-button touch-drop" type="button" data-action="drop" aria-label="Down, drop or dive with Katana">↓</button>
             </div>
             <div class="touch-actions">
               <button class="button touch-button" type="button" data-action="attack">Attack</button>
@@ -115,6 +119,15 @@
       </div>
     </dialog>
 
+    <dialog id="awards-dialog" aria-labelledby="awards-title">
+      <div class="dialog-body">
+        <button class="button icon-button dialog-close" type="button" data-close aria-label="Close Combat Trials">×</button>
+        <h2 id="awards-title">Combat Trials</h2>
+        <p>Level ranks award up to 35 points for time, 30 for defense, 20 for combat and 15 for coins. A run needs 86 points for S, 71 for A or 50 for B.</p>
+        <p id="arena-best"></p>
+        <ul id="combat-feats" class="combat-feats"></ul>
+      </div>
+    </dialog>
     <dialog id="challenge-dialog" aria-labelledby="challenge-title">
       <div class="dialog-body">
         <button class="button icon-button dialog-close" type="button" data-close aria-label="Close challenges"><svg aria-hidden="true"><use href="#close"/></svg></button>
@@ -142,6 +155,12 @@
         <fieldset class="mobile-settings">
           <legend>Mobile Controls</legend>
           <label class="setting"><strong>Button size</strong><select id="touch-size"><option value="small">Small</option><option value="medium" selected>Medium</option><option value="large">Large</option></select></label>
+          <label class="setting"><strong>Action layout</strong><select id="touch-layout"><option value="combat">Combat first</option><option value="mobility">Movement first</option><option value="defense">Parry first</option></select></label>
+          <details class="binding-settings"><summary>Swap touch button positions</summary><div class="touch-swap">
+            <label>Action <select id="touch-swap-from"></select></label>
+            <label>Swap with <select id="touch-swap-to"></select></label>
+            <button class="button" id="touch-swap" type="button">Swap</button>
+          </div></details>
           <div class="setting volume-setting"><label for="touch-opacity"><strong>Button opacity</strong><small id="touch-opacity-value">100%</small></label><input id="touch-opacity" type="range" min="50" max="100" value="100" step="5"></div>
           <label class="setting"><strong>Left-handed layout</strong><input id="touch-left-handed" type="checkbox" role="switch"></label>
           <label class="setting"><strong>Toggle sprint on touch</strong><input id="sprint-toggle" type="checkbox" role="switch"></label>
@@ -171,10 +190,11 @@
           <div><dt>Drop</dt><dd><kbd>S</kbd> or <kbd>↓</kbd> through floating platforms.</dd></div>
           <div><dt>Katana</dt><dd><kbd>X</kbd> or <kbd>J</kbd>, or tap Attack. Chain two quick cuts into a heavy finisher by pressing again during recovery.</dd></div>
           <div><dt>Charge</dt><dd>Hold <kbd>X</kbd> beyond the first cut, then release to send a sword wave.</dd></div>
-          <div><dt>Shuriken</dt><dd><kbd>C</kbd> or tap ✦. Three charges refill over time.</dd></div>
+          <div><dt>Shuriken</dt><dd><kbd>C</kbd> or tap ✦. Throw again after a short cooldown.</dd></div>
           <div><dt>Dash</dt><dd><kbd>Z</kbd>. One air dash per landing. Hazards still hurt.</dd></div>
           <div><dt>Sprint</dt><dd>Hold <kbd>Left Shift</kbd> to run faster on the ground.</dd></div>
-          <div><dt>Techniques</dt><dd><kbd>V</kbd> Cyclone costs 30 Energy. <kbd>F</kbd> Execution costs 60 and needs an exposed target.</dd></div>
+          <div><dt>Techniques</dt><dd><kbd>V</kbd> Cyclone and <kbd>F</kbd> Execution use cooldowns. Execution needs an exposed target.</dd></div>
+          <div><dt>Parry and air moves</dt><dd><kbd>Q</kbd> blocks a frontal projectile or a cyan-marked melee strike. Follow with Katana. Dodge traps and body contact. Press Down + Katana in the air for a dive. Jump off a marked wall once before landing.</dd></div>
           <div><dt>Retry</dt><dd><kbd>R</kbd> or Retry Checkpoint in Pause. Keeps coins and counts as a death.</dd></div>
           <div><dt>Touch</dt><dd>Hold an arrow to move. Press Jump with your other thumb.</dd></div>
         </dl>
