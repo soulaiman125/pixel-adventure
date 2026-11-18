@@ -8,6 +8,8 @@ import { createLegendsProgress, dailyFor, LEGENDS_KEY } from '../src/game/legend
 import { phaseHealthFloor, resetExpansionBoss, updateExpansionBoss } from '../src/game/expansion-bosses.js';
 import { createProgress } from '../src/game/progress.js';
 import { SKILLS } from '../src/game/shadow-skills.js';
+import { createChallengeRecords } from '../src/game/challenges.js';
+import { ultimateLevel } from '../src/game/ultimate-levels.js';
 
 function disk(initial={}){
   const data=new Map(Object.entries(initial));
@@ -21,6 +23,11 @@ test('five new realms have six distinct routes with new bosses and a reachable l
     assert.equal(stages.length,6);
     assert.equal(new Set(stages.map(stage=>JSON.stringify(stage.ground))).size,6);
     assert.equal(stages.at(-1).boss.kind,realm.boss[0]);
+  }
+  for(const raw of LEGEND_LEVELS.filter(level=>level.secret)){
+    const stage=ultimateLevel(raw,LEVELS.indexOf(raw));
+    assert.deepEqual(stage.platforms.slice(-2),raw.secret.ledges);
+    assert.deepEqual(stage.solidWalls.at(-1),raw.secret.wall);
   }
   for(const hero of Object.values(HEROES)){
     for(const stage of LEVELS){
@@ -132,6 +139,22 @@ test('daily rewards, rematch records and New Game+ cycles persist separately',()
   assert.equal(restored.ng.cycle,2);
   assert.equal(restored.ng.frontier,1);
   assert.equal(restored.ng.records['1-0'],5000);
+});
+
+test('corrupted expansion data leaves campaign records intact and expanded challenge records round-trip',()=>{
+  const source=JSON.stringify({version:2,unlocked:3,records:[{coins:4,elapsed:43000}]});
+  const storage=disk({'pixel-adventure.progress':source,[LEGENDS_KEY]:'{incomplete'});
+  const campaign=createProgress(LEVELS,storage);
+  const settings={levels:LEVELS,record:campaign.record};
+  assert.equal(createLegendsProgress(storage,settings).coins,4);
+  storage.setItem(LEGENDS_KEY,JSON.stringify({version:4,selected:'missing',heroes:{flame:{xp:170,upgrades:['edge','invalid'],weapon:'alternate'}}}));
+  const partial=createLegendsProgress(storage,settings);
+  assert.equal(partial.selected,'shadow');
+  assert.deepEqual(partial.profile('flame').upgrades,['edge']);
+  assert.equal(partial.kit('flame').playWeapon,'Flame Katana');
+  assert.equal(storage.getItem('pixel-adventure.progress'),source);
+  assert(createChallengeRecords(storage).record('trial',59,10034,0));
+  assert.equal(createChallengeRecords(storage).get('trial',59).time,10034);
 });
 
 test('the five new guardians expose three distinct phased warning patterns and recover after attacks',()=>{

@@ -160,6 +160,37 @@ async function heroTrial(id){
   await page.close();
 }
 
+async function villageTour(){
+  const {page,errors}=await open('');
+  await page.locator('#legends-button').click();
+  await byText(page,'Prologue').click();
+  await shot(page,'prologue.png');
+  await byText(page,'Skip Prologue').click();
+  await byText(page,'Enter Ninja Village').click();
+  await wait(page,()=>qaScene.level.village&&qaScene.player.body.blocked.down);
+  await record(page);
+  const stations=['blacksmith','dojo','quests','outfits','worlds','hall'];
+  for (const id of stations) {
+    await page.keyboard.down('KeyD');
+    await wait(page,station=>qaScene.villageStation?.id===station,id);
+    await page.keyboard.up('KeyD');
+    await page.waitForTimeout(290);
+    if(['blacksmith','quests','outfits','hall'].includes(id)){
+      await page.keyboard.press('KeyE');
+      await page.locator('#legends-dialog[open]').waitFor();
+      if(id==='quests')await shot(page,'quest-board.png');
+      await page.waitForTimeout(650);
+      await byText(page,'Close Legends').click();
+      await wait(page,()=>qaScene.sys.isActive());
+    }
+  }
+  await shot(page,'village-overview.png');
+  await stop(page,'village-tour.webm');
+  assert.deepEqual(errors,[]);
+  results.push({kind:'Village walk and NPC stations',stations});
+  await page.close();
+}
+
 async function extras(){
   const seed=JSON.parse(await readFile(output('campaign.json.storage.json'),'utf8'));
   const {page,errors}=await open('');
@@ -178,15 +209,39 @@ async function extras(){
   await page.locator('#level-select').click();await page.locator('[data-level="32"]').click();
   await wait(page,()=>qaScene.level.secret?.id==='bamboo-2'&&qaScene.player.body.blocked.down);
   await record(page);
-  for(const y of [148,109]){
-    await page.keyboard.down('KeyA');await page.keyboard.down('Space');
-    await wait(page,target=>qaScene.player.body.blocked.down&&Math.abs(qaScene.player.y-target)<2,y);
-    await page.keyboard.up('Space');await page.keyboard.up('KeyA');
-  }
+  await page.keyboard.down('KeyA');
+  await wait(page,()=>qaScene.player.x<35);
+  await page.keyboard.up('KeyA');
+  await page.keyboard.down('Space');
+  await wait(page,()=>qaScene.player.y<169);
+  await wait(page,()=>qaScene.player.body.blocked.down&&qaScene.player.y<151);
+  await page.keyboard.up('Space');await page.keyboard.down('Space');
   await wait(page,()=>!qaScene.secret.body.enable);
+  await page.keyboard.up('Space');
+  assert(await page.evaluate(()=>JSON.parse(localStorage.getItem('pixel-adventure.legends')).secrets.includes('bamboo-2')));
   await shot(page,'legend-secret.png');await stop(page,'legend-secret.webm');
   assert.deepEqual(errors,[]);
   results.push({kind:'Persisted Mastery cosmetic, Shadow tree, secret traversal',cache:'bamboo-2'});
+  await page.close();
+}
+
+async function ending(){
+  const save=JSON.parse(await readFile(output('campaign.json.storage.json'),'utf8'));
+  const {page,errors}=await open('');
+  await page.evaluate(({origins})=>{for(const {name,value} of origins[0].localStorage)localStorage.setItem(name,value);},save);
+  await page.reload();await wait(page,()=>qaGame?.isBooted);
+  await page.locator('#level-select').click();await page.locator('[data-level="59"]').click();
+  await wait(page,()=>qaScene.boss?.kind==='emperor'&&qaScene.player.body.blocked.down);
+  const stage=await page.evaluate(controller,{level:60,bridges:await page.evaluate(()=>qaScene.level.routes),timeout:90000,dash:true});
+  assert.equal(stage.status,'Completed',JSON.stringify(stage));
+  await page.locator('#view-victory').click();
+  await page.locator('#victory-dialog[open]').waitFor();
+  assert.match(await page.locator('#ending-story').textContent(),/Twelve lanterns/);
+  await shot(page,'campaign-ending.png');
+  await page.locator('#victory-village').click();
+  await wait(page,()=>qaScene.level.village);
+  assert.deepEqual(errors,[]);
+  results.push({kind:'Final boss, victory story and post-game village',stage});
   await page.close();
 }
 
@@ -253,11 +308,12 @@ async function villageAndReplay(){
   await page.close();
 }
 
-async function mobile(){
+async function mobile(id='ranger'){
+  const recordRanger=id==='ranger';
   const {page,errors}=await open('?shadow=arena',{viewport:{width:839,height:393},isMobile:true,hasTouch:true});
-  await choose(page,'ranger');
+  await choose(page,id);
   await page.locator('#shadow-play').tap();
-  await wait(page,()=>qaScene.hero.id==='ranger'&&qaScene.player.body.blocked.down);
+  await wait(page,hero=>qaScene.hero.id===hero&&qaScene.player.body.blocked.down,id);
   const cdp=await page.context().newCDPSession(page);
   const points={};
   for(const [i,action] of ['right','jump','attack','sprint'].entries()){
@@ -266,19 +322,21 @@ async function mobile(){
     points[action]={id:i+1,x:box.x+box.width/2,y:box.y+box.height/2};
   }
   const touch=(type,keys)=>cdp.send('Input.dispatchTouchEvent',{type,touchPoints:keys.map(key=>points[key])});
-  await record(page);
+  if(recordRanger)await record(page);
   await touch('touchStart',['right','sprint']);
   await wait(page,()=>qaScene.ninja.sprint);
   await touch('touchStart',['right','sprint','jump']);
   await wait(page,()=>!qaScene.player.body.blocked.down);
   await touch('touchStart',['right','sprint','jump','attack']);
   await wait(page,()=>qaScene.ninja.attack?.air);
-  await shot(page,'mobile-ranger.png');
+  if(recordRanger)await shot(page,'mobile-ranger.png');
   await touch('touchEnd',[]);
-  await page.waitForTimeout(700);
-  await stop(page,'mobile-ranger.webm');
+  await wait(page,()=>qaScene.player.body.blocked.down&&!qaScene.ninja.attack);
+  await page.locator('[data-action="cyclone"]').tap();
+  await wait(page,()=>qaScene.ninja.uses.cyclone===1);
+  if(recordRanger)await stop(page,'mobile-ranger.webm');
   assert.deepEqual(errors,[]);
-  results.push({kind:'Phone emulation',hero:'ranger',touches:4});
+  results.push({kind:'Phone emulation',hero:id,touches:4,special:true});
   await page.close();
 }
 
@@ -287,7 +345,10 @@ try{
   for(const id of selected){
     if(id==='village')await villageAndReplay();
     else if(id==='mobile')await mobile();
+    else if(id.startsWith('touch-'))await mobile(id.slice(6));
     else if(id==='extras')await extras();
+    else if(id==='village-tour')await villageTour();
+    else if(id==='ending')await ending();
     else await heroTrial(id);
     console.log(id+' passed');
   }

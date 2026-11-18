@@ -10,14 +10,14 @@ const secrets = {
 };
 
 export function ultimateLevel(level, index) {
-  const secret = secrets[index + 1];
+  const secret = secrets[index + 1] ?? level.secret;
   const swaps = encounters[index + 1];
   return {
     ...level,
     enemies: swaps ? level.enemies.map((enemy, i) => swaps[i] ? [...enemy.slice(0,3),swaps[i]] : enemy) : level.enemies,
     platforms: secret ? [...level.platforms,...secret.ledges] : level.platforms,
     solidWalls: secret ? [...(level.solidWalls ?? []),secret.wall] : level.solidWalls,
-    secret:secret ?? level.secret,
+    secret,
   };
 }
 

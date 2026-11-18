@@ -83,7 +83,7 @@ export function installLegendsUI({store,levels,progress,game,actions,reduceMotio
     section('Choose a Hero');
     const cards=document.createElement('div');cards.className='legend-portraits';
     for(const hero of Object.values(HEROES)){
-      const item=button(hero.name,()=>{selected=hero.id;heroes();});
+      const item=button(hero.name,()=>{selected=hero.id;heroes();body.querySelector('[data-legend-hero="'+hero.id+'"]').focus();});
       const icon=canvas(hero.name);
       item.prepend(icon);item.setAttribute('aria-pressed',String(hero.id===selected));
       item.dataset.legendHero=hero.id;cards.append(item);portrait(icon,hero.id);
@@ -104,7 +104,7 @@ export function installLegendsUI({store,levels,progress,game,actions,reduceMotio
     }
     detail.append(meters);info.append(detail);body.append(info);
     const select=button(store.selected===selected?'Selected · '+hero.name:'Select '+hero.name,()=>{
-      if(actions.canSelect()&&store.select(selected)){actions.selection();heroes();}
+      if(actions.canSelect()&&store.select(selected)){actions.selection();heroes();body.querySelector('#legend-select').focus();}
     },false,true);
     select.id='legend-select';
     body.append(nav(select,button('Skill Tree',skills),button('Cosmetics',outfits),button('Back',home)));
@@ -197,6 +197,8 @@ export function installLegendsUI({store,levels,progress,game,actions,reduceMotio
   function story(){
     const [heading,description]=beats[chapter];
     section(heading);body.className='legends-story';
+    const scene=document.createElement('div');scene.className='legends-story-scene';
+    scene.dataset.chapter=String(chapter);scene.setAttribute('aria-hidden','true');body.append(scene);
     body.append(text('p',description));
     if(chapter===1){
       const group=document.createElement('div');group.className='legend-story-party';

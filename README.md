@@ -1,8 +1,8 @@
-# Pixel Adventure 3.0 · Development
+# Pixel Adventure 4.0 — Legends of Shadows
 
-A free pixel-art platformer for browsers and Windows. The campaign has 30 stages across seven worlds, with keyboard and touch controls. This branch contains the private 3.0 release candidate. The links below lead to the public 2.0.0 release.
+A free action-platformer with 60 stages across twelve worlds and five playable heroes. Legends of Shadows is a local review candidate on `feature/v4-legends-of-shadows`. The public links below lead to Pixel Adventure 2.0.0.
 
-The private 3.0.0-rc.2 Ultimate Ninja candidate integrates Combat & Movement 3.0 across all 30 stages. The core abilities and Parry are available from Level 1. The hero has 43 hand-authored animation clips and a Shadow Skill Tree with 18 optional upgrades. The development server supports `?hero=legacy` for comparing the original hero.
+Open **Legends of Shadows → Choose Hero** to preview and select Shadow Ninja, Flame Samurai, Frost Assassin, Thunder Ronin, or Forest Ranger. All five are available from the start. Select a hero between stages. **Enter Ninja Village** takes you to the Blacksmith, Training Dojo, Quest Board, Outfit Shop, World Portal, and Hall of Legends. Press **E** near a village resident or tap the interaction button. The menu also provides direct access to several stations. See [the private QA report](docs/legends-qa.md) for validation and known limitations.
 
 [Play online](https://pixel-adventure-phi.vercel.app/) · [Download for Windows x64](https://github.com/soulaiman125/pixel-adventure/releases/download/v2.0.0/Pixel-Adventure-Setup-2.0.0-x64.exe) · [Release notes](https://github.com/soulaiman125/pixel-adventure/releases/tag/v2.0.0)
 
@@ -17,6 +17,11 @@ The private 3.0.0-rc.2 Ultimate Ninja candidate integrates Combat & Movement 3.0
 | 17–20 | Dark Castle | Sweeping spikes, flying enemies, shooters, and the Hollow Crown |
 | 21–25 | Poison Jungle | Poison pools and clouds, armored guards, and the Poison Queen |
 | 26–30 | Thunder Fortress | Moving lasers, rising lava, electric floors, crushers, and the Thunder Titan |
+| 31–36 | Haunted Bamboo Forest | Vanishing paths, lantern seals, specters, and the Phantom Samurai |
+| 37–42 | Sunken Temple | Water currents, tide casters, and the Abyss Guardian |
+| 43–48 | Sky Islands | Crosswinds, aerial ledges, and the Storm Dragon |
+| 49–54 | Neon City | Laser lanes, security drones, and the Cyber Shogun |
+| 55–60 | Eclipse Realm | Mixed traps, shadow barriers, and the Eclipse Emperor |
 
 ## Run the browser game locally
 
@@ -33,7 +38,7 @@ Open [http://127.0.0.1:5173/](http://127.0.0.1:5173/). The browser version can a
 
 Download the setup executable from [GitHub Releases](https://github.com/soulaiman125/pixel-adventure/releases/tag/v2.0.0), close any open Pixel Adventure window, and run the installer on Windows x64. Open **Pixel Adventure** from the desktop or Start menu. Run the same installer over v1.0.0 to upgrade and retain your existing Windows save. The installer includes the runtime, game, and assets. It plays offline after installation and saves progress separately from the browser version.
 
-To rebuild the installer on Windows, run `npm.cmd run package:win`. It writes the NSIS installer to `release/`. The installer is unsigned, so Windows SmartScreen may display a warning when it is opened. Distribute the setup executable as a single file. Building does not publish it.
+To rebuild the installer on Windows, run `npm.cmd run package:win`. It writes the NSIS installer to `release/`. The installer is unsigned, so Windows SmartScreen may display a warning when it is opened. The v4 review uses the source Electron app.
 
 To run the desktop edition from source, run `npm.cmd run build` followed by `npm.cmd run desktop`.
 
@@ -71,7 +76,9 @@ First time stage clears, boss clears, and challenge wins award Shadow Points. **
 
 Stage clears earn a C, B, A, or S rank based on time, defense, combat, and coins. **Combat Trials** shows optional goals, unlock conditions and Survival personal bests. Six Survival clears in one run unlock the Dawn costume. Discover the two marked optional caches to unlock colors and earn Shadow Points.
 
-Verdant Hills remains Level 1, Sunset Canyon is Level 5, and Crystal Peaks is Level 11. Earlier browser saves preserve access and records for those same stages. An existing Hollow Crown clear unlocks Level 21. A fresh adventure resets current campaign totals and preserves best records and unlocks. Final victory requires completing all 30 stages and defeating the Thunder Titan.
+Verdant Hills remains Level 1, Sunset Canyon is Level 5, and Crystal Peaks is Level 11. Earlier browser saves preserve access and records for those same stages. An existing Hollow Crown clear unlocks Level 21. A fresh adventure resets current campaign totals and preserves best records and unlocks. An existing Thunder Titan clear unlocks Lantern Crossing. Final victory requires a complete run through the Eclipse Emperor. Replays of individual bosses and New Game+ open through the Hall of Legends.
+
+Coins fund alternate weapon styles and honing at the Blacksmith. Campaign milestones and quests award hero progression. Mastery opens a Silver Trim for each hero at Level 3. A separate versioned v4 save stores hero selection, equipment, Skill Trees, mastery, quests, rematches, and daily results alongside the previous campaign and settings. Daily Challenges use the device’s local calendar.
 
 Settings stores separate music and effects volumes, mute, reduced motion, and extra danger outlines. Music starts after a player interaction. Reduced motion limits particles and camera shake. An operating system preference for reduced motion also applies. Extra danger outlines emphasize active hazards and show the travel area of moving lasers.
 
@@ -107,15 +114,16 @@ npm.cmd run test:browser
 npm.cmd run test:touch
 npm.cmd run test:campaign
 npm.cmd run test:ninja
+npm.cmd run test:legends
 npm.cmd run test:performance
 npm.cmd run build
 npm.cmd run test:desktop
 ```
 
-Run the browser suites with the development server running and Microsoft Edge installed. The browser smoke suite verifies scene loads and completion triggers with controlled player placement, plus real input for selected movement, combat, and touch checks. The separate `test:campaign` runner clears stages through keyboard inputs, checks each boss phase, and verifies the final Victory totals. `test:ninja` exercises combat, upgrades, remapping, touch inputs and the training arena. Install FFmpeg for its review-video exports. The desktop suite uses a temporary profile, samples offline audio, opens all 30 stages with networking disabled, and checks save persistence after relaunch.
+Run the browser suites with the development server running and Microsoft Edge installed. The browser smoke suite verifies scene loads and completion triggers with controlled player placement, plus real input for selected movement, combat, and touch checks. The separate `test:campaign` runner clears stages through keyboard inputs, checks each boss phase, and verifies the final Victory totals. `test:ninja` exercises combat, upgrades, remapping, touch inputs and the training arena. Install FFmpeg for its review-video exports. The desktop suite uses a temporary profile, samples offline audio, opens all 60 stages with networking disabled, and checks save persistence after relaunch.
 
-Use `PIXEL_TEST_URL` to select a candidate server, `PIXEL_REPORT` for campaign evidence, and `PIXEL_REVIEW_DIR` for screenshots and benchmark output. The performance runner compares a separate Combat 2.0 build at `PIXEL_BASELINE_URL` with the candidate server. Set `PIXEL_EXECUTION_BENCH=1` for the finisher or `PIXEL_SURVIVAL_BENCH=1` for a six-enemy workload. See [the Ultimate Ninja QA report](docs/ultimate-qa.md).
+Use `PIXEL_TEST_URL` to select a candidate server, `PIXEL_REPORT` for campaign evidence, and `PIXEL_REVIEW_DIR` for screenshots and benchmark output. The performance runner compares the private Combat & Movement 3.0 build at `PIXEL_BASELINE_URL` with the candidate server. Set `PIXEL_EXECUTION_BENCH=1` for the finisher or `PIXEL_SURVIVAL_BENCH=1` for a six-enemy workload. See [the Legends of Shadows QA report](docs/legends-qa.md) and [the earlier Ultimate Ninja QA report](docs/ultimate-qa.md).
 
 ## Credits
 
-Character, enemy, terrain and combat animation frames are authored in the project's Canvas code. Sound effects and the seven original music themes are synthesized with Web Audio. The detailed world background plates were created with ImageGen. Their prompts and saved assets are recorded in [the artwork provenance](docs/campaign-art-provenance.md) and [the earlier visual prototype](docs/visual-prototype.md). [Phaser](https://phaser.io/) powers the game. [Vite](https://vite.dev/) builds the web edition, and [Electron](https://www.electronjs.org/) powers the Windows edition. The interface uses [Bricolage Grotesque](https://github.com/ateliertriay/bricolage) and [DM Sans](https://github.com/googlefonts/dm-fonts) via Fontsource.
+Character, enemy, terrain and combat animation frames are authored in the project's Canvas code. Sound effects and original music themes are synthesized with Web Audio. The detailed world background plates were created with ImageGen. Their prompts and saved assets are recorded in [the artwork provenance](docs/campaign-art-provenance.md) and [the earlier visual prototype](docs/visual-prototype.md). [Phaser](https://phaser.io/) powers the game. [Vite](https://vite.dev/) builds the web edition, and [Electron](https://www.electronjs.org/) powers the Windows edition. The interface uses [Bricolage Grotesque](https://github.com/ateliertriay/bricolage) and [DM Sans](https://github.com/googlefonts/dm-fonts) via Fontsource.

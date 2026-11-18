@@ -197,7 +197,8 @@ try {
         (await import("./player-controller.mjs")).default,
         {
           level,
-          bridges: bridgeRoutes[level] ?? await page.evaluate(()=>qaScene.level.routes ?? []),
+          bridges: level===10&&process.env.PIXEL_HERO==='ranger'
+            ? [bridgeRoutes[level][0],bridgeRoutes[level][1],[]] : bridgeRoutes[level] ?? await page.evaluate(()=>qaScene.level.routes ?? []),
           timeout: Number(process.env.PIXEL_LIMIT || 60000),
           dash: process.env.PIXEL_USE_DASH === "1",
         },

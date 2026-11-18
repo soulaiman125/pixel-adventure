@@ -593,7 +593,10 @@ async function techniques() {
   await wait(page,()=>qaScene.player.body.velocity.x<=132);
   await page.keyboard.up('KeyD');
   await place(page,68);
+  const beforeMiss=await page.evaluate(()=>qaScene.elapsed);
   await key(page,'KeyF');
+  // Let the gameplay loop consume the missed input before positioning the next probe.
+  await wait(page,elapsed=>qaScene.elapsed>=elapsed+70,beforeMiss);
   assert.equal(await page.evaluate(()=>qaScene.ninja.readyAt.execution),undefined,'A missed Execution cannot start cooldown');
   await place(page,183);
   await page.keyboard.down('KeyX');
@@ -601,6 +604,10 @@ async function techniques() {
   await page.keyboard.up('KeyX');
   await wait(page,()=>qaScene.ninja.projectiles.some(shot=>shot.active&&shot.kind==='charged'));
   await wait(page,()=>!qaScene.ninja.special);
+  // Restart to validate the full Execution sequence on a healthy target.
+  await page.locator('#pause-button').click();
+  await page.locator('#restart-level').click();
+  await wait(page,()=>qaScene.elapsed<800&&qaScene.player.body.blocked.down);
   await place(page,183);
   await key(page,'KeyF');
   await wait(page,()=>qaScene.ninja.special?.kind==='execution');
@@ -610,7 +617,7 @@ async function techniques() {
   assert.equal(await page.evaluate(()=>qaScene.ninja.readyAt.execution-qaScene.ninja.special.since),6000);
   await wait(page,()=>!qaScene.ninja.special);
   await stop(page,'sprint-charge-execution.webm');
-  await wait(page,()=>qaScene.elapsed>=qaScene.ninja.readyAt.charged);
+  await wait(page,()=>qaScene.elapsed>=(qaScene.ninja.readyAt.charged??0));
   await page.keyboard.down('KeyX');
   await wait(page,()=>qaScene.ninja.charging);
   await key(page,'Escape');

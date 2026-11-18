@@ -163,10 +163,23 @@ async function main() {
       await page.locator('#pause-button').click();
       await page.locator('#pause-main').click();
     }
+    await page.locator('#legends-button').click();
+    await page.getByRole('button',{name:'Choose Hero',exact:true}).click();
+    await page.locator('[data-legend-hero="thunder"]').click();
+    await page.locator('#legend-select').click();
+    await page.getByRole('button',{name:'Close Legends'}).click();
+    await app.close();
+    app = await launch();
+    page = await app.firstWindow();
+    await page.context().setOffline(true);
+    await page.locator('#legends-button').click();
+    await page.getByRole('button',{name:'Choose Hero',exact:true}).click();
+    assert.equal(await page.locator('[data-legend-hero="thunder"]').getAttribute('aria-pressed'),'true');
+    assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('pixel-adventure.legends')).version),4);
     assert.deepEqual(external, []);
     assert.deepEqual(errors, []);
     assert.deepEqual(failures, []);
-    console.log('Passed offline launch, keyboard gameplay, all 60 offline stage loads, and local save persistence after relaunch. No external requests during play.');
+    console.log('Passed offline launch, keyboard gameplay, all 60 offline stage loads, and campaign and v4 hero persistence after relaunch. No external requests during play.');
   } finally {
     if (app) await app.close();
     await rm(profile, { recursive: true, force: true, maxRetries: 3 });

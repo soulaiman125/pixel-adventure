@@ -436,7 +436,7 @@ function startRun(index) {
   shadowHud(shadow);
   shell.dataset.hero = shadow ? 'shadow' : 'legacy';
   shell.dataset.legend=runHero.id;
-  if (shadow) byId('pause-level').dataset.shadow = 'X Katana · C Shuriken · Z Dash · Shift Sprint · V Cyclone · F Execute · Q Parry';
+  if (shadow) byId('pause-level').dataset.shadow = `X ${runHero.abilities[0]} · C ${runHero.abilities[2]} · Z ${runHero.abilities[3]} · Shift Sprint · V ${runHero.abilities[4]} · F ${runHero.ultimate} · Q Parry`;
   else delete byId('pause-level').dataset.shadow;
   shell.dataset.mode = runMode;
   shell.dataset.theme = level.theme;

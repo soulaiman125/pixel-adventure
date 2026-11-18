@@ -161,6 +161,7 @@ export default async ({ level, bridges, timeout, dash = false }) => {
         hopIndex = 0;
         trapTarget = undefined;
         input("Space", false);
+        input('ShiftLeft',false);
       }
       previous = [
         Math.round(p.x),
@@ -261,6 +262,11 @@ export default async ({ level, bridges, timeout, dash = false }) => {
           input('KeyC', false);
           lastThrow = time;
         }
+      }
+      if (level === 28 && ['flame','ranger'].includes(s.hero?.id) && grounded && mode === 'ground' && p.x > 1840) {
+        const sentinel = s.enemies.getChildren().find(e => e.active && e.getData('type') === 'sentinel'
+          && e.x > p.x + 20 && e.x < p.x + 85);
+        if (sentinel && jump()) { steer(1); record('jump over sentinel'); requestAnimationFrame(tick); return; }
       }
       const armored =
         enemy &&
@@ -514,6 +520,7 @@ export default async ({ level, bridges, timeout, dash = false }) => {
         }
       } else if (mode === "approach") {
         const end = s.level.ground[crossing][1];
+        if(level===10&&s.hero?.id==='ranger'&&crossing===2&&!hop.dest)input('ShiftLeft',true);
         const [target, duration, safe] = targetFor(hop, p.x, p.body.velocity.x);
         const lower = hop.dest
           ? predicted(hop.dest, duration * 1000).x + 2
@@ -564,6 +571,7 @@ export default async ({ level, bridges, timeout, dash = false }) => {
           const candidates = bridges[crossing] ?? [];
           if (p.x >= after - 3 && (!dest || p.y > 177)) {
             mode = "ground";
+            input('ShiftLeft',false);
             record("land island", after);
           } else if (p.y < 176 && p.x > s.level.ground[crossing][1] - 4) {
             stats.ledges.add(dest?.x ?? Math.round(p.x));
