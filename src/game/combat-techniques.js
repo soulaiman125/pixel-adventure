@@ -18,7 +18,7 @@ export function cooldown(kind, tier = 0) {
 export function canParry(parry, now, sourceX, playerX) {
   if (!parry || parry.success) return false;
   const age = now - parry.since;
-  return age >= PARRY.start && age < PARRY.end && (sourceX - playerX) * parry.direction >= -3;
+  return age >= PARRY.start && age < PARRY.end+(parry.guard??0) && (sourceX - playerX) * parry.direction >= -3;
 }
 
 export const SPECIALS = {
@@ -28,7 +28,7 @@ export const SPECIALS = {
 };
 
 export function activeWindows(action, elapsed) {
-  const { windows } = SPECIALS[action.kind];
+  const { windows } = action.spec ?? SPECIALS[action.kind];
   const age = elapsed - action.since;
   return windows.map(([open,close], index) => age >= open && age < close ? index : -1).filter(index => index >= 0);
 }

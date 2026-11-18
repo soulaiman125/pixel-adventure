@@ -19,7 +19,7 @@ async function main() {
       app = await launch(legacyBundle);
       const original = await app.firstWindow();
       await original.locator('canvas').waitFor();
-      assert([20,30].includes(await original.locator('[data-level]').count()));
+      assert([20,30,60].includes(await original.locator('[data-level]').count()));
       await original.evaluate(() => {
         const records = Array(20).fill(null);
         records[19] = { coins: 6, elapsed: 48000 };
@@ -128,7 +128,7 @@ async function main() {
     await page.evaluate(() => {
       // Unlock selection for the independent content-availability check.
       const progress = JSON.parse(localStorage.getItem('pixel-adventure.progress'));
-      progress.unlocked = 30;
+      progress.unlocked = 60;
       localStorage.setItem('pixel-adventure.progress', JSON.stringify(progress));
     });
     await app.close();
@@ -143,7 +143,7 @@ async function main() {
       const { sound, tutorialSeen } = JSON.parse(localStorage.getItem('pixel-adventure.preferences'));
       const { version, unlocked } = JSON.parse(localStorage.getItem('pixel-adventure.progress'));
       return { sound, tutorialSeen, version, unlocked };
-    }), { sound: false, tutorialSeen: true, version: 2, unlocked: 30 });
+    }), { sound: false, tutorialSeen: true, version: 2, unlocked: 60 });
     if (legacyBundle) {
       await page.locator('#skill-tree').click();
       assert.equal(await page.locator('#skill-points').textContent(), '1');
@@ -151,7 +151,7 @@ async function main() {
       await page.locator('#skills-dialog [data-close]').click();
       console.log('Migrated campaign milestones and a purchased Shadow upgrade persisted after offline relaunch.');
     }
-    for (let index = 0; index < 30; index++) {
+    for (let index = 0; index < 60; index++) {
       await page.locator('#level-select').click();
       await page.locator(`[data-level="${index}"]`).click();
       await page.waitForFunction((number) => document.querySelector('#hud-level-number').textContent === number
@@ -166,7 +166,7 @@ async function main() {
     assert.deepEqual(external, []);
     assert.deepEqual(errors, []);
     assert.deepEqual(failures, []);
-    console.log('Passed offline launch, keyboard gameplay, all 30 offline stage loads, and local save persistence after relaunch. No external requests during play.');
+    console.log('Passed offline launch, keyboard gameplay, all 60 offline stage loads, and local save persistence after relaunch. No external requests during play.');
   } finally {
     if (app) await app.close();
     await rm(profile, { recursive: true, force: true, maxRetries: 3 });

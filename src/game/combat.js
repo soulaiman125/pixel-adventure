@@ -7,6 +7,7 @@ import { addTitanPresentation } from './prototype-titan.js';
 import { parryAttack, updateShadowCombat } from './shadow-combat.js';
 import { addCampaignBoss } from './campaign-boss-art.js';
 import { updateUltimateEnemy } from './ultimate-enemies.js';
+import { addLegendBoss, LEGEND_BOSSES } from './legends-bosses.js';
 
 const PROJECTILE_LIMIT = 24;
 
@@ -30,7 +31,8 @@ export function addCombat(scene) {
   const indicator = scene.add.graphics().setDepth(2);
   scene.boss = { ...config, maxHp: config.hp, art, indicator, phase: 'waiting', cycle: 0, since: 0 };
   scene.boss.trapArt = [];
-  if(scene.titanPrototype) scene.boss.presentation=addTitanPresentation(scene,scene.boss);
+  if (LEGEND_BOSSES[config.kind]) scene.boss.presentation=addLegendBoss(scene,scene.boss);
+  else if(scene.titanPrototype) scene.boss.presentation=addTitanPresentation(scene,scene.boss);
   else if(scene.ninja) scene.boss.presentation=addCampaignBoss(scene,scene.boss);
 }
 

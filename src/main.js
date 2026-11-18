@@ -16,6 +16,11 @@ import { setupCombatSettings, setupSkillTree } from './game/shadow-ui.js';
 import { cancelCharge } from './game/shadow-combat.js';
 import { createUltimateProgress, FEATS } from './game/ultimate-progress.js';
 import { SURVIVAL_LEVEL, ultimateLevel } from './game/ultimate-levels.js';
+import { REALMS } from './game/legends-worlds.js';
+import { createLegendsProgress } from './game/legends-progress.js';
+import { HEROES } from './game/legends-heroes.js';
+import { installLegendsUI } from './game/legends-ui.js';
+import { NINJA_VILLAGE } from './game/ninja-village.js';
 import './styles.css';
 
 const byId = (id) => document.getElementById(id);
@@ -51,7 +56,8 @@ const challengeMode = byId('challenge-mode');
 const challengeStage = byId('challenge-stage');
 const outfit = byId('hero-outfit');
 const worlds = new Map([[0, 'Green Valley'], [4, 'Dangerous Canyon'], [8, 'Frozen Kingdom'],
-  [12, 'Fire Kingdom'], [16, 'Dark Castle'], [20, 'Poison Jungle'], [25, 'Thunder Fortress']]);
+  [12, 'Fire Kingdom'], [16, 'Dark Castle'], [20, 'Poison Jungle'], [25, 'Thunder Fortress'],
+  ...REALMS.map((realm,index)=>[30+index*6,realm.name])]);
 const worldRows = [];
 const levelButtons = LEVELS.map((level, index) => {
   const list = byId('level-list');
@@ -85,6 +91,7 @@ const levelButtons = LEVELS.map((level, index) => {
   return button;
 });
 const progress = createProgress(LEVELS);
+const legends = createLegendsProgress(localStorage,{levels:LEVELS,record:index=>progress.record(index)});
 const challengeRecords = createChallengeRecords();
 const sound = createSound();
 const motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -110,6 +117,10 @@ for(const [index, level] of LEVELS.entries()){
 let mode = 'menu';
 let currentLevel = 0;
 let runMode = 'normal';
+let runHero = legends.kit();
+let dailyRun=null;
+let rematchDifficulty='veteran';
+let villagePaused=false;
 let bossMusic;
 let rush = { time: 0, deaths: 0 };
 let outfitKey = 'scout';
@@ -328,7 +339,7 @@ function setMode(nextMode) {
 }
 
 function syncMusic() {
-  const track = mode === 'menu' ? 'verdant' : mode === 'playing' ? bossMusic ?? LEVELS[currentLevel].theme : undefined;
+  const track = mode === 'menu' ? 'verdant' : mode === 'playing' ? bossMusic ?? scene.level.realm ?? scene.level.theme : undefined;
   sound.music(document.hidden ? undefined : track);
 }
 
@@ -404,23 +415,36 @@ function updateLevelSelect() {
 
 function startRun(index) {
   byId('boss-hud').hidden = true;
+  byId('village-interact').hidden=true;
+  villagePaused=false;
   bossMusic = undefined;
   currentLevel = index;
   const shadow = useShadowNinja;
-  const level = runMode === 'survival' ? SURVIVAL_LEVEL : shadowArena && runMode === 'shadow' ? SHADOW_ARENA
-    : ultimateLevel(challengeLevel(LEVELS[index], runMode),index);
+  runHero=legends.kit(legends.selected,!['normal','dojo','ng','shadow'].includes(runMode));
+  combatClocks.get('throw').title=runHero.abilities[2];
+  combatClocks.get('cyclone').title=runHero.abilities[4];
+  combatClocks.get('execution').title=runHero.ultimate;
+  actionButtons.get('throw')?.setAttribute('aria-label',runHero.abilities[2]);
+  actionButtons.get('cyclone')?.setAttribute('aria-label',runHero.abilities[4]);
+  actionButtons.get('execution')?.setAttribute('aria-label',runHero.ultimate);
+  const original=LEVELS[index];
+  const level = runMode === 'village' ? NINJA_VILLAGE : runMode === 'survival' ? SURVIVAL_LEVEL :
+    runMode==='dojo'||shadowArena&&runMode==='shadow' ? SHADOW_ARENA :
+    runMode==='rematch' ? {...challengeLevel(original,'rush'),story:undefined,water:[],secret:undefined,
+      script:{bossPace:rematchDifficulty==='master'?.82:1}} :
+    ultimateLevel(challengeLevel(original,runMode==='ng'?'nightmare':runMode),index);
   shadowHud(shadow);
   shell.dataset.hero = shadow ? 'shadow' : 'legacy';
+  shell.dataset.legend=runHero.id;
   if (shadow) byId('pause-level').dataset.shadow = 'X Katana · C Shuriken · Z Dash · Shift Sprint · V Cyclone · F Execute · Q Parry';
   else delete byId('pause-level').dataset.shadow;
   shell.dataset.mode = runMode;
   shell.dataset.theme = level.theme;
-  byId('hud-level-number').textContent = runMode === 'survival' ? '∞' : pad(index + 1);
+  byId('hud-level-number').textContent = runMode === 'survival' ? '∞' : runMode==='village'?'村':pad(index + 1);
   byId('hud-level-name').textContent = level.name;
   byId('retry-checkpoint').textContent = runMode === 'survival' ? 'End Survival Run' : 'Retry Checkpoint';
-  byId('pause-level').textContent = runMode === 'survival' ? 'Survival · '+level.name
-    : runMode === 'shadow' ? `Shadow Ninja · ${level.name}` : runMode === 'normal' ? `Level ${index + 1} · ${level.name}`
-    : `${challenges[runMode].name} · ${level.name}`;
+  byId('pause-level').textContent = (challenges[runMode]?.name??({survival:'Survival',village:'Ninja Village',dojo:'Dojo',daily:'Daily',rematch:'Rematch',ng:'New Game+'})[runMode]
+    ?? (runMode==='normal'?'Level '+(index+1):runHero.name))+' · '+level.name;
   showScore(0);
   showTime(0);
   byId('deaths').textContent = '0';
@@ -430,13 +454,14 @@ function startRun(index) {
   game.scene.stop('menu');
   game.scene.stop('platformer');
   resize();
-  game.scene.start('platformer', { level, shadow });
+  game.scene.start('platformer', { level, shadow, hero:runHero });
   transitionLandscape();
 }
 
 function showMainMenu() {
   byId('boss-hud').hidden = true;
   controls.clear();
+  byId('village-interact').hidden=true;
   hideToast();
   if (pause.open) pause.close();
   if (clear.open) clear.close();
@@ -457,6 +482,7 @@ function beginRequestedRun() {
   const { index, newAdventure, challenge } = requestedLevel;
   requestedLevel = undefined;
   runMode = challenge;
+  dailyRun=null;
   rush = { time: 0, deaths: 0 };
   if (newAdventure) progress.newAdventure();
   startRun(index);
@@ -540,6 +566,7 @@ byId('challenge-button').addEventListener('click', () => { refreshChallengeStage
 byId('survival-button').addEventListener('click', () => {
   if (!game.isBooted || !useShadowNinja) return;
   runMode = 'survival';
+  dailyRun=null;
   startRun(0);
 });
 byId('combat-awards').addEventListener('click', () => {
@@ -612,6 +639,7 @@ viewVictory.addEventListener('click', () => {
   byId('victory-deaths-stat').hidden = totals.deaths === null;
   byId('victory-deaths').textContent = totals.deaths ?? '';
   byId('victory-summary').textContent = `All ${LEVELS.length} levels complete.`;
+  byId('ending-story').textContent='The eclipse breaks. Twelve lanterns relight in Ninja Village, one for each realm. New Game+ and guardian rematches await in the Hall of Legends.';
   clear.close();
   victory.showModal();
   sound.play('victory');
@@ -619,12 +647,14 @@ viewVictory.addEventListener('click', () => {
 byId('victory-replay').addEventListener('click', () => {
   victory.close();
   runMode = 'normal';
+  dailyRun=null;
   progress.newAdventure();
   startRun(0);
 });
 byId('pause-main').addEventListener('click', showMainMenu);
 byId('clear-main').addEventListener('click', showMainMenu);
 byId('victory-main').addEventListener('click', showMainMenu);
+byId('victory-village').addEventListener('click',()=>{victory.close();runMode='village';dailyRun=null;startRun(0);});
 window.addEventListener('keydown', (event) => {
   if (controls.keyFor('pause').includes(event.code) && !event.repeat && mode === 'playing'
     && !event.ctrlKey&&!event.metaKey&&!event.altKey) {
@@ -647,6 +677,20 @@ setupSkillTree(skills,shadowArena);
 window.matchMedia('(orientation: portrait)').addEventListener('change', controls.clear);
 document.addEventListener('fullscreenchange', controls.clear);
 const maxCoins = LEVELS.reduce((sum, level) => sum + level.coins.length, 0);
+function expansionResult(title,note,coins,total,elapsed,deaths,advance=false){
+  byId('clear-title').textContent=title;
+  byId('result-level').textContent=scene.level.name;
+  byId('result-stars').hidden=true;
+  byId('rating-note').textContent=note;
+  byId('result-coins').textContent=`${coins} / ${total}`;
+  byId('result-time').textContent=preciseTime(elapsed);
+  byId('result-score').textContent=formatScore(coins);
+  byId('result-deaths').textContent=deaths;
+  byId('result-best').textContent='';
+  byId('continue-note').hidden=true;
+  nextLevel.hidden=!advance;viewVictory.hidden=true;
+  clear.showModal();
+}
 function showChallengeResult(coins, coinTotal, elapsed, deaths, success = true) {
   const isRush = runMode === 'rush';
   const nextArena = isRush && currentLevel !== RUSH_LEVELS.at(-1);
@@ -684,10 +728,10 @@ function showChallengeResult(coins, coinTotal, elapsed, deaths, success = true) 
 }
 
 const scene = new PlatformerScene(controls, {
-  shadowTier: action => runMode === 'normal' || runMode === 'shadow' ? skills.tier(action) : 0,
+  shadowTier: action => runHero.id==='shadow'&&['normal','shadow','dojo','ng'].includes(runMode) ? skills.tier(action) : 0,
   get reduceMotion() { return reduceMotion(); },
   get dangerGuides() { return dangerSetting.checked; },
-  get costume() { return outfitKey; },
+  get costume() { return runHero.id==='shadow'?outfitKey:legends.profile(runHero.id).cosmetic; },
   onPlayfieldPress: focusStage,
   onPause() { if (mode === 'playing') { openPause(); return true; } return false; },
   onReady(coinTotal) {
@@ -699,6 +743,11 @@ const scene = new PlatformerScene(controls, {
     if (shadowDebug && runMode === 'shadow') shadowDebug.dataset.dummy = '40/40';
     setMode('playing');
     focusStage();
+    if(scene.level.story && runMode==='normal')showToast(scene.level.story,'checkpoint');
+  },
+  onVillageNear(station){
+    const button=byId('village-interact');button.hidden=!station;
+    if(station)button.textContent=station.name+' · Talk';
   },
   onScore: showScore,
   onTime: showTime,
@@ -730,16 +779,18 @@ const scene = new PlatformerScene(controls, {
     byId('arena-score').textContent = `${run.score} points`;
     if (message?.includes('cleared')) {
       ultimate.arena(run.wave,run.score);
+      legends.survival(runHero.id,run.wave,run.score);
+      if(dailyRun?.kind==='arena'&&legends.finishDaily(runHero.id,dailyRun,run))showToast('Daily Challenge completed','checkpoint');
       if (ultimate.has('arena')) skills.award('survival-six');
     }
   },
   onSecret(secret) {
     if (runMode !== 'normal' && runMode !== 'shadow') return;
-    if (runMode === 'normal' && ultimate.award(secret.id)) {
-      skills.award('secret-'+secret.id);
-      refreshOutfits();
+    if (runMode === 'normal') {
+      legends.visitSecret(runHero.id,secret.id);
+      if(ultimate.award(secret.id)){skills.award('secret-'+secret.id);refreshOutfits();}
     }
-    showToast(secret.id === 'grove' ? 'Hidden Grove found' : 'High Shrine found','checkpoint');
+    showToast(secret.id === 'grove' ? 'Hidden Grove found' : secret.id==='shrine'?'High Shrine found':'Hidden realm cache found','checkpoint');
   },
   onShadowDummy: shadowDebug ? (hp, max) => { shadowDebug.dataset.dummy = `${hp}/${max}`; } : undefined,
   onShadowStatus: shadowDebug ? (pose, state) => {
@@ -791,7 +842,7 @@ const scene = new PlatformerScene(controls, {
   playSound: (name) => sound.play(name),
   onBoss(boss, state) {
     const track = boss.phase === 'waiting' || boss.phase === 'defeated' ? undefined : boss.tier === 2
-      ? 'bossFinal' : { crown: 'bossCrown', queen: 'bossQueen', titan: 'bossTitan' }[boss.kind];
+      ? 'bossFinal' : { crown: 'bossCrown', queen: 'bossQueen', titan: 'bossTitan',phantom:'bossCrown',abyss:'bossQueen',dragon:'bossTitan',cyber:'bossTitan',emperor:'bossFinal' }[boss.kind];
     if (track !== bossMusic) {
       bossMusic = track;
       syncMusic();
@@ -825,7 +876,23 @@ const scene = new PlatformerScene(controls, {
     hideToast();
     showTime(elapsed);
     sound.play('finish');
-    if (runMode === 'shadow') {
+    if(runMode==='rematch'){
+      const best=legends.rematch(runHero.id,currentLevel,rematchDifficulty,elapsed);
+      expansionResult('Guardian Defeated',rematchDifficulty+' · Best '+preciseTime(best),count,coinTotal,elapsed,deaths);
+      return;
+    }
+    if(runMode==='daily'){
+      const passed=legends.finishDaily(runHero.id,dailyRun,{...scene.runTally,elapsed,deaths});
+      expansionResult(passed?'Daily Challenge Complete':'Daily Attempt Ended',dailyRun.label,count,coinTotal,elapsed,deaths);
+      return;
+    }
+    if(runMode==='ng'){
+      legends.finishCycle(runHero.id,currentLevel,elapsed);
+      expansionResult(currentLevel===LEVELS.length-1?'Cycle Complete':'New Game+ Clear','Cycle '+legends.ng.cycle+' · Separate record',
+        count,coinTotal,elapsed,deaths,currentLevel<LEVELS.length-1);
+      return;
+    }
+    if (runMode === 'shadow' || runMode==='dojo') {
       byId('clear-title').textContent = 'Prototype Complete';
       byId('result-level').textContent = scene.level.name;
       byId('result-stars').hidden = true;
@@ -848,6 +915,7 @@ const scene = new PlatformerScene(controls, {
     byId('clear-title').textContent = 'Level Complete!';
     byId('result-stars').hidden = false;
     const unlocked = progress.finish(currentLevel, count, elapsed, deaths);
+    legends.campaign(runHero.id,currentLevel,count,elapsed,scene.runTally,scene.boss);
     const rank = ultimate.finish(currentLevel,scene.level,{...scene.runTally,elapsed,deaths,coins:count,total:coinTotal},scene.ninja?.uses);
     refreshOutfits();
     skills.award('level-'+currentLevel);
@@ -901,6 +969,38 @@ const game = new Phaser.Game({
   physics: { default: 'arcade', arcade: { gravity: { y: 700 } } },
   scene: [new MenuScene(reduceMotion), scene],
 });
+
+const legendsUI=installLegendsUI({store:legends,levels:LEVELS,progress,game,reduceMotion,
+  actions:{
+    canSelect:()=>mode==='menu'||mode==='complete'||runMode==='village',
+    selection:()=>{byId('legends-button').title='Selected · '+HEROES[legends.selected].name;},
+    pauseVillage(){
+      if(runMode==='village'&&mode==='playing'){villagePaused=true;stopForDialog();}
+    },
+    resumeVillage(){
+      if(villagePaused&&runMode==='village'&&mode==='paused'){villagePaused=false;resumeRun();}
+    },
+    shadowSkills:()=>byId('skill-tree').click(),
+    village(){runMode='village';dailyRun=null;startRun(0);},
+    dojo(){runMode='dojo';dailyRun=null;startRun(0);},
+    worlds(){if(mode!=='menu')showMainMenu();byId('level-select').click();},
+    rematch(stage,difficulty){runMode='rematch';dailyRun=null;rematchDifficulty=difficulty;startRun(stage);},
+    ng(){if(legends.beginCycle()){runMode='ng';dailyRun=null;startRun(legends.ng.frontier-1);}},
+    daily(challenge,stage){dailyRun=challenge;runMode=challenge.kind==='arena'?'survival':'daily';startRun(stage);},
+  },
+});
+byId('legends-button').addEventListener('click',()=>legendsUI.open());
+for(const button of document.querySelectorAll('[data-legends-heroes]'))button.addEventListener('click',()=>legendsUI.open('heroes'));
+function interactVillage(){
+  if(mode!=='playing'||runMode!=='village'||!scene.villageStation)return;
+  const {id,npc,line}=scene.villageStation;
+  if(id==='worlds'){showMainMenu();byId('level-select').click();}
+  else if(id==='dojo'){runMode='dojo';startRun(0);}
+  else legendsUI.open(id);
+  showToast(npc+' · '+line,'checkpoint');
+}
+byId('village-interact').addEventListener('click',interactVillage);
+window.addEventListener('keydown',event=>{if(event.code==='KeyE'&&!event.repeat)interactVillage();});
 
 new ResizeObserver(() => {
   if (game.isBooted) resize();

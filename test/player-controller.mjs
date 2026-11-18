@@ -7,6 +7,7 @@ export default async ({ level, bridges, timeout, dash = false }) => {
     let deaths = 0;
     let lastGrace = 0;
     let lastSwing = -Infinity;
+    let lastThrow = -Infinity;
     let mode = "ground";
     let hopIndex = 0;
     let crossing = -1;
@@ -62,7 +63,7 @@ export default async ({ level, bridges, timeout, dash = false }) => {
     function swing() {
       const strike = s.ninja?.attack;
       if (strike) {
-        const buffer = [94, 119, 230][strike.index];
+        const buffer = s.hero?.combo?.[strike.index]?.buffer ?? [94,119,230][strike.index];
         if (
           strike.index === 2 ||
           strike.queued ||
@@ -100,7 +101,7 @@ export default async ({ level, bridges, timeout, dash = false }) => {
       }
       return p;
     }
-    function targetFor(h, px, v) {
+    function targetFor(h, px) {
       if (!h.dest) return [h.right + 24, 0, true];
       let future = predicted(h.dest, 545);
       const t =
@@ -109,13 +110,11 @@ export default async ({ level, bridges, timeout, dash = false }) => {
       future = predicted(h.dest, t * 1000);
       const position = Math.max(
         future.x + Math.min(12, h.dest.w * 0.32),
-        Math.min(future.x + h.dest.w - 8, px + 132 * t - 6),
+        Math.min(future.x + h.dest.w - 8, px + (s.hero?.speed ?? 132) * t - 6),
       );
       const ledge = h.dest.special;
-      const safe =
-        ledge?.kind !== "vanish" ||
-        ((s.elapsed + t * 1000 + ledge.x * 7) % ledge.period) / ledge.period <
-          0.62;
+      const landingCycle = ledge?.kind === 'vanish' ? ((s.elapsed + t * 1000 + ledge.x * 7) % ledge.period) / ledge.period : 0;
+      const safe = landingCycle < 0.52;
       return [position, t, safe];
     }
     function output(status, reason) {
@@ -123,6 +122,7 @@ export default async ({ level, bridges, timeout, dash = false }) => {
       resolve({
         level,
         name: s.level.name,
+        hero: s.hero?.id ?? "shadow",
         status,
         reason,
         coins: s.collected,
@@ -195,7 +195,7 @@ export default async ({ level, bridges, timeout, dash = false }) => {
         const x = boss.x;
         if (boss.kind) {
           const pattern = boss.profile?.pattern;
-          const projectile = pattern === "wave" || pattern === "venom";
+          const projectile = pattern === "wave" || pattern === "venom" || Boolean(boss.profile?.shot);
           if (boss.phase === "attack") stats.bossPatterns.add(pattern);
           if (boss.phase === "open" && boss.hits < 2) {
             approach(x - 26, p, 3);
@@ -205,7 +205,7 @@ export default async ({ level, bridges, timeout, dash = false }) => {
             (boss.phase === "warn" || boss.phase === "attack") &&
             !projectile
           ) {
-            const distance = ["bloom", "crownfall"].includes(pattern) ? 62 : 49;
+            const distance = ["bloom", "crownfall","pressureSeal","lanternSeal","eclipseAscension","shieldOverload"].includes(pattern) ? 65 : 49;
             const dodge =
               boss.target > x - 108
                 ? boss.target - distance
@@ -253,6 +253,15 @@ export default async ({ level, bridges, timeout, dash = false }) => {
         return;
       }
 
+      if (level === 8 && s.hero?.id === 'flame' && grounded && mode === 'ground' && time - lastThrow > 620) {
+        const guard = s.enemies.getChildren().find(e => e.active && e.getData('type') === 'golem'
+          && e.x > p.x + 28 && e.x < p.x + 95 && Math.abs(e.y - p.y) < 18);
+        if (guard && !p.flipX) {
+          input('KeyC', true);
+          input('KeyC', false);
+          lastThrow = time;
+        }
+      }
       const armored =
         enemy &&
         ["guard", "golem", "sentinel"].includes(
@@ -269,7 +278,7 @@ export default async ({ level, bridges, timeout, dash = false }) => {
           ([left, right]) => p.x >= left && p.x <= right,
         );
         if (segment && segment[1] - p.x > 70) {
-          approach(enemy.x - 25, p, 2);
+          approach(enemy.x - (level === 8 && s.hero?.id === 'flame' ? 17 : 25), p, 2);
           swing();
           requestAnimationFrame(tick);
           return;
@@ -542,7 +551,13 @@ export default async ({ level, bridges, timeout, dash = false }) => {
             dest.special?.kind === "moving"
               ? future.x + dest.w / 2
               : hop.target;
-          approach(target, p, 4);
+          if (dash && level === 10 && s.hero?.id === 'ranger' && dest.x === 1233 && !s.ninja?.dash && !s.ninja.airUsed
+            && p.body.velocity.y < 0 && p.x < future.x - 28 && time - lastDash > 1000) {
+            steer(1);
+            input('KeyZ', true);
+            input('KeyZ', false);
+            lastDash = time;
+          } else approach(target, p, 4);
         } else steer(1);
         if (grounded && time - launchAt > 225) {
           const after = s.level.ground[crossing + 1][0];

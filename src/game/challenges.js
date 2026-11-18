@@ -42,7 +42,7 @@ export function challengeLevel(level, mode) {
   const last = level.ground.at(-1);
   const windX = last[0] + 63;
   const air = night && last[1] - windX > 125 ? [[windX, windX + 54, 72]] : [];
-  return { ...level, hazards, script: { enemyPace: night ? .84 : .92, bossPace: night ? .83 : .93, sparse: night ? 'final' : 'alternate', air } };
+  return { ...level, hazards, script: { enemyPace: night ? .84 : .92, bossPace: night ? .83 : .93, sparse: night ? 'final' : 'alternate', air: [...(level.script?.air ?? []), ...air] } };
 }
 
 export function isCheckpoint(level, index) {
@@ -66,7 +66,7 @@ export function createChallengeRecords(storage) {
     records[mode] = {};
     if (saved?.version !== 1) continue;
     for (const [stage, item] of Object.entries(saved.records?.[mode] ?? {})) {
-      if (!/^([0-9]|[12][0-9])$/.test(stage) || !valid(item?.time) || !valid(item?.deaths)) continue;
+      if (!/^([0-9]|[1-5][0-9])$/.test(stage) || !valid(item?.time) || !valid(item?.deaths)) continue;
       records[mode][stage] = { time: item.time, deaths: item.deaths, clean: item.clean === true };
     }
   }
@@ -74,7 +74,7 @@ export function createChallengeRecords(storage) {
     get(mode, index) { return records[mode]?.[index]; },
     count(mode) { return Object.keys(records[mode] ?? {}).length; },
     record(mode, index, time, deaths) {
-      if (!Object.hasOwn(challenges, mode) || !Number.isInteger(index) || index < 0 || index >= 30
+      if (!Object.hasOwn(challenges, mode) || !Number.isInteger(index) || index < 0 || index >= 60
         || !valid(time) || !Number.isInteger(deaths) || deaths < 0 || (mode === 'flawless' && deaths)) return null;
       const old = records[mode][index];
       const better = !old || time < old.time || (time === old.time && deaths < old.deaths);

@@ -33,7 +33,7 @@ function techniquePose(state, now) {
   if(state.charging)return ['chargePrep',now-state.charging.since-320];
   const action=state.special;
   if(!action)return null;
-  const age=now-action.since;
+  const age=(now-action.since)*SPECIALS[action.kind].duration/(action.spec?.duration??SPECIALS[action.kind].duration);
   if(action.kind==='charged')return ['chargeRelease',age];
   if(action.kind==='cyclone'){
     if(age<128)return ['cycloneStart',age];
@@ -48,9 +48,9 @@ function techniquePose(state, now) {
 
 export function createShadowPresentation(scene) {
   let costume = scene.ui.costume;
-  let texture = loadShadowArt(scene, costume);
+  let texture = loadShadowArt(scene, costume,scene.hero);
   for (const key of scene.textures.getTextureKeys()) {
-    if (key.startsWith('shadow-ninja-') && key !== texture) scene.textures.remove(key);
+    if ((key.startsWith('shadow-ninja-')||key.startsWith('legends-art-')) && key !== texture) scene.textures.remove(key);
   }
   function sprite(depth) {
     return scene.add
@@ -95,7 +95,7 @@ export function createShadowPresentation(scene) {
       if (scene.ui.costume !== costume) {
         const previous = texture;
         costume = scene.ui.costume;
-        texture = loadShadowArt(scene, costume);
+        texture = loadShadowArt(scene, costume,scene.hero);
         for (const image of [hero, echo, ...trail.map((item) => item.image)])
           image.setTexture(texture, "idle0");
         if (previous !== texture && previous !== 'shadow-ninja') scene.textures.remove(previous);
@@ -113,7 +113,7 @@ export function createShadowPresentation(scene) {
       else if (state.attack) {
         const {air,sprint,counter,index,since,queued,dive}=state.attack;
         name=dive?'diveSlash':counter?'dodgeCounter':sprint?'sprintAttack':air?['airSlash','airFollow','airHeavy'][index]:
-          queued&&now-since>=KATANA[index].duration-45?'comboLink':KATANA[index].pose;
+          queued&&now-since>=scene.hero.combo[index].duration-45?'comboLink':scene.hero.combo[index].pose;
       }
       else if (state.parry) name = state.parry.success ? 'parrySuccess' : 'parryStart';
       else if (state.throw) name = "throw";
@@ -131,7 +131,7 @@ export function createShadowPresentation(scene) {
       }
       if (name === "run" || name==='sprintLoop') runDistance += Math.min(travel, 8);
       if (scene.complete) victoryAt ??= clock;
-      const spec = state.attack && (state.attack.dive ? AIR_DIVE : KATANA[state.attack.index]);
+      const spec = state.attack && (state.attack.dive ? AIR_DIVE : scene.hero.combo[state.attack.index]);
       const age =
         scene.complete
           ? clock - victoryAt
@@ -219,7 +219,7 @@ export function createShadowPresentation(scene) {
         hitboxes.clear();
         const { attack, special, projectiles } = state;
         if (attack) {
-          const attackSpec = attack.dive ? AIR_DIVE : KATANA[attack.index];
+          const attackSpec = attack.dive ? AIR_DIVE : scene.hero.combo[attack.index];
           const age = now - attack.since;
           if (age >= attackSpec.open && age < attackSpec.close) {
             const reach = attack.sprint || attack.counter ? { ...attackSpec, w:attackSpec.w + 6 } : attackSpec;
@@ -251,11 +251,35 @@ function paintEffects(scene,hero,pose) {
     effect.fillStyle(0xeb92ba,.85).fillRect(hero.x-12,hero.y-4,
       Math.min(24,(now-charging.since-320)/20),2);
   }
-  const spec = attack && (attack.dive ? AIR_DIVE : KATANA[attack.index]);
+  const spec = attack && (attack.dive ? AIR_DIVE : scene.hero.combo[attack.index]);
   const swing = spec && now-attack.since>=spec.open && now-attack.since<spec.close;
   const phase = special && now - special.since;
   const tracing = special && !special.interrupted &&
-    SPECIALS[special.kind].windows.some(([open, close]) => phase >= open && phase < close);
+    (special.spec??SPECIALS[special.kind]).windows.some(([open, close]) => phase >= open && phase < close);
+  if(special?.anchor!==undefined && !special.interrupted){
+    const color=Number.parseInt(scene.hero.colors[3].slice(1),16);
+    const size=special.kind==='execution'?37:scene.hero.radius;
+    effect.lineStyle(1,color,tracing?.85:.37).strokeEllipse(special.anchor,hero.y-3,size*2,12);
+    if(tracing&&!reduced){
+      if(scene.hero.id==='thunder'){
+        const x=special.anchor,y=hero.y;
+        effect.lineStyle(2,color,.9).lineBetween(x+14,y-120,x-11,y-81)
+          .lineBetween(x-11,y-81,x+9,y-78).lineBetween(x+9,y-78,x-10,y-37)
+          .lineBetween(x-10,y-37,x+2,y-39).lineBetween(x+2,y-39,x,y-6);
+      }else for(let i=-2;i<=2;i++){
+        const x=special.anchor+i*size/2,y=hero.y-25-(i*i%3)*7;
+        if(scene.hero.id==='ranger'){
+          effect.fillStyle(color,.82).fillRect(x,y-24,2,30).fillTriangle(x-3,y+5,x+4,y+5,x,y+11);
+        }else effect.fillStyle(color,.7).fillTriangle(x-4,y+17,x+1,y-5,x+5,y+12);
+      }
+    }
+  }else if(scene.hero.id==='flame'&&special?.kind==='execution'&&tracing){
+    const age=now-special.since;
+    for(let i=-3;i<=3;i++){
+      const x=hero.x+i*8,y=hero.y-6-(Math.abs(i)*3);
+      effect.fillStyle(i%2?0xf7ad5b:0xf27246,.76).fillTriangle(x-4,y,x+5,y,x,y-9-((age>>4)+i*3&7));
+    }
+  }
   if(swing || tracing){
     const frame=Number(hero.frame.name.slice(pose.length));
     const frames=shadowFrames[pose];

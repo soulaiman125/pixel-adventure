@@ -110,8 +110,8 @@ async function testTouch(browser) {
   await wait(page, () => touchQA.scene.player.body.velocity.y < -160);
   const comboAttack = await point('attack', 3);
   await dispatch('touchStart', [comboRun, comboJump, comboAttack]);
-  await wait(page, () => touchQA.scene.ninja.attack && touchQA.controls.isDown('right')
-    && touchQA.scene.player.body.velocity.y < 0);
+  await wait(page, () => touchQA.scene.ninja.attack?.air && touchQA.controls.isDown('right')
+    && !touchQA.scene.player.body.blocked.down);
   await dispatch('touchCancel');
   await released();
 

@@ -1,6 +1,7 @@
 import { blocksMonsterHit, terrainBlocks } from './monster-ai.js';
 import { guardBlocks } from './expansion-enemies.js';
-import { ULTIMATE_ENEMIES, ultimateGuard } from './ultimate-enemies.js';
+import { armouredUltimate, ULTIMATE_ENEMIES, ultimateGuard } from './ultimate-enemies.js';
+import { DEFAULT_HERO } from './legends-heroes.js';
 import { canDash, DASH, horizontalEntry, intersects, KATANA, SHURIKEN, stepStrike, strikeBox } from './shadow-rules.js';
 import { activeWindows, AIR_DIVE, canParry, CHARGE_LIMIT, CHARGE_READY, cooldown, inRadius, PARRY, SPECIALS } from './combat-techniques.js';
 
@@ -52,8 +53,9 @@ export function endDash(scene) {
   scene.ninja.dash = null;
   const { body } = scene.player;
   body.setAllowGravity(true);
-  body.maxVelocity.x = 132;
-  body.velocity.x = Math.max(-132, Math.min(132, body.velocity.x));
+  const cap = scene.hero?.speed ?? 132;
+  body.maxVelocity.x = cap;
+  body.velocity.x = Math.max(-cap, Math.min(cap, body.velocity.x));
 }
 
 export function updateDash(scene, grounded, direction) {
@@ -92,14 +94,14 @@ export function updateDash(scene, grounded, direction) {
         state.airUsed = true;
         body.setAllowGravity(false);
         body.setVelocityY(0);
-      } else state.groundDashAt = now + cooldown('dash', tier(scene, 'dash'));
-      body.maxVelocity.x = DASH.speed;
+      } else state.groundDashAt = now + cooldown('dash', tier(scene, 'dash'))+(scene.hero?.bonus.dashWait??0);
+      body.maxVelocity.x = scene.hero?.dash ?? DASH.speed;
       scene.ui.playSound('dash');
     }
   }
   if (!state.dash) return false;
   const side = state.dash.direction;
-  scene.player.setFlipX(side < 0).setAccelerationX(0).setDragX(0).setVelocityX(side * DASH.speed);
+  scene.player.setFlipX(side < 0).setAccelerationX(0).setDragX(0).setVelocityX(side * (scene.hero?.dash ?? DASH.speed));
   return true;
 }
 
@@ -158,7 +160,7 @@ function enemyHit(scene, enemy, damage, direction, ranged, counter = false) {
   const health = (state.enemyHp.get(enemy) ?? max) - damage;
   if (scene.elapsed >= (enemy.getData('shadowHitUntil') ?? 0)
     && scene.elapsed >= (enemy.getData('shadowStaggerReady') ?? 0)) {
-    enemy.setData('shadowHitUntil',scene.elapsed + (damage >= 20 ? 310 : 240));
+    enemy.setData('shadowHitUntil',scene.elapsed + (damage >= 20 ? 310 : 240)+(scene.hero?.stagger??0));
     enemy.setData('shadowStaggerReady',scene.elapsed + 420);
     const enemyState = enemy.getData('ultimateState');
     if (enemyState?.phase === 'windup') {
@@ -216,12 +218,13 @@ function lineTo(scene, target) {
 }
 
 function validExecutionTarget(scene,target) {
-  if(!target || Math.abs(target.x-scene.player.x)>54+(tier(scene,'execution')>=2?12:0)) return false;
+  if(!target || Math.abs(target.x-scene.player.x)>54+(tier(scene,'execution')>=2?12:0)
+    +(scene.hero?.field?26:0)+(scene.hero?.bonus.reachSpecial??0)) return false;
   if(target===scene.boss) {
     if(target.hp<=0 || target.phase!=='open' || target.hits>=2)return false;
   }else if(!target.active || Math.abs(target.y-scene.player.y)>27 ||
     blocksMonsterHit(target,scene.player) || guardBlocks(target,scene.player,scene.elapsed)
-    || (target.getData('type') === 'ironGuardian' && target.getData('ultimateState')?.phase !== 'recover'
+    || (armouredUltimate(target.getData('type')) && target.getData('ultimateState')?.phase !== 'recover'
       && (scene.player.x-target.x)*target.getData('ultimateState').facing >= 0
       && scene.elapsed >= (target.getData('exposedUntil') ?? 0))) return false;
   return lineTo(scene,target);
@@ -229,6 +232,7 @@ function validExecutionTarget(scene,target) {
 
 function startSpecial(scene,kind,direction) {
   const state=scene.ninja;
+  const hero=scene.hero ?? DEFAULT_HERO;
   if (scene.elapsed < (state.readyAt?.[kind] ?? 0)) return false;
   let target;
   if(kind==='execution'){
@@ -241,8 +245,11 @@ function startSpecial(scene,kind,direction) {
     }
     direction=Math.sign(target.x-scene.player.x)||direction;
   }
-  (state.readyAt ??= {})[kind] = scene.elapsed + cooldown(kind,tier(scene,kind));
-  state.special={kind,direction,target,since:scene.elapsed,hit:SPECIALS[kind].windows.map(()=>new Set())};
+  const bump=hero.bonus[{charged:'chargeWait',cyclone:'specialWait',execution:'ultimateWait'}[kind]]??0;
+  const spec=hero.specials[kind];
+  const anchor=kind==='execution'&&hero.field?target.x:kind==='cyclone'&&(hero.field||hero.id==='frost')?scene.player.x+direction*22:undefined;
+  (state.readyAt ??= {})[kind] = scene.elapsed + cooldown(kind,tier(scene,kind))+bump;
+  state.special={kind,direction,target,anchor,spec,since:scene.elapsed,hit:spec.windows.map(()=>new Set())};
   use(state,kind);
   scene.ui.playSound(kind);
   return true;
@@ -253,8 +260,10 @@ function updateSpecial(scene,hitBoss) {
   const action=state.special;
   if(!action)return;
   const {kind,target,direction}=action;
+  const hero=scene.hero ?? DEFAULT_HERO;
+  const spec=action.spec ?? SPECIALS[kind];
   const age=scene.elapsed-action.since;
-  if(age>=SPECIALS[kind].duration){state.special=null;return;}
+  if(age>=spec.duration){state.special=null;return;}
   if(kind==='execution' && ((target===scene.boss && target.hp>0 && target.phase!=='open')
     || (target===scene.boss && target.hits>=2))) action.interrupted=true;
   if(action.interrupted)return;
@@ -270,21 +279,25 @@ function updateSpecial(scene,hitBoss) {
       continue;
     }
     const {x,y}=scene.player;
-    const targets=kind==='execution'?[target]:[...scene.enemies.getChildren(),scene.boss];
-    const radius=kind==='execution'?48:30+(tier(scene,'cyclone')?6:0);
-    const final=index===SPECIALS[kind].windows.length-1;
+    const targets=kind==='execution'&&!hero.field?[target]:[...scene.enemies.getChildren(),scene.boss];
+    const radius=(kind==='execution'?hero.field?38:48:hero.radius+(tier(scene,'cyclone')?6:0))+(hero.bonus.radius??0);
+    const final=index===spec.windows.length-1;
     const bonus=final?(kind==='cyclone'&&tier(scene,kind)>=3?4:kind==='execution'&&tier(scene,kind)>=1?6:0):0;
-    const damage=SPECIALS[kind].windows[index][2]+bonus;
+    const damage=spec.windows[index][2]+bonus+(hero.bonus.power??0);
     for(const item of targets){
       if(!item||struck.has(item)||(item!==scene.boss&&!item.active)
         ||(kind==='execution'&&item===scene.boss&&!final)
         ||(item===scene.boss&&(item.hp<=0||item.phase!=='open'||item.hits>=2))
-        ||!inRadius(item===scene.boss?bossBody(item):item.body,x,y-14,radius)||!lineTo(scene,item))continue;
+        ||!inRadius(item===scene.boss?bossBody(item):item.body,action.anchor??x,y-14,radius)||!lineTo(scene,item))continue;
       struck.add(item);
       const side=Math.sign(item.x-x)||direction;
       const landed=item===scene.boss?hitBoss(final?2:1):enemyHit(scene,item,damage,side,false);
       if(landed){
         if(item===scene.boss)impact(scene,item.x,166,side,final,'katanaHit');
+        else if(hero.control && !struck.controlled){
+          item.setData('shadowHitUntil',Math.max(item.getData('shadowHitUntil')??0,scene.elapsed+hero.control));
+          struck.controlled=true;
+        }
         registerHit(scene,item);
         if(final&&kind==='execution'&&tier(scene,kind)>=3)state.readyAt.execution -= 1000;
       }
@@ -298,6 +311,7 @@ export function specialMovement(scene, direction, grounded) {
     const restricted = special?.kind === 'cyclone' || scene.ninja.parry?.success === false;
     return direction * (restricted ? .45 : 1);
   }
+  if(scene.hero?.field) return direction*.3;
   const age=scene.elapsed-special.since;
   if(!grounded||special.interrupted||age<56||age>=180||!validExecutionTarget(scene,special.target))return 0;
   // Only approach along the same continuous surface; Phaser resolves contact.
@@ -338,8 +352,9 @@ function updateShuriken(scene, delta, hitBoss) {
     if (entry <= 1) {
       const x = shot.x + entry * (next - shot.x);
       if (target && target !== boss) {
-        const landed=enemyHit(scene,target, shot.kind==='charged'?18:SHURIKEN.damage,shot.direction,true);
+        const landed=enemyHit(scene,target, shot.damage??(shot.kind==='charged'?18:SHURIKEN.damage),shot.direction,true);
         if(landed){
+          if(scene.hero?.id==='ranger'&&shot.kind==='star') target.setData('shadowHitUntil',now+360);
           registerHit(scene,target);
           if(shot.pierce>0){
             shot.hit.add(target);
@@ -350,7 +365,7 @@ function updateShuriken(scene, delta, hitBoss) {
         }
       }
       else if (target === boss && boss) {
-        if (boss.rangedCycle !== boss.cycle && hitBoss(1)) {
+        if ((shot.kind==='primary'||boss.rangedCycle !== boss.cycle) && hitBoss(shot.damage>=20?2:1)) {
           boss.rangedCycle = boss.cycle;
           registerHit(scene,boss);
           impact(scene, x, shot.y, shot.direction, false);
@@ -365,8 +380,10 @@ function updateShuriken(scene, delta, hitBoss) {
   }
 }
 
-function releaseShuriken(scene, direction, offset = 0, kind = 'star') {
+function releaseShuriken(scene, direction, offset = 0, kind = 'star', primaryDamage) {
   const state = scene.ninja;
+  const hero=scene.hero ?? DEFAULT_HERO;
+  const [speed,life,damage,pierce]=hero.shot;
   let shot = state.projectiles.find((image) => !image.active);
   if (!shot) {
     shot = scene.add.image(0, 0, 'shadow-weapons', 'star0').setDepth(5.5);
@@ -374,19 +391,22 @@ function releaseShuriken(scene, direction, offset = 0, kind = 'star') {
   }
   // Starting at the center prevents spawning on the other side of a wall.
   const height = kind === 'charged' ? 16 : 12;
-  shot.setTexture(kind==='charged'?'shadow-wave':'shadow-weapons',kind==='charged'?'wave0':'star0')
+  const texture=hero.id==='shadow'?(kind==='charged'?'shadow-wave':'shadow-weapons'):'legends-shot-'+hero.id;
+  shot.setTexture(texture,kind==='charged'&&hero.id==='shadow'?'wave0':'star0')
     .setFlipX(direction<0).setPosition(scene.player.x, scene.player.y - height + offset).setActive(true).setVisible(true);
   shot.direction = direction;
   shot.since = scene.elapsed;
   shot.kind=kind;
-  shot.speed=kind==='charged'?210:SHURIKEN.speed;
-  shot.pierce=kind==='star'&&tier(scene,'shuriken')>=2?1:0;
+  shot.speed=(kind==='charged'&&hero.id==='shadow'?210:speed)+(hero.bonus.projectile??0);
+  shot.damage=primaryDamage??(kind==='charged'?Math.max(18,damage+8):damage);
+  shot.pierce=kind==='star'&&tier(scene,'shuriken')>=2?1:hero.id==='ranger'&&kind==='charged'?2:pierce;
   shot.hit=new Set();
-  shot.expires = scene.elapsed + (kind==='charged' ? (tier(scene,'katana')>=2?420:280) : SHURIKEN.life);
+  shot.expires = scene.elapsed + (kind==='charged' ? (tier(scene,'katana')>=2?420:hero.bow?510:280) : life+(hero.bonus.reach??0)*23);
 }
 
 export function updateShadowCombat(scene, delta, pressed, hitBoss) {
   const state = scene.ninja;
+  const hero=scene.hero ?? DEFAULT_HERO;
   const time = scene.elapsed;
   const direction = (Number(scene.controls.isDown('right')) - Number(scene.controls.isDown('left'))) ||
     (scene.player.flipX ? -1 : 1);
@@ -399,7 +419,7 @@ export function updateShadowCombat(scene, delta, pressed, hitBoss) {
   const execution=scene.controls.consume?.('execution');
   const cyclone=scene.controls.consume?.('cyclone');
   if (idle && parry && time >= (state.readyAt?.parry ?? 0)) {
-    state.parry = { since:time, direction, success:false };
+    state.parry = { since:time, direction, success:false, guard:hero.guard };
     (state.readyAt ??= {}).parry = time + PARRY.miss;
     scene.player.setFlipX(direction < 0);
     scene.ui.playSound('parry');
@@ -431,7 +451,7 @@ export function updateShadowCombat(scene, delta, pressed, hitBoss) {
     if (!inAir || time-state.attack.since >= AIR_DIVE.duration) state.attack = null;
   } else {
     stepStrike(state,time,pressed,direction,!state.dash&&!state.throw&&!state.special&&!state.charging&&!state.parry
-      && offLandingRecovery && (!inAir || !state.airAttacked),tier(scene,'katana')?38:0);
+      && offLandingRecovery && (!inAir || !state.airAttacked),tier(scene,'katana')?38:0,hero.combo);
   }
   if (state.attack !== previous && state.attack) {
     state.attack.air = inAir;
@@ -469,12 +489,19 @@ export function updateShadowCombat(scene, delta, pressed, hitBoss) {
   }
   if (state.attack) {
     const strike = state.attack;
-    const base = strike.dive ? AIR_DIVE : KATANA[strike.index];
+    const base = strike.dive ? AIR_DIVE : hero.combo[strike.index];
     const spec=strike.sprint||strike.counter ? {...base,w:base.w+6,damage:base.damage+(strike.counter?8:4)} :
       strike.index===2&&tier(scene,'katana')>=3 ? {...base,damage:24} : base;
     const age = time - strike.since;
     scene.player.setFlipX(strike.direction < 0);
-    if (age >= spec.open && age < spec.close) attack(scene, strike, spec, hitBoss);
+    if (age >= spec.open && age < spec.close) {
+      if (!hero.bow || strike.dive || strike.counter) attack(scene,strike,spec,hitBoss);
+      else if (!strike.emitted){
+        strike.emitted=true;
+        releaseShuriken(scene,strike.direction,0,'primary',spec.damage);
+        if (hero.alternate || strike.index===2) releaseShuriken(scene,strike.direction,-10,'primary',Math.max(5,spec.damage-4));
+      }
+    }
   }
   updateSpecial(scene,hitBoss);
   updateShuriken(scene, delta, hitBoss);

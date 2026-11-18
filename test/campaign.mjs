@@ -4,7 +4,7 @@ import { mkdir, writeFile, readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 const only =
   process.env.PIXEL_LEVELS?.split(",").map(Number) ??
-  Array.from({ length: 30 }, (_, i) => i + 1);
+  Array.from({ length: 60 }, (_, i) => i + 1);
 const browser = await chromium.launch({
   channel: "msedge",
   args: [
@@ -142,17 +142,24 @@ try {
   });
   if (!sequential)
     await page.addInitScript(() => {
-      const records = Array.from({ length: 30 }, () => ({
+      const records = Array.from({ length: 60 }, () => ({
         coins: 0,
         elapsed: 70000,
       }));
       localStorage.setItem(
         "pixel-adventure.progress",
-        JSON.stringify({ version: 2, unlocked: 30, records }),
+        JSON.stringify({ version: 2, unlocked: 60, records }),
       );
     });
   await page.goto(process.env.PIXEL_TEST_URL || "http://127.0.0.1:5173/");
   await page.locator("canvas").waitFor();
+  if(process.env.PIXEL_HERO && process.env.PIXEL_HERO!=='shadow'){
+    await page.locator('#legends-button').click();
+    await page.getByRole('button',{name:'Choose Hero',exact:true}).click();
+    await page.locator('[data-legend-hero="'+process.env.PIXEL_HERO+'"]').click();
+    await page.locator('#legend-select').click();
+    await page.getByRole('button',{name:'Close Legends'}).click();
+  }
   if (sequential) {
     await page.locator("#play-game").click();
     await page.locator("#tutorial-done").click();
@@ -190,7 +197,7 @@ try {
         (await import("./player-controller.mjs")).default,
         {
           level,
-          bridges: bridgeRoutes[level] ?? [],
+          bridges: bridgeRoutes[level] ?? await page.evaluate(()=>qaScene.level.routes ?? []),
           timeout: Number(process.env.PIXEL_LIMIT || 60000),
           dash: process.env.PIXEL_USE_DASH === "1",
         },
@@ -214,7 +221,7 @@ try {
           ),
         });
       }
-      if (outcome.status === "Completed" && [20, 25, 30].includes(level)) {
+      if (outcome.status === "Completed" && [20,25,30,36,42,48,54,60].includes(level)) {
         assert.deepEqual(
           await page.evaluate(() => [qaScene.boss.hp, qaScene.boss.phase]),
           [0, "defeated"],
@@ -223,6 +230,11 @@ try {
           20: ["wave", "sigils", "crownfall"],
           25: ["spores", "venom", "bloom"],
           30: ["wave", "bolts", "impact"],
+          36: ["phantomFeint","ghostEdge","lanternSeal"],
+          42: ["tidalCrush","undertow","pressureSeal"],
+          48: ["dragonBolt","stormBreath","eyeStrike"],
+          54: ["gridLock","bladeRelay","shieldOverload"],
+          60: ["swordMastery","shadowDominion","eclipseAscension"],
         };
         assert.deepEqual(
           [...outcome.bossPatterns].sort(),
@@ -272,7 +284,7 @@ try {
     }
     if (outcome.status === "Completed") {
       if (sequential) {
-        if (level === 30) {
+        if (level === 60) {
           await page.locator("#view-victory").click();
           assert(await page.locator("#victory-dialog").isVisible());
           assert.deepEqual(

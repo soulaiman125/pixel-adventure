@@ -20,13 +20,13 @@ export function startStrike(state, now, direction, index = 0) {
   state.attack = { index, since: now, direction, queued: false, hit: new Set() };
 }
 
-export function stepStrike(state, now, pressed, direction, canStart, bufferBonus = 0) {
+export function stepStrike(state, now, pressed, direction, canStart, bufferBonus = 0, combo = KATANA) {
   const strike = state.attack;
   if (!strike) {
     if (pressed && canStart) startStrike(state, now, direction);
     return;
   }
-  const spec = KATANA[strike.index];
+  const spec = combo[strike.index];
   const age = now - strike.since;
   if (pressed && !strike.dive && strike.index < 2 && age >= spec.buffer - bufferBonus && age < spec.duration) strike.queued = true;
   if (age < spec.duration) return;

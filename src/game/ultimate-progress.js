@@ -41,7 +41,7 @@ export function createUltimateProgress(storage) {
     const saved = JSON.parse(storage.getItem(SAVE_KEY));
     if (saved?.version === 1) {
       for (const [stage, record] of Object.entries(saved.ranks ?? {})) {
-        if (/^(?:[0-9]|[12][0-9])$/.test(stage) && RANKS.includes(record?.rank)
+        if (/^(?:[0-9]|[1-5][0-9])$/.test(stage) && RANKS.includes(record?.rank)
           && Number.isInteger(record.score) && record.score >= 0 && record.score <= 100) data.ranks[stage] = record;
       }
       data.feats = Object.keys(FEATS).filter(key => Array.isArray(saved.feats) && saved.feats.includes(key));

@@ -264,7 +264,7 @@ const red = '#9b2546';
 const scarlet = '#d74961';
 const stitch = '#e9a180';
 
-function drawNinja(context, ox, oy, name, frame, colors) {
+function drawNinja(context, ox, oy, name, frame, colors, hero) {
   const [fold,navy,edge,rim,cloth=scarlet,seam=stitch]=colors;
   const { rect: dot, shape: area } = pixelPen(context, ox + 24, oy + 5);
   const { hips, chest, head, rear, hand, backLeg, leadLeg, blade } = shadowFrames[name][frame];
@@ -340,6 +340,24 @@ function drawNinja(context, ox, oy, name, frame, colors) {
   dot(ink,hx+2,hy-3,2,1);
   dot(edge,hx-4,hy+1,3,1);
 
+  if(hero?.id==='flame'){
+    area(ink,[cx-13,cy-5],[cx-2,cy-13],[cx+9,cy-9],[cx+15,cy+1],[cx+6,cy+6],[cx-12,cy+4]);
+    area(edge,[cx-11,cy-4],[cx-2,cy-10],[cx+8,cy-6],[cx+11,cy+1],[cx-7,cy+2]);
+    dot(rim,cx-8,cy-4,17,2);
+    for(let row=1;row<=3;row++)dot(edge,hx-7,hy-2+row*3,14-row,2);
+  }else if(hero?.id==='thunder'){
+    area(ink,[cx-13,cy-2],[cx,cy-9],[cx+13,cy-4],[cx+10,cy+8],[cx-11,cy+6]);
+    area(edge,[cx-9,cy-1],[cx,cy-6],[cx+9,cy-3],[cx+7,cy+5],[cx-7,cy+4]);
+    dot(rim,cx-7,cy+1,13,1);
+  }else if(hero?.id==='ranger'){
+    area(ink,[cx-6,cy],[cx+4,cy+2],[hx+3,hy+10],[hx-14,hy+8],[hx-10,hy+1]);
+    area(navy,[cx-5,cy+3],[cx+1,cy+5],[hx,hy+7],[hx-11,hy+6]);
+    band([hx-7,hy-4],[cx+9,cy-8],3,2,edge);
+    for(let i=0;i<3;i++)dot(rim,cx+4+i*3,cy-12-i,1,5);
+  }else if(hero?.id==='frost'){
+    band([cx-6,cy],[hx+5,hy+5],3,1,rim);
+  }
+
   area(ink,[x-10,y-3],[x-6,y-10],[x+3,y-11],[x+9,y-7],[x+11,y-2],[x+11,y+5],
     [x+7,y+9],[x+2,y+12],[x-6,y+10],[x-10,y+5]);
   area(fold,[x-8,y-4],[x-5,y-8],[x+3,y-9],[x+8,y-6],[x+9,y],[x+9,y+5],[x+4,y+8],[x-5,y+8],[x-8,y+4]);
@@ -355,14 +373,43 @@ function drawNinja(context, ox, oy, name, frame, colors) {
   area(red,[x-7,y+7],[x+3,y+9],[x+6,y+8],[x+8,y+10],[x+3,y+13],[x-5,y+12],[x-10,y+10]);
   dot(scarlet,x-6,y+9,8,1);
   dot(stitch,x-3,y+10,3,1);
+  if(hero?.id==='flame'){
+    for(const side of [-1,1])area(rim,[x+side*9,y-5],[x+side*13,y-17],[x+side*2,y-9]);
+  }else if(hero?.id==='ranger'){
+    area(ink,[x-13,y+9],[x-13,y-3],[x-2,y-15],[x+11,y-7],[x+12,y-3],[x-3,y-7],[x-7,y+11]);
+    area(edge,[x-11,y+6],[x-10,y-3],[x-2,y-13],[x+7,y-8],[x-3,y-10],[x-8,y+7]);
+  }else if(hero?.id==='thunder'){
+    area(rim,[x-6,y-9],[x,y-19],[x+7,y-9],[x+1,y-5]);
+  }else if(hero?.id==='frost'){
+    area(edge,[x-9,y-5],[x-2,y-14],[x+9,y-10],[x+3,y-8],[x-9,y-1]);
+  }
 
   arm(hand,false);
-  if (blade) {
+  if(hero?.bow&&(blade||name==='throw'||name==='idle')){
+    const [px,py]=hand,draw=blade?Math.min(10,frame*3):0;
+    if(hero.alternate&&hero.id==='ranger'){
+      band([px-5,py],[px+16,py-8],3,2,rim);
+      band([px+3,py-12],[px+11,py+1],2,2,edge);
+    }else if(hero.id==='frost'){
+      area(rim,[px-4,py],[px+2,py-7],[px+10,py-3],[px+9,py+6],[px,py+8]);
+      area(fold,[px,py],[px+3,py-4],[px+7,py-1],[px+6,py+4],[px+2,py+5]);
+    }else{
+      band([px,py-13],[px+8,py],2,2,edge);
+      band([px+8,py],[px+1,py+12],2,2,edge);
+      band([px,py-13],[px-draw,py],.5,.5,rim);
+      band([px-draw,py],[px+1,py+12],.5,.5,rim);
+      if(blade)band([px-draw,py],[px+20,py-2],.6,.8,rim);
+    }
+  } else if (blade) {
     const [bx,by] = blade;
     const base = [hand[0]+3, hand[1]-1];
-    band(base,[bx,by],3,0,ink);
-    band(base,[bx,by],2,0,'#c6d9e4');
-    band([base[0],base[1]-1],[bx,by],.8,0,'#fff3d7');
+    const reach=hero?.id==='frost'?.65:hero?.id==='thunder'?1.24:hero?.alternate?1.08:1;
+    const tip=[Math.min(86,Math.round(base[0]+(bx-base[0])*reach)),Math.max(0,Math.min(74,Math.round(base[1]+(by-base[1])*reach)))];
+    band(base,tip,hero?.id==='flame'?5:3,0,ink);
+    band(base,tip,hero?.id==='flame'?3:2,0,hero&&hero.id!=='shadow'?rim:'#c6d9e4');
+    band([base[0],base[1]-1],tip,.8,0,'#fff3d7');
+    if(hero?.id==='frost'||hero?.id==='shadow'&&hero.alternate)
+      band(rear,[Math.max(-10,rear[0]-15-frame),Math.max(1,rear[1]-10+frame*3)],2,0,rim);
     dot('#cfaa73',base[0]-2,base[1]-3,3,6);
   } else if (name==='throw' && frame<2) drawStar(context,ox+24+hand[0]-5,oy+hand[1],frame);
 }
@@ -387,8 +434,36 @@ const OUTFITS = {
   silver: ['#263348','#53617a','#8eaabc','#e5eff8','#7495a8','#e0fbff'],
 };
 
-export function loadShadowArt(scene, costume='scout') {
+export function loadHeroPortrait(scene,hero,costume='scout'){
+  const key='legends-portrait-'+hero.id+'-'+Number(hero.alternate)+'-'+costume;
+  const colors=hero.id==='shadow'?OUTFITS[costume]??OUTFITS.scout:
+    costume==='silver'?hero.colors.map((color,i)=>i===3?'#fbfff0':color):hero.colors;
+  atlas(scene,key,SHADOW_WIDTH,SHADOW_HEIGHT,{idle:shadowClips.idle},
+    (ctx,x,y,clip,frame)=>drawNinja(ctx,x,y,clip,frame,colors,hero));
+  return key;
+}
+
+export function loadShadowArt(scene, costume='scout', hero) {
   const outfit=Object.hasOwn(OUTFITS,costume)?costume:'scout';
+  if(hero&&(hero.id!=='shadow'||hero.alternate)){
+    const key='legends-art-'+hero.id+'-'+Number(hero.alternate)+'-'+outfit;
+    const colors=hero.id==='shadow'?OUTFITS[outfit]:outfit==='silver'?hero.colors.map((color,i)=>i===3?'#fbfff0':color):hero.colors;
+    atlas(scene,key,SHADOW_WIDTH,SHADOW_HEIGHT,shadowClips,(ctx,x,y,clip,frame)=>drawNinja(ctx,x,y,clip,frame,colors,hero));
+    atlas(scene,'legends-shot-'+hero.id,24,16,{star:4},(ctx,x,y,_clip,frame)=>{
+      const {rect,shape}=pixelPen(ctx,x,y);
+      if(hero.id==='frost')shape(colors[3],[4+frame,8],[11,1],[20-frame,8],[10,15]);
+      else if(hero.id==='flame'){
+        shape(colors[2],[1,10],[7,4],[14,6],[21,3],[23,8],[17,12],[9,11]);
+        rect(colors[3],12,7,8,2);
+      }else{
+        rect(colors[2],1,8,17,2);shape(colors[3],[15,4],[23,8],[15,12]);
+        if(hero.id==='thunder')rect(colors[3],3+frame,5,9,1);
+      }
+    });
+    if(hero.id!=='shadow')return key;
+    loadShadowArt(scene,costume);
+    return key;
+  }
   const key=outfit==='scout'?'shadow-ninja':'shadow-ninja-'+outfit;
   atlas(scene,key,SHADOW_WIDTH,SHADOW_HEIGHT,shadowClips,(ctx,x,y,clip,frame)=>drawNinja(ctx,x,y,clip,frame,OUTFITS[outfit]));
   atlas(scene,'shadow-weapons',12,12,{star:4},(ctx,x,y,_clip,frame)=>drawStar(ctx,x,y,frame));

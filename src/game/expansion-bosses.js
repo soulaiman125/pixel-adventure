@@ -1,5 +1,6 @@
 import { dangerHits, hazardFrame, paintDanger } from './danger.js';
 import { paintTitanField } from './prototype-titan.js';
+import { LEGEND_BOSSES, LEGEND_TELEGRAPHS } from './legends-bosses.js';
 
 const names = {
   spores: 'Spore mark · Move away',
@@ -64,13 +65,13 @@ function beginWarning(scene, boss) {
   const previousTier = boss.tier;
   boss.phase = 'warn';
   boss.tier = bossTier(boss);
-  const pattern = profiles[boss.kind][boss.tier];
+  const pattern = (LEGEND_BOSSES[boss.kind]?.phases ?? profiles[boss.kind])[boss.tier];
   const pace = scene.level?.script?.bossPace ?? 1;
   boss.profile = { ...pattern, warning: Math.max(780, pattern.warning * pace),
     open: Math.max(1270, pattern.open * pace) };
   boss.target = Math.round(scene.player.x);
   boss.since = scene.elapsed;
-  boss.traps = attackPlan(boss.profile.pattern, boss.target);
+  boss.traps = pattern.plan ? pattern.plan(boss.target) : attackPlan(boss.profile.pattern, boss.target);
   while (boss.trapArt.length < boss.traps.length) {
     boss.trapArt.push({ art: scene.add.graphics().setDepth(3), frame: {} });
   }
@@ -152,12 +153,13 @@ export function updateExpansionBoss(scene, boss, fire) {
     boss.since = now;
     age = 0;
     scene.ui.playSound('bossStrike');
-    if (pattern === 'wave' || pattern === 'venom') {
+    if (pattern === 'wave' || pattern === 'venom' || boss.profile.shot) {
       const side = scene.player.x < boss.x ? -1 : 1;
-      const tint = pattern === 'venom' ? 0xb4df73 : boss.kind === 'crown' ? 0xe0a8e6 : 0x85d9ff;
+      const [low,high,color] = boss.profile.shot ?? [115,153];
+      const tint = color ? Number.parseInt(color.slice(1),16) : pattern === 'venom' ? 0xb4df73 : boss.kind === 'crown' ? 0xe0a8e6 : 0x85d9ff;
       const style=boss.presentation?{titanWave:true}:undefined;
-      fire(scene, boss.x + side * 21, 177, side * 115, 0, 5, tint,0,style);
-      fire(scene, boss.x + side * 22, 173, side * 153, 0, 4, tint,0,style);
+      fire(scene, boss.x + side * 21, 177, side * low, 0, 5, tint,0,style);
+      fire(scene, boss.x + side * 22, 173, side * high, 0, 4, tint,0,style);
     } else if(boss.presentation && pattern==='impact' && !scene.ui.reduceMotion) {
       scene.cameras.main.shake(145,.0055);
       scene.burst(boss.target,181,0xc6ceff,12);
@@ -198,7 +200,7 @@ export function updateExpansionBoss(scene, boss, fire) {
   });
   if (boss.phase === 'waiting') return;
   const label = `Phase ${boss.tier + 1}/3`;
-  const text = boss.phase === 'warn' ? names[boss.profile.pattern] : boss.phase === 'attack' ? 'Dodge!'
+  const text = boss.phase === 'warn' ? names[boss.profile.pattern] ?? LEGEND_TELEGRAPHS[boss.profile.pattern] : boss.phase === 'attack' ? 'Dodge!'
     : boss.hits < 2 ? 'Attack now!' : 'Guard up · Get ready';
   scene.ui.onBoss(boss, `${label} · ${text}`);
 }

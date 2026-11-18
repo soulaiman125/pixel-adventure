@@ -17,7 +17,7 @@ export function ultimateLevel(level, index) {
     enemies: swaps ? level.enemies.map((enemy, i) => swaps[i] ? [...enemy.slice(0,3),swaps[i]] : enemy) : level.enemies,
     platforms: secret ? [...level.platforms,...secret.ledges] : level.platforms,
     solidWalls: secret ? [...(level.solidWalls ?? []),secret.wall] : level.solidWalls,
-    secret,
+    secret:secret ?? level.secret,
   };
 }
 

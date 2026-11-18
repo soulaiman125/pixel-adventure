@@ -8,8 +8,8 @@ const browser = await chromium.launch({
 });
 const results = [];
 const versions = {
-  prototype: process.env.PIXEL_BASELINE_URL || "http://127.0.0.1:4209/",
-  candidate: process.env.PIXEL_TEST_URL || "http://127.0.0.1:4210/",
+  prototype: process.env.PIXEL_BASELINE_URL || "http://127.0.0.1:4219/",
+  candidate: process.env.PIXEL_TEST_URL || "http://127.0.0.1:4220/",
 };
 const outputDirectory = resolve(process.env.PIXEL_REVIEW_DIR || "artifacts/ninja-review");
 await mkdir(outputDirectory, {recursive:true});
@@ -46,7 +46,7 @@ async function benchmark(label, options, rate, version, stage) {
     );
     localStorage.setItem(
       "pixel-adventure.progress",
-      '{"version":2,"unlocked":30}',
+      '{"version":2,"unlocked":60}',
     );
   });
   const dashKey = "KeyZ";
@@ -54,13 +54,15 @@ async function benchmark(label, options, rate, version, stage) {
   await page.goto(versions[version]);
   await page.locator("canvas").waitFor();
   await page.locator("#level-select").click();
+  const stageLoadStarted=performance.now();
   await page.locator('[data-level="' + stage + '"]').click();
   await page.waitForFunction(() => qaScene?.player?.body?.blocked.down);
-  if (stage === 29)
+  const loadMs=Math.round(performance.now()-stageLoadStarted);
+  if (stage === 29 || stage === 59)
     await page.evaluate(() => {
       // A staged phase-three workload keeps the boss effects comparable.
       // This setup is independent of the legitimate campaign runner.
-      qaScene.player.body.reset(1460, 184);
+      qaScene.player.body.reset(qaScene.boss.x-120, 184);
       qaScene.boss.hp = 3;
       qaScene.moveCamera(1);
     });
@@ -145,7 +147,7 @@ async function benchmark(label, options, rate, version, stage) {
         requestAnimationFrame(frame);
       }),
   );
-  if(stage===29){
+  if(stage===29||stage===59){
     await page.keyboard.down("KeyA");
     await page.waitForTimeout(475);
     await page.keyboard.up("KeyA");
@@ -215,6 +217,7 @@ async function benchmark(label, options, rate, version, stage) {
     rate,
     version,
     stage: stage + 1,
+    loadMs,
     ...measured,
     ...runtime,
   });
@@ -345,7 +348,7 @@ try {
     ["phone emulation throttled", phone, 4],
   ])
     for (const version of ["prototype", "candidate"])
-      for (const stage of [0, 29])
+      for (const stage of version==='candidate'?[0,29,59]:[0,29])
         await benchmark(label, options, rate, version, stage);
 } finally {
   await browser.close();

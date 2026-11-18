@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#101822">
     <meta name="description" content="Play Pixel Adventure, a colorful platformer through the Verdant Hills.">
     <link rel="icon" href="/favicon.png" type="image/png">
-    <title>Pixel Adventure</title>
+  <title>Pixel Adventure 4.0 — Legends of Shadows</title>
   </head>
   <body>
     <svg xmlns="http://www.w3.org/2000/svg" class="icon-library" aria-hidden="true">
@@ -61,11 +61,12 @@
             <span id="combo-count"></span>
           </div>
           <div id="arena-hud" class="arena-hud" hidden><strong id="arena-wave"></strong><span id="arena-score"></span></div>
+          <button class="button village-interact" id="village-interact" type="button" hidden>Interact</button>
           <p class="loading-label" id="loading-label" role="status" hidden>Loading level…</p>
           <section class="menu" id="main-menu" aria-labelledby="menu-title">
             <div class="menu-content">
               <h1 id="menu-title"><span>PIXEL</span><span>ADVENTURE</span></h1>
-              <p>Master the katana. Cross seven worlds as Shadow Ninja.</p>
+              <p>Five heroes. Twelve realms. One eclipse.</p>
               <nav class="menu-actions" aria-label="Main menu">
                 <button class="button button-primary" id="play-game" type="button"><svg aria-hidden="true"><use href="#play"/></svg>Play Game<svg class="trailing arrow-right" aria-hidden="true"><use href="#arrow"/></svg></button>
                 <button class="button" id="level-select" type="button"><svg aria-hidden="true"><use href="#levels"/></svg>Level Select</button>
@@ -74,6 +75,7 @@
                 <button class="button mode-entry" id="challenge-button" type="button"><svg aria-hidden="true"><use href="#star"/></svg>Challenges</button>
                 <button class="button mode-entry" id="survival-button" type="button">Survival Arena</button>
                 <button class="button" id="combat-awards" type="button">Combat Trials</button>
+                <button class="button legend-entry" id="legends-button" type="button">Legends of Shadows</button>
               </nav>
               <div class="menu-release-links" id="menu-release-links" hidden>
                 <a class="button download-button" href="https://github.com/soulaiman125/pixel-adventure/releases/download/v2.0.0/Pixel-Adventure-Setup-2.0.0-x64.exe" target="_blank" rel="noopener noreferrer">
@@ -114,6 +116,7 @@
         <button class="button icon-button dialog-close" type="button" data-close aria-label="Close level select"><svg aria-hidden="true"><use href="#close"/></svg></button>
         <span class="dialog-icon"><svg aria-hidden="true"><use href="#levels"/></svg></span>
         <h2 id="levels-title">Level Select</h2>
+        <button class="button" type="button" data-legends-heroes>Choose Hero</button>
         <nav id="world-nav" class="world-nav" aria-label="Jump to world"></nav>
         <div class="level-list" id="level-list"></div>
       </div>
@@ -251,6 +254,7 @@
         <div class="dialog-actions result-actions">
           <button class="button button-primary" id="play-again" type="button" autofocus><svg aria-hidden="true"><use href="#restart"/></svg>Play Again</button>
           <button class="button" id="clear-main" type="button"><svg aria-hidden="true"><use href="#home"/></svg>Main Menu</button>
+          <button class="button" type="button" data-legends-heroes>Choose Hero</button>
           <button class="button button-primary" id="next-level" type="button" hidden>Next Level<svg class="trailing arrow-right" aria-hidden="true"><use href="#arrow"/></svg></button>
           <button class="button button-primary" id="view-victory" type="button" hidden>View Victory<svg class="trailing arrow-right" aria-hidden="true"><use href="#arrow"/></svg></button>
         </div>
@@ -262,6 +266,7 @@
         <div class="victory-emblem"><svg class="victory-spark" aria-hidden="true"><use href="#spark"/></svg><svg class="victory-star" aria-hidden="true"><use href="#star"/></svg><svg class="victory-spark" aria-hidden="true"><use href="#spark"/></svg></div>
         <h2 id="victory-title">You Win!</h2>
         <p id="victory-summary"></p>
+        <p id="ending-story"></p>
         <dl class="result-stats">
           <div><dt><svg aria-hidden="true"><use href="#coin"/></svg> Total coins</dt><dd id="victory-coins"></dd></div>
           <div><dt><svg aria-hidden="true"><use href="#clock"/></svg> Total time</dt><dd id="victory-time"></dd></div>
@@ -271,6 +276,7 @@
         <div class="dialog-actions result-actions">
           <button class="button button-primary" id="victory-replay" type="button" autofocus><svg aria-hidden="true"><use href="#restart"/></svg>Play Again</button>
           <button class="button" id="victory-main" type="button"><svg aria-hidden="true"><use href="#home"/></svg>Main Menu</button>
+          <button class="button" type="button" id="victory-village">Return to Ninja Village</button>
         </div>
       </div>
     </dialog>

@@ -130,6 +130,13 @@ const address = process.env.PIXEL_TEST_URL || 'http://127.0.0.1:5173/';
         await page.waitForFunction(() => qa.elapsed < 500 && qa.deaths === 0
           && qa.checkpoint === qa.level.spawnX && qa.coins.getChildren()[0].active);
       }
+      if ([35, 41, 47, 53, 59].includes(index)) {
+        // Isolated flag lock check. The campaign runner fights all new bosses using normal input.
+        await page.evaluate(() => qa.player.body.reset(qa.level.flagX, 174));
+        await page.waitForFunction(() => qa.boss.phase === 'warn');
+        assert(!(await page.locator('#clear-dialog').isVisible()));
+        await page.evaluate(() => { qa.boss.hp = 0; });
+      }
       if ([19, 24, 29].includes(index)) {
         // Controlled positioning isolates the boss and UI from the route to the arena.
         await page.evaluate(() => {
@@ -164,7 +171,7 @@ const address = process.env.PIXEL_TEST_URL || 'http://127.0.0.1:5173/';
       if (index < total - 1) await page.locator('#next-level').click();
       console.log('Loaded, spawned and triggered finish for level', index + 1);
     }
-    if (total === 30) {
+    if (total === 60) {
       await page.locator('#view-victory').click();
       assert(await page.locator('#victory-dialog').isVisible());
       await page.locator('#victory-replay').click();

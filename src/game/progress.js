@@ -40,6 +40,7 @@ export function createProgress(levels, storage) {
   });
   // The old campaign saved its final clear without a next stage to unlock.
   if (frontier === 20 && levels[20]?.name === 'Toxic Entrance' && (records[19] || results[19])) frontier = 21;
+  if (frontier === 30 && levels[30]?.name === 'Lantern Crossing' && (records[29] || results[29])) frontier = 31;
 
   function save() {
     try {

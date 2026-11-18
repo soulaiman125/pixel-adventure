@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { LEVELS } from '../src/game/levels.js';
+import { LEVELS, ORIGINAL_LEVELS } from '../src/game/levels.js';
 import { createProgress } from '../src/game/progress.js';
 import { attackReaches } from '../src/game/combat.js';
 import { dangerHits, hazardFrame, hazardPhase } from '../src/game/danger.js';
@@ -9,10 +9,13 @@ import { guardBlocks, updateExpansionEnemy } from '../src/game/expansion-enemies
 import { addObstacles } from '../src/game/obstacles.js';
 import { monsters, monsterPhase, segmentIntersectsBox } from '../src/game/monster-ai.js';
 
-test('the campaign has 30 uniquely named stages, with bosses on levels 20, 25, and 30', () => {
-  assert.equal(LEVELS.length, 30);
-  assert.equal(new Set(LEVELS.map(({ name }) => name)).size, 30);
-  assert.deepEqual(LEVELS.flatMap((level, index) => level.boss ? [index + 1] : []), [20, 25, 30]);
+test('the 60-stage campaign preserves its first 30 stages and all eight boss positions', () => {
+  assert.equal(ORIGINAL_LEVELS.length,30);
+  assert.deepEqual(ORIGINAL_LEVELS.flatMap((level, index) => level.boss ? [index+1] : []),[20,25,30]);
+  assert.deepEqual(LEVELS.slice(0,30),ORIGINAL_LEVELS);
+  assert.equal(LEVELS.length,60);
+  assert.equal(new Set(LEVELS.map(({ name }) => name)).size,60);
+  assert.deepEqual(LEVELS.flatMap((level,index)=>level.boss?[index+1]:[]),[20,25,30,36,42,48,54,60]);
 });
 
 test('all six v3 enemies are placed and cannot fire without a visible warning', () => {

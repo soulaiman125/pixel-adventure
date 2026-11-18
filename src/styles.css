@@ -482,3 +482,23 @@ dialog[open] { animation: dialog-in .19s ease-out; }
   [data-hero="shadow"] .touch-direction{align-self:end}
   [data-hero="shadow"] .touch-controls{align-items:end;gap:6px}
 }
+[data-mode="village"] .campaign-stat{display:none}
+.village-interact{position:absolute;top:9px;right:9px;z-index:6;font-size:.78rem;min-height:44px}
+.legend-entry{border-color:#8a6888;background:#342843}
+#legends-dialog{width:min(890px,calc(100% - 18px))}
+.legend-nav{display:flex;flex-wrap:wrap;gap:.55rem;margin:.8rem 0}
+.legend-nav .button{min-height:44px}
+.legend-portraits{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:.4rem}
+.legend-portraits .button{display:grid;gap:.3rem;align-content:center;padding:.35rem;font-size:.79rem}
+.legend-portraits .button[aria-pressed="true"]{border-color:#f1a3bc;background:#48344f}
+#legends-content canvas{width:100%;height:auto;image-rendering:pixelated;background:#26354d;border-radius:6px}
+.legend-profile{display:grid;grid-template-columns:minmax(100px,1fr) 2fr;gap:1rem;align-items:start;margin:1rem 0}
+.legend-profile canvas{aspect-ratio:112/80;max-width:280px}
+.legend-meters{display:grid;grid-template-columns:repeat(2,1fr);gap:.3rem}
+.legend-meters span{display:grid;gap:.1rem;font-size:.85rem}
+.legend-quest{padding:.5rem 0;border-bottom:1px solid #445375}
+#legends-content .skill-card{gap:.4rem}
+.legends-story{min-height:230px;padding:24px;border-radius:12px;background:radial-gradient(circle at 60% 35%,#70405a 0 16%,#40293e 17%,#23243d 48%,#182236)}
+.legend-story-party{display:grid;grid-template-columns:repeat(5,1fr);gap:3px}
+.legend-story-party canvas{background:#252538!important}
+@media(max-width:480px){.legend-profile{grid-template-columns:1fr}.legend-profile canvas{width:min(190px,100%)}}

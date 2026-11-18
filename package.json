@@ -1,6 +1,6 @@
 {
   "name": "pixel-adventure",
-  "version": "3.0.0-rc.2",
+  "version": "4.0.0-rc.1",
   "description": "A colorful pixel-art platformer built with Phaser 3 and Vite.",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5173 --strictPort",
@@ -14,6 +14,7 @@
     "test:desktop": "node test/desktop-smoke.cjs",
     "test:campaign": "node test/campaign.mjs",
     "test:ninja": "node test/ninja-browser.mjs",
+    "test:legends": "node test/legends-browser.mjs",
     "test:performance": "node test/performance.mjs"
   },
   "type": "module",
