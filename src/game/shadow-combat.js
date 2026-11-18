@@ -1,6 +1,7 @@
-import { blocksMonsterHit } from './monster-ai.js';
+import { blocksMonsterHit, terrainBlocks } from './monster-ai.js';
 import { guardBlocks } from './expansion-enemies.js';
 import { canDash, DASH, horizontalEntry, intersects, KATANA, refill, SHURIKEN, spendCharge, stepStrike, strikeBox } from './shadow-rules.js';
+import { activeWindows, adjustEnergy, CHARGE_LIMIT, CHARGE_READY, energyCost, inRadius, SPECIALS } from './combat-techniques.js';
 
 const SHAKE = .0025;
 const ENEMY_HEALTH = { dummy: 40, flying: 8, bat: 8, demon: 8, guard: 20, knight: 20, golem: 20, sentinel: 20 };
@@ -13,7 +14,21 @@ export function createShadow(scene) {
     rechargeAt: Infinity, projectiles: [],
     effect: scene.add.graphics().setDepth(6.5), spark: scene.add.graphics().setDepth(7.5),
     enemyHp: new WeakMap(), holdUntil: 0, lastHit: null,
+    energy: 60, special: null, charging: null, heldAttackAt: null, sprint: false,
+    energyHits: new WeakMap(), uses: {}, dodgeUntil: 0,
   };
+}
+
+const tier = (scene, skill) => scene.ui?.shadowTier?.(skill) ?? 0;
+function use(state, ability) {
+  state.uses ??= {};
+  state.uses[ability] = (state.uses[ability] ?? 0) + 1;
+}
+
+export function cancelCharge(scene) {
+  if (!scene.ninja) return;
+  scene.ninja.charging = null;
+  scene.ninja.heldAttackAt = null;
 }
 
 export function endDash(scene) {
@@ -31,6 +46,11 @@ export function updateDash(scene, grounded, direction) {
   const now = scene.elapsed;
   if (grounded) state.airUsed = false;
   if (state.dash) {
+    if (tier(scene,'dash') >= 2 && direction && direction !== state.dash.direction
+      && !state.dash.reversed && now-state.dash.since >= 45) {
+      state.dash.direction = direction;
+      state.dash.reversed = true;
+    }
     // Crossing a ledge consumes this airborne sequence's dash, even if the
     // dash began on land. Chaining another dash would skip bridge routes.
     if (!grounded) {
@@ -46,11 +66,13 @@ export function updateDash(scene, grounded, direction) {
     if (!(side < 0 ? body.blocked.left : body.blocked.right)) {
       const air = !grounded;
       state.dash = { since: now, direction: side, air };
+      cancelCharge(scene);
+      use(state,'dash');
       if (air) {
         state.airUsed = true;
         body.setAllowGravity(false);
         body.setVelocityY(0);
-      } else state.groundDashAt = now + DASH.cooldown;
+      } else state.groundDashAt = now + DASH.cooldown - (tier(scene,'dash') ? 85 : 0);
       body.maxVelocity.x = DASH.speed;
       scene.ui.playSound('dash');
     }
@@ -67,12 +89,20 @@ export function clearShadow(scene, respawn = false) {
   endDash(scene);
   state.attack = null;
   state.throw = null;
+  state.special = null;
+  cancelCharge(scene);
+  state.dodgeUntil = 0;
+  state.sprint = false;
+  state.sprintSince = undefined;
+  state.sprintStop = undefined;
   state.effect.clear();
   state.spark.clear();
   state.lastHit = null;
   state.holdUntil = 0;
   for (const shot of state.projectiles) shot.setActive(false).setVisible(false);
   if (!respawn) return;
+  state.energy = 0;
+  scene.ui.onShadowEnergy?.(0);
   state.airUsed = true;
   state.groundDashAt = scene.elapsed;
   scene.controls.consumeDash();
@@ -94,14 +124,17 @@ function enemyHit(scene, enemy, damage, direction, ranged) {
   if (blocksMonsterHit(enemy, source) || guardBlocks(enemy, source, scene.elapsed)) {
     if (enemy.getData('type') === 'guard' && !ranged) enemy.setData('exposedUntil', scene.elapsed + 730);
     impact(scene, enemy.x, enemy.y - 8, direction, false, 'block');
-    return;
+    return false;
   }
   const state = scene.ninja;
   const type = enemy.getData('type');
   const max = ENEMY_HEALTH[type] ?? 10;
   const health = (state.enemyHp.get(enemy) ?? max) - damage;
-  const until = scene.elapsed + (damage >= 20 ? 310 : 240);
-  enemy.setData('shadowHitUntil', until);
+  if (scene.elapsed >= (enemy.getData('shadowHitUntil') ?? 0)
+    && scene.elapsed >= (enemy.getData('shadowStaggerReady') ?? 0)) {
+    enemy.setData('shadowHitUntil',scene.elapsed + (damage >= 20 ? 310 : 240));
+    enemy.setData('shadowStaggerReady',scene.elapsed + 420);
+  }
   impact(scene, enemy.x, enemy.y - 8, direction, damage >= 20, ranged ? 'shurikenHit' : 'katanaHit');
   state.enemyHp.set(enemy, health > 0 ? health : max);
   if (type === 'dummy') {
@@ -109,6 +142,16 @@ function enemyHit(scene, enemy, damage, direction, ranged) {
   } else if (health <= 0) {
     scene.defeatEnemy(enemy);
   }
+  return true;
+}
+
+function gainFromHit(scene,target,amount) {
+  const state=scene.ninja;
+  if (!state.energyHits || target.getData?.('type')==='dummy') return;
+  const count=state.energyHits.get(target) ?? 0;
+  if(count>=3)return;
+  state.energyHits.set(target,count+1);
+  adjustEnergy(state,amount);
 }
 
 function bossBody(boss) {
@@ -123,13 +166,16 @@ function attack(scene, strike, spec, hitBoss) {
     if (!enemy.active || hit.has(enemy) || !intersects(box, enemy.body)) continue;
     if (wallBetween(scene, x, enemy.x, Math.max(box.top, enemy.body.top))) continue;
     hit.add(enemy);
-    enemyHit(scene, enemy, spec.damage, direction, false);
+    if(enemyHit(scene, enemy, spec.damage, direction, false)) gainFromHit(scene,enemy,strike.index===2?19:12);
   }
   const boss = scene.boss;
   if (!boss || boss.hp <= 0 || boss.phase === 'waiting' || hit.has(boss) || !intersects(box, bossBody(boss))) return;
   if (wallBetween(scene, x, boss.x, Math.max(box.top, BOSS_BOX.top))) return;
   hit.add(boss);
-  if (hitBoss(spec.damage >= 20 ? 2 : 1)) impact(scene, boss.x, 165, direction, spec.damage >= 20);
+  if (hitBoss(spec.damage >= 20 ? 2 : 1)) {
+    gainFromHit(scene,boss,14);
+    impact(scene, boss.x, 165, direction, spec.damage >= 20);
+  }
   else impact(scene, boss.x, 165, direction, false, 'block');
 }
 
@@ -137,12 +183,110 @@ function wallBetween(scene, x, next, y) {
   return scene.solidWalls?.getChildren().some(({ body }) => horizontalEntry(x, next, y, body) < Infinity) ?? false;
 }
 
+function lineTo(scene, target) {
+  const {x,y}=scene.player;
+  const targetY=target===scene.boss ? 169 : target.body.center.y;
+  return !wallBetween(scene,x,target.x,y-15) && !terrainBlocks(scene,x,y-15,target.x,targetY);
+}
+
+function validExecutionTarget(scene,target) {
+  if(!target || Math.abs(target.x-scene.player.x)>54+(tier(scene,'execution')>=2?12:0)) return false;
+  if(target===scene.boss) {
+    if(target.hp<=0 || target.phase!=='open' || target.hits>=2)return false;
+  }else if(!target.active || Math.abs(target.y-scene.player.y)>27 ||
+    blocksMonsterHit(target,scene.player) || guardBlocks(target,scene.player,scene.elapsed))return false;
+  return lineTo(scene,target);
+}
+
+function startSpecial(scene,kind,direction) {
+  const state=scene.ninja;
+  const cost=kind==='charged'?0:energyCost(kind,tier(scene,kind));
+  if((state.energy??0)<cost){
+    scene.ui.onShadowFeedback?.('More Shadow Energy needed');
+    return false;
+  }
+  let target;
+  if(kind==='execution'){
+    target=[...scene.enemies.getChildren(),scene.boss]
+      .filter(item=>validExecutionTarget(scene,item))
+      .sort((a,b)=>Math.abs(a.x-scene.player.x)-Math.abs(b.x-scene.player.x))[0];
+    if(!target){
+      scene.ui.onShadowFeedback?.('Move closer to an exposed target');
+      return false;
+    }
+    direction=Math.sign(target.x-scene.player.x)||direction;
+  }
+  adjustEnergy(state,-cost);
+  state.special={kind,direction,target,since:scene.elapsed,hit:SPECIALS[kind].windows.map(()=>new Set())};
+  use(state,kind);
+  scene.ui.playSound(kind);
+  return true;
+}
+
+function updateSpecial(scene,hitBoss) {
+  const state=scene.ninja;
+  const action=state.special;
+  if(!action)return;
+  const {kind,target,direction}=action;
+  const age=scene.elapsed-action.since;
+  if(age>=SPECIALS[kind].duration){state.special=null;return;}
+  if(kind==='execution' && ((target===scene.boss && target.hp>0 && target.phase!=='open')
+    || (target===scene.boss && target.hits>=2))) action.interrupted=true;
+  if(action.interrupted)return;
+  scene.player.setFlipX(direction<0);
+  for(const index of activeWindows(action,scene.elapsed)){
+    const struck=action.hit[index];
+    if(kind==='charged'){
+      if(!struck.size){
+        struck.add(action);
+        releaseShuriken(scene,direction,0,'charged');
+        scene.ui.playSound('katana3');
+      }
+      continue;
+    }
+    const {x,y}=scene.player;
+    const targets=kind==='execution'?[target]:[...scene.enemies.getChildren(),scene.boss];
+    const radius=kind==='execution'?48:30+(tier(scene,'cyclone')?6:0);
+    const final=index===SPECIALS[kind].windows.length-1;
+    const bonus=final?(kind==='cyclone'&&tier(scene,kind)>=3?4:kind==='execution'&&tier(scene,kind)>=1?6:0):0;
+    const damage=SPECIALS[kind].windows[index][2]+bonus;
+    for(const item of targets){
+      if(!item||struck.has(item)||(item!==scene.boss&&!item.active)
+        ||(kind==='execution'&&item===scene.boss&&!final)
+        ||(item===scene.boss&&(item.hp<=0||item.phase!=='open'||item.hits>=2))
+        ||!inRadius(item===scene.boss?bossBody(item):item.body,x,y-14,radius)||!lineTo(scene,item))continue;
+      struck.add(item);
+      const side=Math.sign(item.x-x)||direction;
+      const landed=item===scene.boss?hitBoss(final?2:1):enemyHit(scene,item,damage,side,false);
+      if(landed){
+        if(item===scene.boss)impact(scene,item.x,166,side,final,'katanaHit');
+        if(final&&kind==='execution'&&tier(scene,kind)>=3)adjustEnergy(state,10);
+      }
+    }
+  }
+}
+
+export function specialMovement(scene, direction, grounded) {
+  const {special} = scene.ninja;
+  if(special?.kind!=='execution')return direction*(special?.kind==='cyclone'?.45:1);
+  const age=scene.elapsed-special.since;
+  if(!grounded||special.interrupted||age<56||age>=180||!validExecutionTarget(scene,special.target))return 0;
+  // Only approach along the same continuous surface; Phaser resolves contact.
+  const {x,y}=scene.player;
+  const ledge=[scene.ground,scene.platforms].some(group=>group?.getChildren().some(({body})=>
+    body.enable&&Math.abs(y-body.top)<=3&&x>=body.left+4&&x<=body.right-4
+    && special.target.x>=body.left+6&&special.target.x<=body.right-6));
+  const distance=special.target.x-x;
+  return ledge&&Math.abs(distance)>24 ? Math.sign(distance)*1.3 : 0;
+}
+
 function updateShuriken(scene, delta, hitBoss) {
   const state = scene.ninja;
   const now = scene.elapsed;
   for (const shot of state.projectiles) {
     if (!shot.active) continue;
-    const next = shot.x + shot.direction * SHURIKEN.speed * delta / 1000;
+    const next = shot.x + shot.direction * (shot.speed ?? SHURIKEN.speed) * delta / 1000;
+    const radius=shot.kind==='charged' ? 6+(tier(scene,'katana')>=2?3:0) : FIGHT_REACH;
     let entry = horizontalEntry(shot.x, next, shot.y, { left: -1, right: 0, top: 0, bottom: 260 }, FIGHT_REACH);
     entry = Math.min(entry, horizontalEntry(shot.x, next, shot.y, { left: scene.level.width, right: scene.level.width + 1, top: 0, bottom: 260 }, FIGHT_REACH));
     for (const group of [scene.ground, scene.platforms, scene.solidWalls]) {
@@ -153,21 +297,33 @@ function updateShuriken(scene, delta, hitBoss) {
     }
     let target;
     for (const enemy of scene.enemies.getChildren()) {
-      if (!enemy.active) continue;
-      const distance = horizontalEntry(shot.x, next, shot.y, enemy.body, FIGHT_REACH);
+      if (!enemy.active || shot.hit?.has(enemy)) continue;
+      const distance = horizontalEntry(shot.x, next, shot.y, enemy.body, radius);
       if (distance < entry) { entry = distance; target = enemy; }
     }
     const boss = scene.boss;
     if (boss?.hp > 0 && boss.phase !== 'waiting') {
-      const distance = horizontalEntry(shot.x, next, shot.y, bossBody(boss), FIGHT_REACH);
+      const distance = horizontalEntry(shot.x, next, shot.y, bossBody(boss), radius);
       if (distance < entry) { entry = distance; target = boss; }
     }
     if (entry <= 1) {
       const x = shot.x + entry * (next - shot.x);
-      if (target && target !== boss) enemyHit(scene, target, SHURIKEN.damage, shot.direction, true);
+      if (target && target !== boss) {
+        const landed=enemyHit(scene,target, shot.kind==='charged'?18:SHURIKEN.damage,shot.direction,true);
+        if(landed){
+          gainFromHit(scene,target,shot.kind==='charged'?12:7);
+          if(shot.pierce>0){
+            shot.hit.add(target);
+            shot.pierce--;
+            shot.x=x;
+            continue;
+          }
+        }
+      }
       else if (target === boss && boss) {
         if (boss.rangedCycle !== boss.cycle && hitBoss(1)) {
           boss.rangedCycle = boss.cycle;
+          gainFromHit(scene,boss,7);
           impact(scene, x, shot.y, shot.direction, false);
         } else impact(scene, x, shot.y, shot.direction, false, 'block');
       } else impact(scene, x, shot.y, shot.direction, false, 'shurikenHit');
@@ -175,12 +331,12 @@ function updateShuriken(scene, delta, hitBoss) {
     } else if (now >= shot.expires) shot.setActive(false).setVisible(false);
     else {
       shot.x = next;
-      shot.setFrame('star' + (scene.ui.reduceMotion ? 0 : Math.floor((now - shot.since) / 36) % 4));
+      if(shot.kind!=='charged')shot.setFrame('star' + (scene.ui.reduceMotion ? 0 : Math.floor((now - shot.since) / 36) % 4));
     }
   }
 }
 
-function releaseShuriken(scene, direction) {
+function releaseShuriken(scene, direction, offset = 0, kind = 'star') {
   const state = scene.ninja;
   let shot = state.projectiles.find((image) => !image.active);
   if (!shot) {
@@ -188,10 +344,16 @@ function releaseShuriken(scene, direction) {
     state.projectiles.push(shot);
   }
   // Starting at the center prevents spawning on the other side of a wall.
-  shot.setPosition(scene.player.x, scene.player.y - 16).setActive(true).setVisible(true);
+  const height = kind === 'charged' ? 16 : 12;
+  shot.setTexture(kind==='charged'?'shadow-wave':'shadow-weapons',kind==='charged'?'wave0':'star0')
+    .setFlipX(direction<0).setPosition(scene.player.x, scene.player.y - height + offset).setActive(true).setVisible(true);
   shot.direction = direction;
   shot.since = scene.elapsed;
-  shot.expires = scene.elapsed + SHURIKEN.life;
+  shot.kind=kind;
+  shot.speed=kind==='charged'?210:SHURIKEN.speed;
+  shot.pierce=kind==='star'&&tier(scene,'shuriken')>=2?1:0;
+  shot.hit=new Set();
+  shot.expires = scene.elapsed + (kind==='charged' ? (tier(scene,'katana')>=2?420:280) : SHURIKEN.life);
 }
 
 export function updateShadowCombat(scene, delta, pressed, hitBoss) {
@@ -201,28 +363,80 @@ export function updateShadowCombat(scene, delta, pressed, hitBoss) {
     (scene.player.flipX ? -1 : 1);
   const previous = state.attack;
   const previousCharges = state.charges;
-  refill(state, time);
+  const previousEnergy = state.energy;
+  const recharge=tier(scene,'shuriken') ? 1700 : SHURIKEN.recharge;
+  refill(state,time,recharge);
   if (state.throw && time - state.throw.since >= SHURIKEN.duration) state.throw = null;
-  stepStrike(state, time, pressed, direction, !state.dash && !state.throw);
-  if (state.attack !== previous && state.attack) scene.ui.playSound('katana' + (state.attack.index + 1));
-  if (scene.controls.consumeThrow() && !state.attack && !state.dash && !state.throw && spendCharge(state, time)) {
-    state.throw = { direction, since: time, released: false };
+  const idle=!state.dash&&!state.throw&&!state.special&&!state.attack&&!state.charging;
+  const execution=scene.controls.consume?.('execution');
+  const cyclone=scene.controls.consume?.('cyclone');
+  if(idle && execution) startSpecial(scene,'execution',direction);
+  else if(idle && cyclone) startSpecial(scene,'cyclone',direction);
+  const held=scene.controls.isDown('attack');
+  if(pressed && idle && !state.special)state.heldAttackAt=time;
+  if(pressed && state.attack)state.heldAttackAt=null;
+  if(!held && !state.charging)state.heldAttackAt=null;
+  if(held && state.heldAttackAt!=null && time-state.heldAttackAt>=CHARGE_READY && !state.attack
+    && !state.special && !state.dash && !state.throw && !state.charging) {
+    state.charging={since:state.heldAttackAt,direction};
+  }
+  if(state.charging && (!held || time-state.charging.since>=CHARGE_LIMIT)){
+    startSpecial(scene,'charged',state.charging.direction);
+    cancelCharge(scene);
+  }
+  stepStrike(state,time,pressed,direction,!state.dash&&!state.throw&&!state.special&&!state.charging,tier(scene,'katana')?38:0);
+  if (state.attack !== previous && state.attack) {
+    state.attack.air=Boolean(scene.player.body&&!scene.player.body.blocked.down);
+    state.attack.sprint=state.attack.index===0&&state.sprint&&tier(scene,'sprint')>=3;
+    state.attack.counter=state.attack.index===0&&time<state.dodgeUntil;
+    if(state.attack.counter)state.dodgeUntil=0;
+    use(state,'katana');
+    scene.ui.playSound('katana' + (state.attack.index + 1));
+  }
+  if (scene.controls.consumeThrow() && !state.attack && !state.dash && !state.throw && !state.charging && !state.special) {
+    const triple=state.charges===3 && tier(scene,'shuriken')>=3;
+    if(spendCharge(state,time,recharge)){
+      if(triple)state.charges=0;
+      state.throw = { direction, since: time, released: false, triple };
+      use(state,'shuriken');
+    }
   }
   if (state.throw) {
     scene.player.setFlipX(state.throw.direction < 0);
     if (!state.throw.released && time - state.throw.since >= SHURIKEN.release) {
       state.throw.released = true;
       releaseShuriken(scene, state.throw.direction);
+      if(state.throw.triple){
+        releaseShuriken(scene,state.throw.direction,-12);
+        releaseShuriken(scene,state.throw.direction,9);
+      }
       scene.ui.playSound('shuriken');
     }
   }
   if (state.attack) {
     const strike = state.attack;
-    const spec = KATANA[strike.index];
+    const base=KATANA[strike.index];
+    const spec=strike.sprint||strike.counter ? {...base,w:base.w+6,damage:base.damage+4} :
+      strike.index===2&&tier(scene,'katana')>=3 ? {...base,damage:24} : base;
     const age = time - strike.since;
     scene.player.setFlipX(strike.direction < 0);
     if (age >= spec.open && age < spec.close) attack(scene, strike, spec, hitBoss);
   }
+  updateSpecial(scene,hitBoss);
   updateShuriken(scene, delta, hitBoss);
+  if(state.dash&&!state.dash.dodged&&scene.projectiles.some(({dot})=>
+    dot.active&&Math.abs(dot.x-scene.player.x)<25&&dot.y<scene.player.y-19&&dot.y>scene.player.y-38)){
+    state.dash.dodged=true;
+    if(time>=(state.nextDodgeAward??0)){
+      state.nextDodgeAward=time+3000;
+      adjustEnergy(state,8);
+    }
+    if(tier(scene,'dash')>=3){
+      state.dodgeUntil=time+450;
+      scene.ui.onShadowFeedback?.('Counter ready');
+    }
+  }
   if (previousCharges !== state.charges) scene.ui.onShadowCharges(state.charges);
+  if (previousEnergy !== state.energy) scene.ui.onShadowEnergy?.(state.energy);
+  scene.ui.onShadowAvailability?.(state, time);
 }

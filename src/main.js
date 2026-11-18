@@ -11,6 +11,9 @@ import { createProgress, ratingFor } from './game/progress.js';
 import { createSound } from './game/sound.js';
 import { PlatformerScene } from './game/platformer-scene.js';
 import { SHADOW_ARENA } from './game/shadow-arena.js';
+import { createShadowSkills } from './game/shadow-skills.js';
+import { setupCombatSettings, setupSkillTree } from './game/shadow-ui.js';
+import { cancelCharge } from './game/shadow-combat.js';
 import './styles.css';
 
 const byId = (id) => document.getElementById(id);
@@ -94,6 +97,13 @@ function readPreferences() {
 }
 
 const preferences = { ...readPreferences() };
+const skills = createShadowSkills(shadowArena ? {getItem(){return null;},setItem(){}} : localStorage);
+for(const [index, level] of LEVELS.entries()){
+  if(progress.record(index)){
+    skills.award('level-'+index);
+    if(level.boss)skills.award('boss-'+index);
+  }
+}
 let mode = 'menu';
 let currentLevel = 0;
 let runMode = 'normal';
@@ -109,6 +119,8 @@ const shadowButton = shadowChoice && document.createElement('button');
 const shadowDebug = shadowArena && document.createElement('output');
 const shadowCharges = byId('shadow-charges');
 const shadowTouchButtons = [];
+let previousDashUnavailable;
+let previousThrowUnavailable;
 
 if (shadowButton) {
   shadowButton.className = 'button shadow-entry';
@@ -125,7 +137,10 @@ if (shadowButton) {
   });
 }
 if (useShadowNinja) {
-  for (const [action, label, display] of [['dash', 'Dash', 'Dash'], ['throw', 'Throw shuriken', '✦']]) {
+  for (const [action, label, display] of [
+    ['dash','Shadow Dash','Dash'], ['throw','Shuriken','✦'], ['sprint','Shadow Sprint','Run'],
+    ['cyclone','Blade Cyclone','Spin'], ['execution','Shadow Execution','Finish'],
+  ]) {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'button touch-button shadow-touch';
@@ -143,18 +158,21 @@ if (shadowDebug) {
   shadowDebug.hidden = true;
   stage.appendChild(shadowDebug);
 }
+const dashTouch = shadowTouchButtons.find(button => button.dataset.action === 'dash');
+const throwTouch = shadowTouchButtons.find(button => button.dataset.action === 'throw');
 
 function shadowHud(active) {
   shadowCharges.hidden = !active;
+  byId('shadow-energy').hidden = !active;
   for (const button of shadowTouchButtons) button.hidden = !active;
   if (shadowDebug) shadowDebug.hidden = !active;
-  byId('help-button').title = active ? 'Move A/D · Jump Space · Katana X · Shuriken Z · Dash C or Shift · Pause Esc' : '';
+  byId('help-button').title = active ? 'Move A/D · Jump Space · Katana X · Shuriken C · Dash Z · Sprint Left Shift · Cyclone V · Execution F' : '';
   const hints = byId('keyboard-hints');
   hints.querySelector('.shadow-hints')?.remove();
   if (active) {
     const details = document.createElement('span');
     details.className = 'shadow-hints';
-    details.innerHTML = '<kbd>Z</kbd> Shuriken <kbd>C</kbd> Dash';
+    details.innerHTML = '<kbd>C</kbd> Shuriken <kbd>Z</kbd> Dash <kbd>⇧</kbd> Sprint <kbd>V</kbd> Cyclone <kbd>F</kbd> Execute';
     hints.append(details);
   }
 }
@@ -382,7 +400,7 @@ function startRun(index) {
   const level = shadowArena && runMode === 'shadow' ? SHADOW_ARENA : challengeLevel(LEVELS[index], runMode);
   shadowHud(shadow);
   shell.dataset.hero = shadow ? 'shadow' : 'legacy';
-  if (shadow) byId('pause-level').dataset.shadow = 'A/D Move · Space Jump · X Katana · Z Shuriken · C Dash';
+  if (shadow) byId('pause-level').dataset.shadow = 'X Katana · C Shuriken · Z Dash · Shift Sprint · V Cyclone · F Execute';
   else delete byId('pause-level').dataset.shadow;
   shell.dataset.mode = runMode;
   shell.dataset.theme = level.theme;
@@ -442,6 +460,7 @@ function requestPlay(index, newAdventure = false, challenge = 'normal') {
 }
 
 function stopForDialog() {
+  cancelCharge(scene);
   controls.clear();
   setMode('paused');
   game.scene.pause('platformer');
@@ -575,7 +594,8 @@ byId('pause-main').addEventListener('click', showMainMenu);
 byId('clear-main').addEventListener('click', showMainMenu);
 byId('victory-main').addEventListener('click', showMainMenu);
 window.addEventListener('keydown', (event) => {
-  if (event.code === 'Escape' && !event.repeat && mode === 'playing') {
+  if (controls.keyFor('pause').includes(event.code) && !event.repeat && mode === 'playing'
+    && !event.ctrlKey&&!event.metaKey&&!event.altKey) {
     event.preventDefault();
     openPause();
   }
@@ -589,7 +609,9 @@ window.addEventListener('keydown', (event) => {
 
 const panel = byId('touch-controls');
 const hapticFeedback = setupTouchSettings(panel, preferences, savePreferences);
-const controls = createControls(panel, () => mode === 'playing', hapticFeedback, () => useShadowNinja);
+const controls = createControls(panel, () => mode === 'playing', hapticFeedback, () => useShadowNinja, preferences);
+setupCombatSettings(preferences,savePreferences,controls.clear);
+setupSkillTree(skills,shadowArena);
 window.matchMedia('(orientation: portrait)').addEventListener('change', controls.clear);
 document.addEventListener('fullscreenchange', controls.clear);
 const maxCoins = LEVELS.reduce((sum, level) => sum + level.coins.length, 0);
@@ -604,6 +626,7 @@ function showChallengeResult(coins, coinTotal, elapsed, deaths, success = true) 
   }
   const record = success && !nextArena
     ? challengeRecords.record(runMode, isRush ? RUSH_LEVELS[0] : currentLevel, elapsed, deaths) : null;
+  if(success&&!nextArena)skills.award('challenge-'+runMode);
   const newOutfit = [...outfit.options].find(option => option.disabled && (
     option.value === 'ember' && runMode === 'hardcore' ||
     option.value === 'frost' && runMode === 'flawless' ||
@@ -629,6 +652,7 @@ function showChallengeResult(coins, coinTotal, elapsed, deaths, success = true) 
 }
 
 const scene = new PlatformerScene(controls, {
+  shadowTier: action => runMode === 'normal' || runMode === 'shadow' ? skills.tier(action) : 0,
   get reduceMotion() { return reduceMotion(); },
   get dangerGuides() { return dangerSetting.checked; },
   get costume() { return outfitKey; },
@@ -637,13 +661,38 @@ const scene = new PlatformerScene(controls, {
     byId('coin-total').textContent = pad(coinTotal);
     showScore(0);
     showTime(0);
-    if (useShadowNinja) this.onShadowCharges(3);
+    if (useShadowNinja) {
+      this.onShadowCharges(3);
+      this.onShadowEnergy(60);
+    }
     if (shadowDebug && runMode === 'shadow') shadowDebug.dataset.dummy = '40/40';
     setMode('playing');
     focusStage();
   },
   onScore: showScore,
   onTime: showTime,
+  onShadowEnergy(value) {
+    byId('energy-meter').value=value;
+    byId('energy-value').textContent=value;
+    byId('shadow-energy').dataset.energy=value;
+    for(const button of shadowTouchButtons){
+      const action=button.dataset.action;
+      if(action==='cyclone'||action==='execution')button.dataset.unready=String(value<(action==='execution'?60:this.shadowTier('cyclone')>=2?24:30));
+    }
+  },
+  onShadowFeedback(message) { showToast(message,'checkpoint'); },
+  onShadowAvailability(state,time) {
+    const dashUnavailable = Boolean(state.dash) || (scene.animationState.grounded ? time < state.groundDashAt : state.airUsed);
+    const throwUnavailable = state.charges === 0;
+    if (dashUnavailable !== previousDashUnavailable) {
+      previousDashUnavailable = dashUnavailable;
+      if (dashTouch) dashTouch.dataset.unready = String(dashUnavailable);
+    }
+    if (throwUnavailable !== previousThrowUnavailable) {
+      previousThrowUnavailable = throwUnavailable;
+      if (throwTouch) throwTouch.dataset.unready = String(throwUnavailable);
+    }
+  },
   onShadowCharges(count) {
     shadowCharges.dataset.charges = count;
     shadowCharges.setAttribute('aria-label', `${count} of 3 Shuriken`);
@@ -654,7 +703,10 @@ const scene = new PlatformerScene(controls, {
     const attack = state.attack;
     const line = `${pose} · ${attack ? `Katana ${attack.index + 1} · ${Math.round(scene.elapsed - attack.since)} ms` :
       state.dash ? `Dash · ${Math.round(scene.elapsed - state.dash.since)} ms` : 'Air Dash ' + (state.airUsed ? 'spent' : 'ready')}` +
-      ` · ${state.charges}/3 shuriken${shadowDebug.dataset.dummy ? ' · Dummy ' + shadowDebug.dataset.dummy : ''}`;
+      ` · ${state.charges}/3 shuriken · ${state.energy} Energy · ${Math.round(game.loop.actualFps)} FPS / ${game.loop.delta.toFixed(1)} ms` +
+      ` · ${state.special?.kind ?? (state.sprint ? 'Sprint' : 'Ready')} · ${scene.animationState.grounded ? 'Grounded' : 'Airborne'}` +
+      (state.lastHit && scene.elapsed - state.lastHit.time < 650 ? ` · ${state.lastHit.heavy ? 'Heavy impact' : 'Impact'} at ${Math.round(state.lastHit.x)}` : '') +
+      (shadowDebug.dataset.dummy ? ' · Dummy ' + shadowDebug.dataset.dummy : '');
     if (shadowDebug.textContent !== line) shadowDebug.textContent = line;
   } : undefined,
   onCheckpoint() { showToast('Checkpoint reached', 'checkpoint'); },
@@ -730,6 +782,8 @@ const scene = new PlatformerScene(controls, {
     byId('clear-title').textContent = 'Level Complete!';
     byId('result-stars').hidden = false;
     const unlocked = progress.finish(currentLevel, count, elapsed, deaths);
+    skills.award('level-'+currentLevel);
+    if(LEVELS[currentLevel].boss)skills.award('boss-'+currentLevel);
     updateLevelSelect();
     const following = LEVELS[currentLevel + 1];
     const canViewVictory = !following && Boolean(progress.totals());

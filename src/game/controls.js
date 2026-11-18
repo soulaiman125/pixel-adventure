@@ -1,94 +1,55 @@
 import { createTouchControls } from './touch-controls.js';
 
-const keysByAction = {
-  left: ['KeyA', 'ArrowLeft'],
-  right: ['KeyD', 'ArrowRight'],
-  jump: ['KeyW', 'ArrowUp', 'Space'],
-  drop: ['KeyS', 'ArrowDown'],
-  attack: ['KeyX', 'KeyJ'],
-  dash: ['ShiftLeft', 'ShiftRight', 'KeyC'],
-  throw: ['KeyZ', 'KeyK'],
+export const DEFAULT_KEYS = {
+  left:['KeyA','ArrowLeft'], right:['KeyD','ArrowRight'], jump:['Space','KeyW','ArrowUp'],
+  drop:['KeyS','ArrowDown'], attack:['KeyX','KeyJ'], throw:['KeyC','KeyK'],
+  dash:['KeyZ'], sprint:['ShiftLeft'], cyclone:['KeyV'], execution:['KeyF'], pause:['Escape'],
 };
-const gameplayKeys = new Set(Object.values(keysByAction).flat());
 
-export function createControls(container, isPlaying, hapticFeedback, shadowEnabled = () => false) {
-  const heldKeys = new Set();
-  let jumpPressed = false;
-  let attackPressed = false;
-  let dashPressed = false;
-  let throwPressed = false;
-  const touch = createTouchControls(container, isPlaying, (action) => {
-    if (action === 'jump') jumpPressed = true;
-    if (action === 'attack') attackPressed = true;
-    if (action === 'dash' && shadowEnabled()) dashPressed = true;
-    if (action === 'throw' && shadowEnabled()) throwPressed = true;
-    if (action !== 'left' && action !== 'right') hapticFeedback();
-  });
-
-  function clear() {
-    heldKeys.clear();
-    touch.clear();
-    jumpPressed = false;
-    attackPressed = false;
-    dashPressed = false;
-    throwPressed = false;
-  }
-
-  function keyboardDown(action) {
-    const keys = keysByAction[action];
-    for (let index = 0; index < keys.length; index++) {
-      if (heldKeys.has(keys[index])) return true;
+export function createControls(container, isPlaying, hapticFeedback, shadowEnabled = () => false, preferences = {}) {
+  const held = new Map();
+  const queued = new Set();
+  let sprintToggle = false;
+  const touch = createTouchControls(container,isPlaying,action=>{
+    queued.add(action);
+    if(action==='sprint' && preferences.sprintToggle) {
+      sprintToggle=!sprintToggle;
+      container.querySelector('[data-action="sprint"]').setAttribute('aria-pressed',String(sprintToggle));
     }
+    if(action!=='left' && action!=='right')hapticFeedback();
+  });
+  function clear(){
+    held.clear(); queued.clear(); touch.clear(); sprintToggle=false;
+    container.querySelector('[data-action="sprint"]')?.setAttribute('aria-pressed','false');
+  }
+  function keyFor(action) {
+    return preferences.keys?.[action] ? [preferences.keys[action]] : DEFAULT_KEYS[action];
+  }
+  function keyboardHeld(action) {
+    for (const value of held.values()) if (value === action) return true;
     return false;
   }
-
-  window.addEventListener('keydown', (event) => {
-    if (!isPlaying() || event.altKey || event.ctrlKey || event.metaKey
-      || document.activeElement?.closest('button, input, select, textarea, a, [contenteditable]')
-      || !gameplayKeys.has(event.code)) return;
-    const dash = keysByAction.dash.includes(event.code);
-    const throwStar = keysByAction.throw.includes(event.code);
-    if ((dash || throwStar) && !shadowEnabled()) return;
+  const consume = action => queued.delete(action);
+  window.addEventListener('keydown',event=>{
+    if(!isPlaying() || event.altKey || event.ctrlKey || event.metaKey ||
+      document.activeElement?.closest('button,input,select,textarea,a,[contenteditable]'))return;
+    const actions=Object.keys(DEFAULT_KEYS).filter(action=>shadowEnabled() || !['throw','dash','sprint','cyclone','execution'].includes(action));
+    const action=actions.find(action=>keyFor(action).includes(event.code));
+    if(!action)return;
     event.preventDefault();
-    if (!event.repeat) {
-      if (keysByAction.jump.includes(event.code) && !keyboardDown('jump')) jumpPressed = true;
-      if (keysByAction.attack.includes(event.code)) attackPressed = true;
-      if (dash && !keyboardDown('dash')) dashPressed = true;
-      if (throwStar && !keyboardDown('throw')) throwPressed = true;
-      heldKeys.add(event.code);
-    }
+    if(event.repeat)return;
+    if(action!=='jump'||!keyboardHeld('jump'))queued.add(action);
+    held.set(event.code,action);
   });
-  window.addEventListener('keyup', (event) => heldKeys.delete(event.code));
-  window.addEventListener('blur', clear);
-  window.addEventListener('pagehide', clear);
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) clear();
-  });
-
+  window.addEventListener('keyup',event=>held.delete(event.code));
+  window.addEventListener('blur',clear);
+  window.addEventListener('pagehide',clear);
+  document.addEventListener('visibilitychange',()=>{if(document.hidden)clear();});
   return {
-    clear,
-    isDown(action) {
-      return keyboardDown(action) || touch.isDown(action);
+    clear,keyFor,consume,
+    isDown(action){
+      return keyboardHeld(action) || (action==='sprint' && preferences.sprintToggle ? sprintToggle : touch.isDown(action));
     },
-    consumeJump() {
-      const pressed = jumpPressed;
-      jumpPressed = false;
-      return pressed;
-    },
-    consumeAttack() {
-      const pressed = attackPressed;
-      attackPressed = false;
-      return pressed;
-    },
-    consumeDash() {
-      const pressed = dashPressed;
-      dashPressed = false;
-      return pressed;
-    },
-    consumeThrow() {
-      const pressed = throwPressed;
-      throwPressed = false;
-      return pressed;
-    },
+    consumeJump:()=>consume('jump'), consumeAttack:()=>consume('attack'), consumeDash:()=>consume('dash'), consumeThrow:()=>consume('throw'),
   };
 }

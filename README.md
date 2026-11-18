@@ -2,7 +2,7 @@
 
 A free pixel-art platformer for browsers and Windows. The campaign has 30 stages across seven worlds, with keyboard and touch controls. This branch contains the private 3.0 release candidate. The links below lead to the public 2.0.0 release.
 
-The private 3.0.0-rc.2 candidate integrates Shadow Ninja throughout the campaign and challenge modes. It includes 17 animated hero states, a buffered three-hit katana combo, three regenerating shuriken charges, ground dash, and one air dash between landings. The original hero remains available for local comparison through `?hero=legacy` in the development server.
+The private 3.0.0-rc.2 candidate integrates Shadow Ninja Combat 2.0 across the campaign and challenge modes. All six abilities are available from Level 1. The hero has 33 hand-authored animation clips and a Shadow Skill Tree with 18 optional upgrades. The development server supports `?hero=legacy` for comparing the original hero.
 
 [Play online](https://pixel-adventure-phi.vercel.app/) · [Download for Windows x64](https://github.com/soulaiman125/pixel-adventure/releases/download/v2.0.0/Pixel-Adventure-Setup-2.0.0-x64.exe) · [Release notes](https://github.com/soulaiman125/pixel-adventure/releases/tag/v2.0.0)
 
@@ -43,20 +43,27 @@ To run the desktop edition from source, run `npm.cmd run build` followed by `npm
 | --- | --- | --- |
 | Move | A / D or Left / Right | Hold an arrow |
 | Jump | W, Up, or Space | Press Jump |
-| Attack | X or J | Tap Attack |
-| Shuriken | Z or K | Tap ✦ |
-| Dash | C or Shift | Tap Dash |
+| Katana Rush / Charged Slash | Tap / hold X or J | Tap / hold Attack |
+| Shuriken | C or K | Tap ✦ |
+| Shadow Dash | Z | Tap Dash |
+| Shadow Sprint | Hold Left Shift | Hold Run or enable toggle in Settings |
+| Blade Cyclone | V | Tap Spin |
+| Shadow Execution | F | Tap Finish |
 | Drop through a ledge | S or Down | Walk off the edge |
-| Pause | Esc or Pause | Tap Pause |
+| Pause | Esc | Tap Pause |
 | Retry checkpoint | R | Pause → Retry Checkpoint |
 
 Hold Jump for height. Stomp enemies or attack at close range while facing them. A frontal hit on an armored guard exposes it for a follow-up. Blinking ledges, outlined targets, and striped ground warn of incoming hazards. Green flags restore you to the last checkpoint with collected coins intact. A checkpoint retry counts as a death. Dodge boss attacks and strike when the health panel says **Attack now!** The finish flag opens when the boss is defeated.
 
-Press Attack again during recovery to queue the rising cut, then the heavy finisher. Shuriken refill one charge every 2.1 seconds. A ground dash that leaves a ledge spends the airborne dash. Walls stop dashes, and hazards remain active throughout them.
+Tap Attack again during recovery to queue the rising slash and heavy finisher. A hold starts with an immediate slash and begins charging after 320 ms. Release to send a short-range wave, or keep holding to release it automatically at 900 ms. Damage and pause cancel a pending charge. Shuriken refill one charge every 2.1 seconds before upgrades. A ground dash that leaves a ledge spends the airborne dash. Walls stop dashes and hazards can hit during a dash. Sprint boosts ground speed by 30% and keeps the normal jump height and airborne speed. Settings supports keyboard remapping.
+
+Blade Cyclone costs 30 Shadow Energy and hits in two timed arcs. Shadow Execution costs 60 and requires a nearby exposed target with a clear path. It uses the normal collision system for its approach and respects boss openings. Each stage starts with 60 Energy. Confirmed hits and occasional close projectile dodges can refill it. A checkpoint respawn clears Energy and preserves collected coins.
 
 ## Progress
 
 Finish a level to unlock the next. Each coin earns 100 points. A finish earns one star, at least half the coins earns two, and collecting every coin earns three. Level Select keeps the best coin count, star rating, and completion time for each stage. Clear a stage without dying to earn a **No deaths** badge. Active runs reset on restart, while saved records and access are retained.
+
+First time stage clears, boss clears, and challenge wins award Shadow Points. **Shadow Skill Tree** on the main menu shows all six upgrade tracks and their costs. A confirmed reset refunds the points. The skill save is versioned separately and existing cleared stages are credited when the game first reads them.
 
 Verdant Hills remains Level 1, Sunset Canyon is Level 5, and Crystal Peaks is Level 11. Earlier browser saves preserve access and records for those same stages. An existing Hollow Crown clear unlocks Level 21. A fresh adventure resets current campaign totals and preserves best records and unlocks. Final victory requires completing all 30 stages and defeating the Thunder Titan.
 
@@ -64,7 +71,7 @@ Settings stores separate music and effects volumes, mute, reduced motion, and ex
 
 ### Challenges
 
-Use **Challenges** from the main menu. Runs use a separate local save and retain the campaign's stage unlocks and results.
+Use **Challenges** from the main menu. Runs use a separate local save and retain campaign unlocks and results. Challenge modes use the six base abilities and fixed loadouts so purchased upgrades cannot change records.
 
 | Mode | Access and rules |
 | --- | --- |
@@ -80,7 +87,11 @@ Clear Hardcore to earn Ember, No-Death to earn Frost, and Nightmare or Boss Rush
 
 Hold an arrow with one thumb and tap Jump or Attack with the other. Slide directly between the arrows to change direction. Sliding off both arrows releases movement. Hold Jump for more height. Landscape gives you a wider view, and portrait remains playable.
 
-Open **Settings** from the main menu or pause screen to change button size, opacity, or handedness. Haptics and fullscreen appear when the browser supports them. Preferences are saved per browser or app.
+Open **Settings** from the main menu or pause screen to change button size, opacity, handedness, or sprint behavior. Haptics and fullscreen appear when the browser supports them. Preferences are saved per browser or app.
+
+### Private training arena
+
+Open [Shadow Training Hall](http://127.0.0.1:5173/?shadow=arena) with the development server running. It includes enemies, a training boss, a collision corridor, an active laser, and an isolated skill profile. The debug overlay shows active frames, hitboxes, timing, and impacts. The production build omits the training entry point.
 
 ## Verification
 
@@ -90,13 +101,14 @@ npm.cmd run test:browser
 npm.cmd run test:touch
 npm.cmd run test:campaign
 npm.cmd run test:ninja
+npm.cmd run test:performance
 npm.cmd run build
 npm.cmd run test:desktop
 ```
 
-Run the browser suites with the development server running and Microsoft Edge installed. The browser smoke suite verifies scene loads and completion triggers with controlled player placement, plus real input for selected movement, combat, and touch checks. The separate `test:campaign` runner clears stages through keyboard inputs, checks each boss phase, and verifies the final Victory totals. `test:ninja` checks the training arena, combo, charges, dash and touch behavior and exports review media. The touch suite uses browser emulation for simultaneous input, cancellation, pause and restart, focus changes, and phone layouts. The Node suite checks jump routes, save migration, unlocks, hazard collisions, enemy and boss behavior, and the audio mixer. The desktop suite uses a temporary profile, samples offline audio, opens all 30 stages with networking disabled, and checks save persistence after relaunch.
+Run the browser suites with the development server running and Microsoft Edge installed. The browser smoke suite verifies scene loads and completion triggers with controlled player placement, plus real input for selected movement, combat, and touch checks. The separate `test:campaign` runner clears stages through keyboard inputs, checks each boss phase, and verifies the final Victory totals. `test:ninja` exercises combat, upgrades, remapping, touch inputs and the training arena. Install FFmpeg for its review-video exports. The desktop suite uses a temporary profile, samples offline audio, opens all 30 stages with networking disabled, and checks save persistence after relaunch.
 
-Use `PIXEL_TEST_URL` to select a candidate server, `PIXEL_REPORT` for campaign evidence, and `PIXEL_REVIEW_DIR` for screenshots and benchmark output. The performance runner compares a prototype server at `PIXEL_BASELINE_URL` with the candidate server. See [the candidate QA report](docs/v3-candidate-qa.md) for measured results and limitations.
+Use `PIXEL_TEST_URL` to select a candidate server, `PIXEL_REPORT` for campaign evidence, and `PIXEL_REVIEW_DIR` for screenshots and benchmark output. The performance runner compares a previous build at `PIXEL_BASELINE_URL` with the candidate server. Set `PIXEL_EXECUTION_BENCH=1` to measure the finisher separately. See [the Combat 2.0 QA report](docs/combat-2-qa.md) for measured results, methods, and limitations.
 
 ## Credits
 

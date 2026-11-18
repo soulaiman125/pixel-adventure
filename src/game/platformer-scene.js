@@ -12,7 +12,8 @@ import { monsters } from './monster-ai.js';
 import { isCheckpoint } from './challenges.js';
 import { createPrototypeActors } from './prototype-actors.js';
 import { createTitanHall, createValley, isVerdantPrototype, valleyObjects, valleyProps, valleySurface } from './prototype-world.js';
-import { clearShadow, createShadow, updateDash } from './shadow-combat.js';
+import { clearShadow, createShadow, specialMovement, updateDash } from './shadow-combat.js';
+import { SPRINT_SPEED } from './combat-techniques.js';
 import { createShadowPresentation } from './shadow-presentation.js';
 import { campaignSurface, createCampaignActors } from './campaign-art.js';
 import { createCampaignBackdrop } from './campaign-backdrop.js';
@@ -413,7 +414,7 @@ export class PlatformerScene extends Phaser.Scene {
       this.groundedUntil = -Infinity;
       player.setVelocityY(45);
     }
-    if (time <= this.jumpUntil && time <= this.groundedUntil) {
+    if (time <= this.jumpUntil && time <= this.groundedUntil && this.ninja?.special?.kind!=='execution') {
       player.setVelocityY(-JUMP_SPEED);
       this.jumpUntil = -Infinity;
       this.groundedUntil = -Infinity;
@@ -433,8 +434,32 @@ export class PlatformerScene extends Phaser.Scene {
     const wind = !grounded && this.windZones.find(([left, right]) => player.x >= left && player.x <= right);
     const dashing = this.ninja && updateDash(this, grounded && body.velocity.y >= 0 && time >= this.dropUntil, direction);
     if (!dashing) {
-      player.setAccelerationX(direction * (onIce ? 540 : 880) + (wind ? wind[2] : 0)).setDragX(onIce ? 300 : 1250);
-      if (direction !== 0 && !this.ninja?.attack && !this.ninja?.throw) player.setFlipX(direction < 0);
+      const state=this.ninja;
+      const sprint=state && grounded && body.velocity.y>=0 && direction!==0 && this.controls.isDown('sprint') && !state.special;
+      const sprintTier=this.ui.shadowTier?.('sprint')??0;
+      if(state){
+        if(sprint&&!state.sprint){
+          state.sprintSince=time;
+          state.uses.sprint=(state.uses.sprint??0)+1;
+        }
+        if(state.sprint&&!sprint)state.sprintStop=time;
+        state.sprint=sprint;
+        if(sprint&&!this.ui.reduceMotion&&time>=(state.nextDust??0)){
+          this.dust(player.x,player.y);
+          state.nextDust=time+100;
+        }
+      }
+      const cap=sprint?SPRINT_SPEED:MOVE_SPEED;
+      body.maxVelocity.x=cap;
+      // Sprint does not carry extra horizontal reach into jumps.
+      if(!grounded || body.velocity.y<0)body.velocity.x=Math.max(-cap,Math.min(cap,body.velocity.x));
+      const turning = sprint && Math.sign(body.velocity.x) === -direction;
+      const braking = grounded && time - (state?.sprintStop ?? -Infinity) < 135;
+      const accel = sprint ? sprintTier >= 2 && turning ? 1810 : sprintTier >= 1 ? 1450 : 1140 : onIce ? 540 : 880;
+      const drag = sprintTier >= 2 && braking ? 1520 : onIce ? 300 : 1250;
+      const motion=state?specialMovement(this,direction,grounded):direction;
+      player.setAccelerationX(motion*accel+(wind?wind[2]:0)).setDragX(drag);
+      if(direction!==0&&!state?.attack&&!state?.throw&&!state?.special&&!state?.charging)player.setFlipX(direction<0);
     }
     const visual = this.animationState;
     visual.time = time;

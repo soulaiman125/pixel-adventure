@@ -136,7 +136,7 @@ export default async ({ level, bridges, timeout, dash = false }) => {
         bossPatterns: [...stats.bossPatterns],
         projectiles: [...stats.projectiles],
         enemyTypes: [...stats.enemyTypes],
-        dashStarts,
+        dashStarts, abilities:{...s.ninja?.uses},
         events,
       });
     }
@@ -491,8 +491,8 @@ export default async ({ level, bridges, timeout, dash = false }) => {
             !s.ninja?.attack &&
             time - lastDash > 1000
           ) {
-            input("KeyC", true);
-            input("KeyC", false);
+            input("KeyZ", true);
+            input("KeyZ", false);
             lastDash = time;
           }
         }

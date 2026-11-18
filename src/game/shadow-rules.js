@@ -16,16 +16,16 @@ export function intersects(a, b) {
   return a.left <= b.right && a.right >= b.left && a.top <= b.bottom && a.bottom >= b.top;
 }
 
-export function spendCharge(state, now) {
+export function spendCharge(state, now, recharge = SHURIKEN.recharge) {
   if (!state.charges) return false;
-  if (state.charges-- === SHURIKEN.capacity) state.rechargeAt = now + SHURIKEN.recharge;
+  if (state.charges-- === SHURIKEN.capacity) state.rechargeAt = now + recharge;
   return true;
 }
 
-export function refill(state, now) {
+export function refill(state, now, recharge = SHURIKEN.recharge) {
   while (state.charges < SHURIKEN.capacity && now >= state.rechargeAt) {
     state.charges++;
-    state.rechargeAt += SHURIKEN.recharge;
+    state.rechargeAt += recharge;
   }
 }
 
@@ -33,7 +33,7 @@ export function startStrike(state, now, direction, index = 0) {
   state.attack = { index, since: now, direction, queued: false, hit: new Set() };
 }
 
-export function stepStrike(state, now, pressed, direction, canStart) {
+export function stepStrike(state, now, pressed, direction, canStart, bufferBonus = 0) {
   const strike = state.attack;
   if (!strike) {
     if (pressed && canStart) startStrike(state, now, direction);
@@ -41,7 +41,7 @@ export function stepStrike(state, now, pressed, direction, canStart) {
   }
   const spec = KATANA[strike.index];
   const age = now - strike.since;
-  if (pressed && strike.index < 2 && age >= spec.buffer && age < spec.duration) strike.queued = true;
+  if (pressed && strike.index < 2 && age >= spec.buffer - bufferBonus && age < spec.duration) strike.queued = true;
   if (age < spec.duration) return;
   state.attack = null;
   if (strike.queued) startStrike(state, now, direction, strike.index + 1);
@@ -49,7 +49,8 @@ export function stepStrike(state, now, pressed, direction, canStart) {
 }
 
 export function canDash(state, time, grounded) {
-  return !state.dash && !state.attack && !state.throw && (grounded ? time >= state.groundDashAt : !state.airUsed);
+  return !state.dash && !state.attack && !state.throw && !state.special && !state.charging
+    && (grounded ? time >= state.groundDashAt : !state.airUsed);
 }
 
 // Fraction along a rightward or leftward horizontal segment, including projectile radius.

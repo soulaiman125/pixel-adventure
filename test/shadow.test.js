@@ -5,8 +5,8 @@ import { shadowFrames } from '../src/game/shadow-art.js';
 import { updateDash, updateShadowCombat } from '../src/game/shadow-combat.js';
 import { updateCombat } from '../src/game/combat.js';
 
-test('Shadow Ninja has 17 authored pose sets with consistent integer anchors', () => {
-  assert.equal(Object.keys(shadowFrames).length, 17);
+test('Shadow Ninja has 33 authored pose sets with consistent integer anchors', () => {
+  assert.equal(Object.keys(shadowFrames).length, 33);
   for (const frames of Object.values(shadowFrames)) {
     assert(frames.length > 2);
     assert(frames.every(({ hips, chest, head }) => [...hips, ...chest, ...head].every(Number.isInteger)));
@@ -161,7 +161,7 @@ test('an armored guard resumes its patrol after ninja hit recovery', () => {
   const scene={elapsed:300,ninja:{charges:3,attack:null,throw:null,projectiles:[]},
     player:{x:30,y:184,flipX:false},controls:{consumeAttack:()=>false,consumeThrow:()=>false,isDown:()=>false},
     enemies:{getChildren:()=>[enemy],children:{iterate(fn){fn(enemy);}}},
-    projectiles:[],attackEffect:{clear(){}},boss:null};
+    projectiles:[],attackEffect:{clear(){}},boss:null,ui:{}};
   updateCombat(scene,16);
   assert.equal(enemy.body.velocity.x,32);
 });

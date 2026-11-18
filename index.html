@@ -56,6 +56,10 @@
           <div class="shadow-loadout" id="shadow-charges" aria-label="3 of 3 Shuriken" hidden>
             <svg aria-hidden="true"><use href="#star"/></svg><svg aria-hidden="true"><use href="#star"/></svg><svg aria-hidden="true"><use href="#star"/></svg>
           </div>
+          <div id="shadow-energy" class="shadow-energy" hidden>
+            <label for="energy-meter">Shadow <output id="energy-value">60</output></label>
+            <meter id="energy-meter" min="0" max="100" value="60">60 / 100</meter>
+          </div>
           <p class="loading-label" id="loading-label" role="status" hidden>Loading level…</p>
           <section class="menu" id="main-menu" aria-labelledby="menu-title">
             <div class="menu-content">
@@ -65,6 +69,7 @@
                 <button class="button button-primary" id="play-game" type="button"><svg aria-hidden="true"><use href="#play"/></svg>Play Game<svg class="trailing arrow-right" aria-hidden="true"><use href="#arrow"/></svg></button>
                 <button class="button" id="level-select" type="button"><svg aria-hidden="true"><use href="#levels"/></svg>Level Select</button>
                 <button class="button" id="settings-button" type="button"><svg aria-hidden="true"><use href="#settings"/></svg>Settings</button>
+                <button class="button" id="skill-tree" type="button">✦ Shadow Skills</button>
                 <button class="button mode-entry" id="challenge-button" type="button"><svg aria-hidden="true"><use href="#star"/></svg>Challenges</button>
               </nav>
               <div class="menu-release-links" id="menu-release-links" hidden>
@@ -139,6 +144,13 @@
           <label class="setting"><strong>Button size</strong><select id="touch-size"><option value="small">Small</option><option value="medium" selected>Medium</option><option value="large">Large</option></select></label>
           <div class="setting volume-setting"><label for="touch-opacity"><strong>Button opacity</strong><small id="touch-opacity-value">100%</small></label><input id="touch-opacity" type="range" min="50" max="100" value="100" step="5"></div>
           <label class="setting"><strong>Left-handed layout</strong><input id="touch-left-handed" type="checkbox" role="switch"></label>
+          <label class="setting"><strong>Toggle sprint on touch</strong><input id="sprint-toggle" type="checkbox" role="switch"></label>
+          <details class="binding-settings">
+            <summary>Keyboard controls</summary>
+            <div id="combat-bindings"></div>
+            <p id="binding-status" role="status"></p>
+            <button id="reset-bindings" class="button" type="button">Restore default keys</button>
+          </details>
           <label class="setting" id="touch-haptics-setting" hidden><strong>Haptic feedback</strong><input id="touch-haptics" type="checkbox" role="switch"></label>
           <button class="button full-width" type="button" id="fullscreen" hidden>Enter Fullscreen</button>
           <p id="fullscreen-status" role="status" hidden></p>
@@ -158,13 +170,28 @@
           <div><dt>Jump</dt><dd><kbd>W</kbd>, <kbd>↑</kbd>, or <kbd>Space</kbd>. Hold for a higher jump.</dd></div>
           <div><dt>Drop</dt><dd><kbd>S</kbd> or <kbd>↓</kbd> through floating platforms.</dd></div>
           <div><dt>Katana</dt><dd><kbd>X</kbd> or <kbd>J</kbd>, or tap Attack. Chain two quick cuts into a heavy finisher by pressing again during recovery.</dd></div>
-          <div><dt>Shuriken</dt><dd><kbd>Z</kbd> or <kbd>K</kbd>, or tap ✦. Three charges refill over time. Boss guards block throws.</dd></div>
-          <div><dt>Dash</dt><dd><kbd>C</kbd> or <kbd>Shift</kbd>, or tap Dash. One air dash per landing. Hazards still hurt.</dd></div>
+          <div><dt>Charge</dt><dd>Hold <kbd>X</kbd> beyond the first cut, then release to send a sword wave.</dd></div>
+          <div><dt>Shuriken</dt><dd><kbd>C</kbd> or tap ✦. Three charges refill over time.</dd></div>
+          <div><dt>Dash</dt><dd><kbd>Z</kbd>. One air dash per landing. Hazards still hurt.</dd></div>
+          <div><dt>Sprint</dt><dd>Hold <kbd>Left Shift</kbd> to run faster on the ground.</dd></div>
+          <div><dt>Techniques</dt><dd><kbd>V</kbd> Cyclone costs 30 Energy. <kbd>F</kbd> Execution costs 60 and needs an exposed target.</dd></div>
           <div><dt>Retry</dt><dd><kbd>R</kbd> or Retry Checkpoint in Pause. Keeps coins and counts as a death.</dd></div>
           <div><dt>Touch</dt><dd>Hold an arrow to move. Press Jump with your other thumb.</dd></div>
         </dl>
         <p>Stomp slimes from above. Falls and side hits send you to the latest checkpoint with your coins.</p>
         <button class="button button-primary full-width" id="tutorial-done" type="button" autofocus>Start Level</button>
+      </div>
+    </dialog>
+
+    <dialog id="skills-dialog" aria-labelledby="skills-title">
+      <div class="dialog-body">
+        <button class="button icon-button dialog-close" type="button" data-close aria-label="Close Shadow Skills">×</button>
+        <h2 id="skills-title">Shadow Skills</h2>
+        <p><strong id="skill-points">0</strong> Shadow Points available</p>
+        <p>Earn points from first clears, bosses and challenge milestones. Challenge runs use the base loadout.</p>
+        <div id="skill-grid" class="skill-grid"></div>
+        <button type="button" id="reset-skills" class="button">Refund upgrades…</button>
+        <button type="button" id="confirm-skills" class="button" hidden>Confirm refund</button>
       </div>
     </dialog>
 

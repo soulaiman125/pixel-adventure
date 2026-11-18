@@ -1,6 +1,7 @@
 import { clipFrame } from "./prototype-sprites.js";
-import { loadShadowArt, shadowClips } from "./shadow-art.js";
+import { loadShadowArt, shadowClips, shadowFrames } from "./shadow-art.js";
 import { DASH, KATANA, SHURIKEN, strikeBox } from "./shadow-rules.js";
+import { activeWindows, SPECIALS } from "./combat-techniques.js";
 
 const SIZE = 0.62;
 const poses = {
@@ -20,7 +21,28 @@ const clips = {
   land: 138,
   respawn: 440,
   victory: 730,
+  sprintStart: 160, sprintLoop: 185, sprintStop: 135,
+  chargePrep: 480, chargeRelease: 390, airSlash: 182,
+  cycloneStart: 128, cycloneSpin: 190, cycloneEnd: 172,
+  executionPrep: 112, executionRush: 255, executionFinal: 109, executionEnd: 134,
 };
+
+function techniquePose(state, now) {
+  if(state.charging)return ['chargePrep',now-state.charging.since-320];
+  const action=state.special;
+  if(!action)return null;
+  const age=now-action.since;
+  if(action.kind==='charged')return ['chargeRelease',age];
+  if(action.kind==='cyclone'){
+    if(age<128)return ['cycloneStart',age];
+    if(age<318)return ['cycloneSpin',age-128];
+    return ['cycloneEnd',age-318];
+  }
+  if(age<112)return ['executionPrep',age];
+  if(age<367)return ['executionRush',age-112];
+  if(age<476)return ['executionFinal',age-367];
+  return ['executionEnd',age-476];
+}
 
 export function createShadowPresentation(scene) {
   let costume = scene.ui.costume;
@@ -34,6 +56,7 @@ export function createShadowPresentation(scene) {
   }
   const hero = sprite(4.35);
   const echo = sprite(4.2).setVisible(false);
+  const hitboxes = scene.ui.onShadowStatus && scene.add.graphics().setDepth(9);
   const trail = Array.from({ length: 3 }, () => ({
     image: sprite(4.1).setVisible(false),
     time: -Infinity,
@@ -75,18 +98,26 @@ export function createShadowPresentation(scene) {
       const grounded = scene.animationState.grounded;
       player.setVisible(false);
       let name = poses[scene.visualPose] ?? scene.visualPose;
+      const technique=techniquePose(state,now);
       if (name === "hurt" || name === "respawn") name = "idle";
       if (scene.complete) name = "victory";
       else if (state.dash) name = state.dash.air ? "dashAir" : "dashGround";
-      else if (state.attack) name = KATANA[state.attack.index].pose;
+      else if (technique) name=technique[0];
+      else if (state.attack) {
+        const {air,sprint,counter,index,since,queued}=state.attack;
+        name=counter?'dodgeCounter':sprint?'sprintAttack':air&&index===0?'airSlash':
+          queued&&now-since>=KATANA[index].duration-45?'comboLink':KATANA[index].pose;
+      }
       else if (state.throw) name = "throw";
       else if (now < afterDeath) name = "respawn";
+      else if (state.sprint) name=now-state.sprintSince<160?'sprintStart':'sprintLoop';
+      else if (grounded&&now-(state.sprintStop??-Infinity)<135) name='sprintStop';
       else if (grounded && now < scene.landUntil) name = "land";
       if (name !== lastPose) {
         lastPose = name;
         started = now;
       }
-      if (name === "run") runDistance += Math.min(travel, 8);
+      if (name === "run" || name==='sprintLoop') runDistance += Math.min(travel, 8);
       if (name === "victory") victoryAt ??= clock;
       const spec = state.attack && KATANA[state.attack.index];
       const age =
@@ -103,7 +134,7 @@ export function createShadowPresentation(scene) {
         clips[name] ??
         spec?.duration ??
         (state.dash ? DASH.duration : SHURIKEN.duration);
-      const looping = name === "idle" || name === "run";
+      const looping = name === "idle" || name === "run" || name==='sprintLoop';
       const impactAge =
         spec && state.lastHit ? state.lastHit.time - state.attack.since : -1;
       const holdStrike =
@@ -116,6 +147,9 @@ export function createShadowPresentation(scene) {
       const anchoredAge =
         reduced && name === "idle"
           ? 0
+          : name==='sprintLoop' ? runDistance*clips.sprintLoop/32
+          : technique ? technique[1]
+          : name==='comboLink' ? Math.max(0,age-(spec.duration-45))
           : name === "run"
             ? (runDistance * clips.run) / 32
             : holdStrike
@@ -136,7 +170,8 @@ export function createShadowPresentation(scene) {
         .setPosition(Math.round(player.x), Math.round(player.y))
         .setFlipX(player.flipX);
 
-      if (state.dash && !reduced && now - lastTrail >= 35) {
+      if ((state.dash || state.special?.kind==='execution' && now-state.special.since>=56 &&
+        now-state.special.since<360) && !reduced && now - lastTrail >= 35) {
         const ghost = trail[cursor++ % trail.length];
         ghost.time = now;
         lastTrail = now;
@@ -167,48 +202,61 @@ export function createShadowPresentation(scene) {
             )
             .setAlpha(age < 282 ? 1 : (408 - age) / 126);
       }
-      paintEffects(scene);
-      scene.ui.onShadowStatus?.(name, state);
+      paintEffects(scene,hero,name);
+      if (hitboxes) {
+        hitboxes.clear();
+        const { attack, special, projectiles } = state;
+        if (attack) {
+          const attackSpec = KATANA[attack.index];
+          const age = now - attack.since;
+          if (age >= attackSpec.open && age < attackSpec.close) {
+            const reach = attack.sprint || attack.counter ? { ...attackSpec, w:attackSpec.w + 6 } : attackSpec;
+            const box = strikeBox(reach, player.x, player.y, attack.direction);
+            hitboxes.lineStyle(1, 0x64e5ff, .85)
+              .strokeRect(box.left, box.top, box.right - box.left, box.bottom - box.top);
+          }
+        }
+        if (special && !special.interrupted && special.kind !== 'charged' && activeWindows(special, now).length) {
+          const radius = special.kind === 'execution' ? 48 : 30 + (scene.ui.shadowTier('cyclone') ? 6 : 0);
+          hitboxes.lineStyle(1, 0xfcbedd, .85).strokeCircle(player.x, player.y - 14, radius);
+        }
+        for (const shot of projectiles) {
+          if (shot.active) hitboxes.lineStyle(1, 0xfdd29a, .85).strokeCircle(shot.x, shot.y, shot.kind === 'charged' ? 5 : 3);
+        }
+        scene.ui.onShadowStatus(name, state);
+      }
     },
   };
 }
 
-function paintEffects(scene) {
+function paintEffects(scene,hero,pose) {
   const { attack, effect, spark, lastHit } = scene.ninja;
   const now = scene.elapsed;
   const reduced = scene.ui.reduceMotion;
   if (effect.commandBuffer.length) effect.clear();
-  if (attack) {
-    const spec = KATANA[attack.index];
-    const age = now - attack.since;
-    if (age >= spec.open && age < spec.close) {
-      const { x, y } = scene.player;
-      const d = attack.direction;
-      const bounds = strikeBox(spec, x, y, d);
-      const reach = spec.x + spec.w;
-      const tail = x + d * spec.x;
-      const tip = x + d * reach;
-      const mid = bounds.top + spec.h / 2;
-      const upper = attack.index === 1 ? bounds.top : mid - 3;
-      const lower = attack.index === 2 ? bounds.bottom : mid + 3;
-      effect
-        .fillStyle(attack.index === 2 ? 0xff8f82 : 0x6bb4d6, 0.72)
-        .fillTriangle(
-          tail,
-          lower,
-          tip,
-          upper,
-          x + d * (reach - 6),
-          bounds.bottom,
-        );
-      effect
-        .fillStyle(0xfff2d1, 0.94)
-        .fillTriangle(tail + d * 3, mid, tip, upper, tip - d * 3, mid + 2);
-      if (!reduced) {
-        effect.fillStyle(0xb9e8fa, 0.6).fillRect(tip - 2, upper, 2, 2);
-        if (attack.index === 2)
-          effect.fillRect(tip - d * 6, bounds.bottom - 1, 3, 1);
-      }
+  const {special,charging}=scene.ninja;
+  if(charging) {
+    effect.fillStyle(0xeb92ba,.85).fillRect(hero.x-12,hero.y-4,
+      Math.min(24,(now-charging.since-320)/20),2);
+  }
+  const swing=attack && now-attack.since>=KATANA[attack.index].open && now-attack.since<KATANA[attack.index].close;
+  const phase = special && now - special.since;
+  const tracing = special && !special.interrupted &&
+    SPECIALS[special.kind].windows.some(([open, close]) => phase >= open && phase < close);
+  if(swing || tracing){
+    const frame=Number(hero.frame.name.slice(pose.length));
+    const frames=shadowFrames[pose];
+    const current=frames?.[frame],previous=frames?.[Math.max(0,frame-1)];
+    if(current?.blade&&previous?.blade){
+      const side=hero.flipX?-1:1;
+      const x=value=>hero.x+(value-32)*SIZE*side;
+      const y=value=>hero.y+(value-74)*SIZE;
+      const heavy = attack?.index === 2 || pose === 'executionFinal';
+      effect.fillStyle(special || heavy ? 0xef7498 : 0xaedfed,.65);
+      effect.fillTriangle(x(current.hand[0]),y(current.hand[1]),x(previous.blade[0]),y(previous.blade[1]),x(current.blade[0]),y(current.blade[1]));
+      effect.lineStyle(1,0xffecd1,.92).lineBetween(x(current.hand[0]),y(current.hand[1]),x(current.blade[0]),y(current.blade[1]));
+      if (!reduced) effect.fillStyle(0xd9f1fa, .75)
+        .fillRect(Math.round(x(current.blade[0])) - 1, Math.round(y(current.blade[1])), heavy ? 3 : 2, 1);
     }
   }
   if (spark.commandBuffer.length) spark.clear();

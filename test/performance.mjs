@@ -8,21 +8,13 @@ const browser = await chromium.launch({
 });
 const results = [];
 const versions = {
-  prototype: process.env.PIXEL_BASELINE_URL || "http://127.0.0.1:4193/",
-  candidate: process.env.PIXEL_TEST_URL || "http://127.0.0.1:4196/",
+  prototype: process.env.PIXEL_BASELINE_URL || "http://127.0.0.1:4196/",
+  candidate: process.env.PIXEL_TEST_URL || "http://127.0.0.1:4200/",
 };
 const outputDirectory = resolve(process.env.PIXEL_REVIEW_DIR || "artifacts/ninja-review");
 await mkdir(outputDirectory, {recursive:true});
 const report = resolve(outputDirectory, "performance.json");
-async function benchmark(label, options, rate, version, stage) {
-  const page = await browser.newPage(options);
-  const errors = [];
-  page.on("pageerror", (error) => errors.push(error.message));
-  page.on("response", (response) => {
-    if (response.status() >= 400) errors.push(response.url());
-  });
-  const cdp = await page.context().newCDPSession(page);
-  if (rate > 1) await cdp.send("Emulation.setCPUThrottlingRate", { rate });
+async function exposeScene(page) {
   await page.route(
     (url) => /\/assets\/index-[\w-]+\.js$/.test(url.pathname),
     async (route) => {
@@ -38,6 +30,15 @@ async function benchmark(label, options, rate, version, stage) {
       });
     },
   );
+}
+async function benchmark(label, options, rate, version, stage) {
+  const page = await browser.newPage(options);
+  const errors = [];
+  page.on("pageerror", error => errors.push(error.message));
+  page.on("response", response => { if (response.status() >= 400) errors.push(response.url()); });
+  const cdp = await page.context().newCDPSession(page);
+  if (rate > 1) await cdp.send("Emulation.setCPUThrottlingRate", { rate });
+  await exposeScene(page);
   await page.addInitScript(() => {
     localStorage.setItem(
       "pixel-adventure.preferences",
@@ -48,14 +49,12 @@ async function benchmark(label, options, rate, version, stage) {
       '{"version":2,"unlocked":30}',
     );
   });
-  const shadow = true;
-  await page.goto(versions[version] + "?shadow=" + (stage + 1));
+  const dashKey = version === "candidate" ? "KeyZ" : "KeyC";
+  const throwKey = version === "candidate" ? "KeyC" : "KeyZ";
+  await page.goto(versions[version]);
   await page.locator("canvas").waitFor();
-  if (version === "prototype") await page.locator("#shadow-play").click();
-  else {
-    await page.locator("#level-select").click();
-    await page.locator('[data-level="' + stage + '"]').click();
-  }
+  await page.locator("#level-select").click();
+  await page.locator('[data-level="' + stage + '"]').click();
   await page.waitForFunction(() => qaScene?.player?.body?.blocked.down);
   if (stage === 29)
     await page.evaluate(() => {
@@ -132,9 +131,13 @@ async function benchmark(label, options, rate, version, stage) {
           if (time - start < 4800) requestAnimationFrame(frame);
           else {
             intervals.sort((a, b) => a - b);
+            const percentile = fraction => intervals[Math.floor((intervals.length - 1) * fraction)];
             resolve({
               fps: +((intervals.length * 1000) / (time - start)).toFixed(1),
-              p95: +intervals[Math.floor(intervals.length * 0.95)].toFixed(1),
+              medianFps: +(1000 / percentile(0.5)).toFixed(1),
+              p95: +percentile(0.95).toFixed(1),
+              p99: +percentile(0.99).toFixed(1),
+              lowFps: +(1000 / percentile(0.99)).toFixed(1),
               long: intervals.filter((x) => x >= 50).length,
             });
           }
@@ -150,10 +153,8 @@ async function benchmark(label, options, rate, version, stage) {
   await page.keyboard.down("KeyD");
   for (let i = 0; i < 3; i++) {
     await page.keyboard.press("Space", { delay: 255 });
-    if (shadow) {
-      await page.keyboard.press(i % 2 ? "KeyZ" : "KeyC");
-      await page.waitForTimeout(140);
-    } else await page.waitForTimeout(140);
+    await page.keyboard.press(i % 2 ? throwKey : dashKey);
+    await page.waitForTimeout(140);
     await page.keyboard.press("KeyX");
     await page.waitForTimeout(140);
   }
@@ -178,7 +179,7 @@ async function benchmark(label, options, rate, version, stage) {
     };
   });
   assert(Number.isFinite(runtime.inputMs));
-  if (shadow && rate === 1 && stage === 0) {
+  if (label === "desktop" && stage === 0) {
     await page.evaluate(
       () => (window.originalAtlas = qaScene.textures.get("shadow-ninja")),
     );
@@ -186,9 +187,7 @@ async function benchmark(label, options, rate, version, stage) {
     for (let i = 0; i < 3; i++) {
       await page.locator("#pause-button").click();
       await page.locator("#pause-main").click();
-      await page
-        .locator(version === "prototype" ? "#shadow-play" : "#play-game")
-        .click();
+      await page.locator("#play-game").click();
       await page.waitForFunction(
         () => qaScene.sys.isActive() && qaScene.player.body.blocked.down,
       );
@@ -201,7 +200,7 @@ async function benchmark(label, options, rate, version, stage) {
       assert.equal(fresh.shots, 0);
       assert(fresh.sameAtlas);
       counts.push(fresh.objects);
-      await page.keyboard.press("KeyZ");
+      await page.keyboard.press(throwKey);
       await page.waitForFunction(() =>
         qaScene.ninja.projectiles.some((shot) => shot.active),
       );
@@ -222,19 +221,77 @@ async function benchmark(label, options, rate, version, stage) {
   console.log(JSON.stringify(results.at(-1)));
   await writeFile(report, JSON.stringify(results, null, 2));
 }
+
+async function benchmarkExecution() {
+  const page = await browser.newPage({ viewport:{ width:839, height:393 }, isMobile:true, hasTouch:true });
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Emulation.setCPUThrottlingRate", { rate:4 });
+  await exposeScene(page);
+  await page.addInitScript(() => localStorage.setItem(
+    "pixel-adventure.preferences", '{"tutorialSeen":true,"sound":false}',
+  ));
+  await page.goto(versions.candidate);
+  const intervals = [];
+  for (let run = 0; run < 5; run++) {
+    await page.locator("#play-game").click();
+    await page.waitForFunction(() => qaScene?.player?.body?.blocked.down);
+    // Controlled starts isolate the finisher workload from the combat-input campaign.
+    await page.evaluate(() => {
+      qaScene.player.body.reset(qaScene.enemies.getChildren()[0].x - 36, 184);
+      qaScene.moveCamera(1);
+    });
+    const capture = page.evaluate(() => new Promise(resolve => {
+      const values = [];
+      let previous;
+      function sample(now) {
+        if (qaScene.ninja.special?.kind === "execution") {
+          if (previous !== undefined) values.push(now - previous);
+          previous = now;
+        } else if (previous !== undefined) {
+          resolve(values);
+          return;
+        }
+        requestAnimationFrame(sample);
+      }
+      requestAnimationFrame(sample);
+      setTimeout(() => resolve(values), 2000);
+    }));
+    await page.keyboard.press("KeyF");
+    const runFrames = await capture;
+    assert(runFrames.length > 12, "The test did not record a complete Execution");
+    intervals.push(...runFrames);
+    await page.locator("#pause-button").click();
+    await page.locator("#pause-main").click();
+  }
+  intervals.sort((a, b) => a - b);
+  const percentile = fraction => intervals[Math.floor((intervals.length - 1) * fraction)];
+  const result = {
+    label:"Execution, phone emulation at 4× CPU slowdown",
+    repetitions:5,
+    frames:intervals.length,
+    medianFps:+(1000 / percentile(.5)).toFixed(1),
+    p95:+percentile(.95).toFixed(1),
+    p99:+percentile(.99).toFixed(1),
+    lowFps:+(1000 / percentile(.99)).toFixed(1),
+    long:intervals.filter(interval => interval >= 50).length,
+  };
+  await writeFile(resolve(outputDirectory, "execution-performance.json"), JSON.stringify(result, null, 2));
+  console.log(JSON.stringify(result));
+  await page.close();
+}
+
 try {
-  for (const [label, options, rate] of [
+  const phone = {
+    viewport: { width: 839, height: 393 },
+    isMobile: true,
+    hasTouch: true,
+    deviceScaleFactor: 1,
+  };
+  if (process.env.PIXEL_EXECUTION_BENCH) await benchmarkExecution();
+  else for (const [label, options, rate] of [
     ["desktop", { viewport: { width: 1200, height: 850 } }, 1],
-    [
-      "phone emulation",
-      {
-        viewport: { width: 839, height: 393 },
-        isMobile: true,
-        hasTouch: true,
-        deviceScaleFactor: 1,
-      },
-      4,
-    ],
+    ["phone emulation", phone, 1],
+    ["phone emulation throttled", phone, 4],
   ])
     for (const version of ["prototype", "candidate"])
       for (const stage of [0, 29])

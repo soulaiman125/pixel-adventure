@@ -1,5 +1,5 @@
 const assert = require('node:assert/strict');
-const { mkdtemp, rm } = require('node:fs/promises');
+const { mkdtemp, rm, writeFile } = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
 const { _electron: electron } = require('playwright-core');
@@ -73,6 +73,11 @@ async function main() {
       assert.match(await page.locator('[data-level="19"] .level-record').textContent(), /Best 00:48/);
       await page.locator('#levels-dialog [data-close]').click();
       assert.equal(await page.locator('#sound-volume').inputValue(), '55');
+      await page.locator('#skill-tree').click();
+      assert.equal(await page.locator('#skill-points').textContent(), '2');
+      await page.locator('[data-skill=dash]').click();
+      assert.equal(await page.locator('#skill-points').textContent(), '1');
+      await page.locator('#skills-dialog [data-close]').click();
       console.log('Read the legacy 20-stage save shape and effects setting from the same isolated Windows profile.');
     }
     await page.locator('#play-game').click();
@@ -85,6 +90,36 @@ async function main() {
     await page.waitForFunction(() => document.querySelector('#coins').textContent === '01');
     await page.keyboard.up('Space');
     await page.keyboard.up('KeyD');
+    if (process.env.PIXEL_OFFLINE_BENCH) {
+      const frames = page.evaluate(() => new Promise(resolve => {
+        const intervals = [];
+        let start, last;
+        function frame(now) {
+          start ??= now;
+          if (last !== undefined) intervals.push(now - last);
+          last = now;
+          if (now - start < 4500) return requestAnimationFrame(frame);
+          intervals.sort((a, b) => a - b);
+          const percentile = ratio => intervals[Math.floor((intervals.length - 1) * ratio)];
+          resolve({
+            averageFps: +(intervals.length * 1000 / (now - start)).toFixed(1),
+            medianFps: +(1000 / percentile(.5)).toFixed(1),
+            lowFps: +(1000 / percentile(.99)).toFixed(1),
+            p95: +percentile(.95).toFixed(1),
+            p99: +percentile(.99).toFixed(1),
+            long: intervals.filter(delta => delta >= 50).length,
+          });
+        }
+        requestAnimationFrame(frame);
+      }));
+      for (const move of ['KeyV', 'KeyC', 'KeyZ', 'KeyX']) {
+        await page.keyboard.press(move);
+        await page.waitForTimeout(525);
+      }
+      const sample = { runtime:'Electron offline', stage:1, ...await frames };
+      await writeFile(process.env.PIXEL_OFFLINE_BENCH, JSON.stringify(sample, null, 2));
+      console.log(JSON.stringify(sample));
+    }
     await page.locator('#sound-button').click();
     assert.equal(await page.locator('#sound-button').getAttribute('aria-pressed'), 'false');
     console.log('Measured Web Audio output during offline gameplay and verified mute.');
@@ -109,6 +144,13 @@ async function main() {
       const { version, unlocked } = JSON.parse(localStorage.getItem('pixel-adventure.progress'));
       return { sound, tutorialSeen, version, unlocked };
     }), { sound: false, tutorialSeen: true, version: 2, unlocked: 30 });
+    if (legacyBundle) {
+      await page.locator('#skill-tree').click();
+      assert.equal(await page.locator('#skill-points').textContent(), '1');
+      assert.match(await page.locator('[data-skill=dash]').locator('..').textContent(), /Tier 1 \/ 3/);
+      await page.locator('#skills-dialog [data-close]').click();
+      console.log('Migrated campaign milestones and a purchased Shadow upgrade persisted after offline relaunch.');
+    }
     for (let index = 0; index < 30; index++) {
       await page.locator('#level-select').click();
       await page.locator(`[data-level="${index}"]`).click();
