@@ -125,7 +125,8 @@ const red = '#9b2546';
 const scarlet = '#d74961';
 const stitch = '#e9a180';
 
-function drawNinja(context, ox, oy, name, frame) {
+function drawNinja(context, ox, oy, name, frame, colors) {
+  const [fold,navy,edge,rim]=colors;
   const { rect: dot, shape: area } = pixelPen(context, ox + 24, oy + 5);
   const { hips, chest, head, rear, hand, backLeg, leadLeg, blade } = shadowFrames[name][frame];
   const [x,y] = head;
@@ -236,7 +237,17 @@ function drawStar(context, x, y, frame) {
   r(navy,6,6,1,1);
 }
 
-export function loadShadowArt(scene) {
-  atlas(scene,'shadow-ninja',SHADOW_WIDTH,SHADOW_HEIGHT,shadowClips,drawNinja);
+const OUTFITS = {
+  scout: ['#242739','#333d57','#556785','#8997aa'],
+  ember: ['#342633','#553342','#8d5b61','#c89980'],
+  frost: ['#252c43','#3b536e','#6c9eae','#bee0e7'],
+  storm: ['#2b263f','#4c3d6a','#80719e','#bcb3d4'],
+};
+
+export function loadShadowArt(scene, costume='scout') {
+  const outfit=Object.hasOwn(OUTFITS,costume)?costume:'scout';
+  const key=outfit==='scout'?'shadow-ninja':'shadow-ninja-'+outfit;
+  atlas(scene,key,SHADOW_WIDTH,SHADOW_HEIGHT,shadowClips,(ctx,x,y,clip,frame)=>drawNinja(ctx,x,y,clip,frame,OUTFITS[outfit]));
   atlas(scene,'shadow-weapons',12,12,{star:4},(ctx,x,y,_clip,frame)=>drawStar(ctx,x,y,frame));
+  return key;
 }

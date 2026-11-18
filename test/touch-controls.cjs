@@ -97,8 +97,21 @@ async function testTouch(browser) {
   const attackRun = await down('right', 1);
   await wait(page, () => touchQA.scene.player.body.velocity.x > 45);
   await dispatch('touchStart', [attackRun, await point('attack', 2)]);
-  await wait(page, () => touchQA.scene.attackAfter > touchQA.scene.elapsed
+  await wait(page, () => touchQA.scene.ninja.attack
     && touchQA.controls.isDown('right') && touchQA.scene.player.body.velocity.x > 45);
+  await dispatch('touchCancel');
+  await released();
+
+  await restart();
+  const comboRun = await down('right', 1);
+  await wait(page, () => touchQA.scene.player.body.velocity.x > 45);
+  const comboJump = await point('jump', 2);
+  await dispatch('touchStart', [comboRun, comboJump]);
+  await wait(page, () => touchQA.scene.player.body.velocity.y < -160);
+  const comboAttack = await point('attack', 3);
+  await dispatch('touchStart', [comboRun, comboJump, comboAttack]);
+  await wait(page, () => touchQA.scene.ninja.attack && touchQA.controls.isDown('right')
+    && touchQA.scene.player.body.velocity.y < 0);
   await dispatch('touchCancel');
   await released();
 

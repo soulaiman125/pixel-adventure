@@ -437,16 +437,16 @@ dialog[open] { animation: dialog-in .19s ease-out; }
 }
 
 @media (any-pointer: coarse), (max-width: 680px) {
-  [data-mode="shadow"] .hud-pause { width: 44px; min-height: 44px; padding: 0; justify-content: center; }
-  [data-mode="shadow"] .hud-pause span { display: none; }
-  [data-mode="shadow"] .touch-controls {
+  [data-hero="shadow"] .hud-pause { width: 44px; min-height: 44px; padding: 0; justify-content: center; }
+  [data-hero="shadow"] .hud-pause span { display: none; }
+  [data-hero="shadow"] .touch-controls {
     gap: 6px;
   }
-  [data-mode="shadow"] :is(.touch-direction, .touch-actions) { gap: 4px; }
-  [data-mode="shadow"] .touch-button {
+  [data-hero="shadow"] :is(.touch-direction, .touch-actions) { gap: 4px; }
+  [data-hero="shadow"] .touch-button {
     width: min(var(--touch-size), max(44px, calc((100vw - 62px) / 6)));
     height: min(var(--touch-size), max(44px, calc((100vw - 62px) / 6)));
     min-width: 44px; min-height: 44px; padding: 0; font-size: 11px;
   }
-  [data-mode="shadow"] .shadow-touch { color: #eaf3ff; }
+  [data-hero="shadow"] .shadow-touch { color: #eaf3ff; }
 }

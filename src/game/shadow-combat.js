@@ -31,6 +31,12 @@ export function updateDash(scene, grounded, direction) {
   const now = scene.elapsed;
   if (grounded) state.airUsed = false;
   if (state.dash) {
+    // Crossing a ledge consumes this airborne sequence's dash, even if the
+    // dash began on land. Chaining another dash would skip bridge routes.
+    if (!grounded) {
+      state.airUsed = true;
+      state.dash.air = true;
+    }
     const { since, direction: side } = state.dash;
     if (now - since >= DASH.duration || (side < 0 ? body.blocked.left : body.blocked.right)) endDash(scene);
   }
@@ -83,7 +89,9 @@ function impact(scene, x, y, direction, heavy, sound) {
 }
 
 function enemyHit(scene, enemy, damage, direction, ranged) {
-  if (blocksMonsterHit(enemy, scene.player) || guardBlocks(enemy, scene.player, scene.elapsed)) {
+  // Ranged guard checks use the projectile's approach side.
+  const source = ranged ? { x: enemy.x - direction * 20, y: enemy.y } : scene.player;
+  if (blocksMonsterHit(enemy, source) || guardBlocks(enemy, source, scene.elapsed)) {
     if (enemy.getData('type') === 'guard' && !ranged) enemy.setData('exposedUntil', scene.elapsed + 730);
     impact(scene, enemy.x, enemy.y - 8, direction, false, 'block');
     return;
@@ -92,7 +100,7 @@ function enemyHit(scene, enemy, damage, direction, ranged) {
   const type = enemy.getData('type');
   const max = ENEMY_HEALTH[type] ?? 10;
   const health = (state.enemyHp.get(enemy) ?? max) - damage;
-  const until = scene.elapsed + (damage >= 20 ? 210 : 130);
+  const until = scene.elapsed + (damage >= 20 ? 310 : 240);
   enemy.setData('shadowHitUntil', until);
   impact(scene, enemy.x, enemy.y - 8, direction, damage >= 20, ranged ? 'shurikenHit' : 'katanaHit');
   state.enemyHp.set(enemy, health > 0 ? health : max);

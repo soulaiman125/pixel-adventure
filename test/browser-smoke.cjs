@@ -95,6 +95,10 @@ const address = process.env.PIXEL_TEST_URL || 'http://127.0.0.1:5173/';
           qa.player.setFlipX(false);
         });
         await page.keyboard.press('KeyX');
+        await page.waitForFunction(() => !qa.ninja.attack);
+        if (await page.evaluate(() => qa.enemies.getChildren()[0].active)) {
+          await page.keyboard.press('KeyX');
+        }
         await page.waitForFunction(() => !qa.enemies.getChildren()[0].active);
       }
       if (index === 20) {

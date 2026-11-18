@@ -5,6 +5,7 @@ import { blocksMonsterHit, monsters, terrainBlocks, updateMonster } from './mons
 import { paintPrototypeSlash } from './prototype-actors.js';
 import { addTitanPresentation } from './prototype-titan.js';
 import { updateShadowCombat } from './shadow-combat.js';
+import { addCampaignBoss } from './campaign-boss-art.js';
 
 const PROJECTILE_LIMIT = 24;
 
@@ -29,6 +30,7 @@ export function addCombat(scene) {
   scene.boss = { ...config, maxHp: config.hp, art, indicator, phase: 'waiting', cycle: 0, since: 0 };
   scene.boss.trapArt = [];
   if(scene.titanPrototype) scene.boss.presentation=addTitanPresentation(scene,scene.boss);
+  else if(scene.ninja) scene.boss.presentation=addCampaignBoss(scene,scene.boss);
 }
 
 function fire(scene, x, y, vx, vy = 0, radius = 5, tint = 0xffa4ba, gravity = 0, rules) {
@@ -53,6 +55,15 @@ function fire(scene, x, y, vx, vy = 0, radius = 5, tint = 0xffa4ba, gravity = 0,
 
 function updateEnemyShots(scene, enemy) {
   const { type, left } = enemy.data.values;
+  if (scene.ninja && scene.elapsed < (enemy.getData('shadowHitUntil') ?? 0)) {
+    enemy.setVelocity(0);
+    return;
+  }
+  if (scene.ninja && !monsters[type]
+    && (!EXPANSION_ENEMIES.has(type) || type === 'guard' || type === 'bat')
+    && !enemy.body.velocity.x) {
+    enemy.setVelocityX((enemy.flipX ? -1 : 1) * enemy.getData('speed'));
+  }
   if (monsters[type]) {
     updateMonster(scene, enemy, fire);
     return;

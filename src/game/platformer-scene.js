@@ -14,6 +14,8 @@ import { createPrototypeActors } from './prototype-actors.js';
 import { createTitanHall, createValley, isVerdantPrototype, valleyObjects, valleyProps, valleySurface } from './prototype-world.js';
 import { clearShadow, createShadow, updateDash } from './shadow-combat.js';
 import { createShadowPresentation } from './shadow-presentation.js';
+import { campaignSurface, createCampaignActors } from './campaign-art.js';
+import { createCampaignBackdrop } from './campaign-backdrop.js';
 
 const MOVE_SPEED = 132;
 const JUMP_SPEED = 263;
@@ -66,7 +68,9 @@ export class PlatformerScene extends Phaser.Scene {
     this.specialPlatforms = [];
     this.resetJump();
 
-    this.backdrop = (this.valleyPrototype && createValley(this)) || createBackdrop(this, this.level.theme);
+    this.backdrop = ((this.valleyPrototype || this.shadowEnabled && this.level.theme==='verdant') && createValley(this))
+      || (this.shadowEnabled && createCampaignBackdrop(this,this.level.theme))
+      || createBackdrop(this, this.level.theme);
     this.physics.world.setBounds(0, 0, this.level.width, VIEW_HEIGHT, true, true, false, false);
     this.cameras.main.setBounds(0, 0, this.level.width, VIEW_HEIGHT);
     if (this.valleyPrototype) valleyObjects(this);
@@ -74,6 +78,7 @@ export class PlatformerScene extends Phaser.Scene {
     this.createActors();
     this.ninja = this.shadowEnabled ? createShadow(this) : null;
     this.shadowPresentation = this.ninja ? createShadowPresentation(this) : null;
+    this.campaignActors = this.ninja && !this.valleyPrototype ? createCampaignActors(this) : null;
     this.prototypeActors = this.valleyPrototype || this.titanPrototype ? createPrototypeActors(this,this.valleyPrototype) : null;
     this.hall = this.titanPrototype ? createTitanHall(this) : null;
     this.feedback = createFeedback(this);
@@ -86,6 +91,7 @@ export class PlatformerScene extends Phaser.Scene {
       this.prototypeActors?.update();
       this.boss?.presentation?.update();
       this.hall?.update();
+      this.campaignActors?.update();
       this.shadowPresentation?.update(time);
     };
     if (this.prototypeActors || this.shadowPresentation) this.events.on(Phaser.Scenes.Events.POST_UPDATE,paintPrototype);
@@ -167,12 +173,13 @@ export class PlatformerScene extends Phaser.Scene {
 
   addSurface(group, x, y, width, height, key, kind) {
     let visual = this.valleyPrototype ? valleySurface(this,x,y,width,height)
-      : this.add.tileSprite(x,y,width,height,terrainTexture(this.level.theme,key)).setOrigin(0);
+      : this.shadowEnabled ? campaignSurface(this,x,y,width,height)
+        : this.add.tileSprite(x,y,width,height,terrainTexture(this.level.theme,key)).setOrigin(0);
     if (kind) {
       const marker = this.add.graphics();
       marker.fillStyle(0xffe998).fillRect(4, 3, 4, 2).fillRect(width - 8, 3, 4, 2);
       visual = this.add.container(x, y, [visual.setPosition(0, 0), marker]);
-    } else if (key === 'platform' && !this.valleyPrototype) {
+    } else if (key === 'platform' && !this.valleyPrototype && !this.shadowEnabled) {
       const edges = this.add.graphics();
       const [shadow, light] = PLATFORM_EDGES[this.level.theme];
       edges.fillStyle(shadow).fillRect(x, y + 10, width, 2);
@@ -306,6 +313,7 @@ export class PlatformerScene extends Phaser.Scene {
 
   hitSlime(enemy) {
     if (this.complete || this.elapsed < this.invulnerableUntil) return;
+    if (this.ninja && this.elapsed < (enemy.getData('shadowHitUntil') ?? 0)) return;
     const body = this.player.body;
     if (body.velocity.y > 0 && body.prev.y + body.height <= enemy.body.top + 4) {
       this.defeatEnemy(enemy);
@@ -323,7 +331,7 @@ export class PlatformerScene extends Phaser.Scene {
     enemy.getData('warning')?.setVisible(false);
     enemy.getData('signal')?.clear();
     this.burst(enemy.x, enemy.y - 6, 0xa9e169);
-    const updated = this.prototypeActors?.foeHit(enemy);
+    const updated = this.prototypeActors?.foeHit(enemy) || Boolean(this.campaignActors);
     if(updated && !this.ui.reduceMotion) this.cameras.main.shake(90,.0028);
     if (!updated && !this.ui.reduceMotion) {
       const fall = this.add.image(enemy.x, enemy.y, enemy.texture.key).setOrigin(.5, 1).setFlipX(enemy.flipX).setDepth(4);

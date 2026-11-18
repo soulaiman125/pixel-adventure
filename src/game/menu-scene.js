@@ -1,7 +1,10 @@
 import Phaser from 'phaser';
 import { drawMeadow } from './art.js';
 import { createBackdrop } from './backdrop.js';
-import { preloadPrototype } from './prototype-world.js';
+import { createValley, preloadPrototype, valleySurface } from './prototype-world.js';
+import { loadShadowArt, shadowClips } from './shadow-art.js';
+import { clipFrame } from './prototype-sprites.js';
+import { preloadWorlds } from './campaign-backdrop.js';
 
 export class MenuScene extends Phaser.Scene {
   constructor(reduceMotion) {
@@ -11,11 +14,17 @@ export class MenuScene extends Phaser.Scene {
 
   preload() {
     preloadPrototype(this);
+    preloadWorlds(this);
   }
 
   create() {
     this.backdrop = createBackdrop(this);
+    if(this.textures.exists('field-valley')){
+      this.backdrop.destroy();
+      this.backdrop=createValley(this);
+    }
     this.elapsed = 0;
+    loadShadowArt(this);
     this.drawLandscape();
     this.scale.on(Phaser.Scale.Events.RESIZE, this.drawLandscape, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -33,7 +42,7 @@ export class MenuScene extends Phaser.Scene {
     this.foreground?.destroy(true);
     this.foreground = this.add.container().setDepth(1);
     const add = (object) => this.foreground.add(object);
-    const ledge = (x, y, size, key) => add(this.add.tileSprite(x, y, size, key === 'ground' ? 40 : 12, key).setOrigin(0));
+    const ledge = (x, y, size, key) => add(valleySurface(this,x,y,size,key==='ground'?40:12));
     const image = (x, y, key, scale = 1) => {
       const sprite = this.add.image(x, y, key).setOrigin(0.5, 1).setScale(scale);
       add(sprite);
@@ -48,7 +57,7 @@ export class MenuScene extends Phaser.Scene {
     if (!narrow) ledge(0, ground + 18, Math.max(1, start - 29), 'ground');
     ledge(center - 30, ground - 32, 48, 'platform');
     ledge(center + 34, ground - 59, 39, 'platform');
-    this.hero = image(center + 10, ground - 32, 'hero-idle', 1.25);
+    this.hero = image(center + 10, ground - 32, 'shadow-ninja', .62).setFrame('idle0').setOrigin(.5,.9875);
     this.slime = image(center + 49, ground, 'slime-rest');
     image(center + 53, ground - 59, 'flag', 0.58);
     this.coins = [[center - 19, ground - 42], [center + 29, ground - 51], [center + 43, ground - 72]]
@@ -60,7 +69,7 @@ export class MenuScene extends Phaser.Scene {
   paint() {
     const time = this.reduceMotion() ? 0 : this.elapsed;
     this.backdrop.scroll(time * 0.007, this.scale.width * 0.77, time * 0.006);
-    this.hero.setTexture(time % 4200 > 3750 ? 'hero-attack' : 'hero-idle');
+    this.hero.setFrame(clipFrame(shadowClips,'idle',time,880,true));
     this.slime.setTexture(time % 1350 > 1020 ? 'slime-hop' : 'slime-rest');
     this.coins.forEach(({ y, sprite }, index) => {
       sprite.y = Math.round(y + Math.sin(time / 270 + index) * 2);

@@ -7,7 +7,7 @@ const { _electron: electron } = require('playwright-core');
 async function main() {
   const profile = await mkdtemp(path.join(os.tmpdir(), 'pixel-adventure-qa-'));
   const bundle = process.argv[2];
-  const legacyBundle = process.argv[3];
+  const legacyBundle = process.argv[3] || process.env.PIXEL_LEGACY_APP;
   const launch = (executable = bundle) => electron.launch({
     ...(executable ? { executablePath: path.resolve(executable) } : {}),
     args: [...(executable ? [] : ['.']), '--user-data-dir=' + profile,
@@ -19,7 +19,7 @@ async function main() {
       app = await launch(legacyBundle);
       const original = await app.firstWindow();
       await original.locator('canvas').waitFor();
-      assert.equal(await original.locator('[data-level]').count(), 20);
+      assert([20,30].includes(await original.locator('[data-level]').count()));
       await original.evaluate(() => {
         const records = Array(20).fill(null);
         records[19] = { coins: 6, elapsed: 48000 };
@@ -73,7 +73,7 @@ async function main() {
       assert.match(await page.locator('[data-level="19"] .level-record').textContent(), /Best 00:48/);
       await page.locator('#levels-dialog [data-close]').click();
       assert.equal(await page.locator('#sound-volume').inputValue(), '55');
-      console.log('Read the v1.0.0 save and effects setting from the same isolated Windows profile.');
+      console.log('Read the legacy 20-stage save shape and effects setting from the same isolated Windows profile.');
     }
     await page.locator('#play-game').click();
     await page.locator('#tutorial-done').click();

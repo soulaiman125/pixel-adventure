@@ -23,6 +23,11 @@ export function createBackdrop(scene, theme = 'verdant') {
 
   return {
     layers,
+    destroy() {
+      sky.destroy();
+      sun.destroy();
+      layers.forEach(({ image }) => image.destroy());
+    },
     setVisible(next) {
       if (visible === next) return;
       visible = next;

@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { canDash, DASH, horizontalEntry, intersects, KATANA, refill, SHURIKEN, spendCharge, stepStrike, strikeBox } from '../src/game/shadow-rules.js';
 import { shadowFrames } from '../src/game/shadow-art.js';
-import { updateShadowCombat } from '../src/game/shadow-combat.js';
+import { updateDash, updateShadowCombat } from '../src/game/shadow-combat.js';
+import { updateCombat } from '../src/game/combat.js';
 
 test('Shadow Ninja has 17 authored pose sets with consistent integer anchors', () => {
   assert.equal(Object.keys(shadowFrames).length, 17);
@@ -100,4 +101,67 @@ test('a live katana window hands numeric damage to the boss once per strike', ()
   scene.elapsed = 171;
   updateShadowCombat(scene, 16, false, hit);
   assert.deepEqual(fight, [2]);
+});
+
+test('a ground dash leaving a ledge spends the air dash until an actual landing', () => {
+  const body={ blocked:{left:false,right:false},maxVelocity:{x:132},velocity:{x:0,y:0},
+    setAllowGravity(value){this.allowGravity=value;},setVelocityY(value){this.velocity.y=value;} };
+  let pressed=true;
+  const scene={
+    elapsed:0,ninja:{airUsed:false,groundDashAt:0,dash:null},controls:{consumeDash(){const value=pressed;pressed=false;return value;}},
+    ui:{playSound(){}},player:{flipX:false,body,setFlipX(value){this.flipX=value;return this;},
+      setAccelerationX(){return this;},setDragX(){return this;},setVelocityX(value){body.velocity.x=value;return this;}},
+  };
+  assert(updateDash(scene,true,1));
+  scene.elapsed=50;
+  assert(updateDash(scene,false,1));
+  assert(scene.ninja.airUsed);
+  scene.elapsed=170;
+  assert(!updateDash(scene,false,1));
+  pressed=true;
+  assert(!updateDash(scene,false,1));
+  assert(scene.ninja.airUsed);
+  updateDash(scene,true,1);
+  assert(!scene.ninja.airUsed);
+  pressed=true;
+  assert(updateDash(scene,false,1));
+  assert.equal(body.allowGravity,false);
+  body.blocked.right=true;
+  scene.elapsed=180;
+  assert(!updateDash(scene,false,1));
+  assert.equal(body.allowGravity,true);
+  assert(scene.ninja.airUsed);
+});
+
+test('ranged guard tests use the approach side even after the player turns', () => {
+  const values={type:'guard',exposedUntil:0};
+  const enemy={x:130,y:184,active:true,flipX:false,body:{left:123,right:138,top:168,bottom:184,velocity:{x:20}},
+    data:{values},getData(key){return values[key];},setData(key,value){values[key]=value;}};
+  const shot={x:145,y:175,active:true,direction:-1,expires:1000,since:0,
+    setActive(value){this.active=value;return this;},setVisible(){return this;}};
+  let defeated=false;
+  const scene={
+    elapsed:100,level:{width:400},ninja:{charges:3,attack:null,throw:null,enemyHp:new WeakMap(),projectiles:[shot]},
+    player:{x:20,y:184,flipX:false},controls:{isDown:()=>false,consumeThrow:()=>false},
+    enemies:{getChildren:()=>[enemy]},ground:{getChildren:()=>[]},platforms:{getChildren:()=>[]},
+    ui:{reduceMotion:true,playSound(){}},burst(){},defeatEnemy(){defeated=true;},
+  };
+  updateShadowCombat(scene,100,false,()=>false);
+  assert(!defeated);
+  assert.equal(scene.ninja.enemyHp.has(enemy),false);
+  assert.equal(shot.active,false);
+});
+
+test('an armored guard resumes its patrol after ninja hit recovery', () => {
+  const warning={setPosition(){return this;},setVisible(){return this;}};
+  const values={type:'guard',left:80,right:140,speed:32,shadowHitUntil:240,warning};
+  const enemy={active:true,x:100,y:184,flipX:false,body:{velocity:{x:0,y:0}},data:{values},
+    getData(key){return values[key];},setFlipX(value){this.flipX=value;return this;},
+    setVelocityX(value){this.body.velocity.x=value;return this;}};
+  const scene={elapsed:300,ninja:{charges:3,attack:null,throw:null,projectiles:[]},
+    player:{x:30,y:184,flipX:false},controls:{consumeAttack:()=>false,consumeThrow:()=>false,isDown:()=>false},
+    enemies:{getChildren:()=>[enemy],children:{iterate(fn){fn(enemy);}}},
+    projectiles:[],attackEffect:{clear(){}},boss:null};
+  updateCombat(scene,16);
+  assert.equal(enemy.body.velocity.x,32);
 });

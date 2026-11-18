@@ -19,6 +19,7 @@ const shadowAllowed = import.meta.env.DEV || import.meta.env.MODE === 'shadow';
 const shadowChoice = shadowAllowed ? new URLSearchParams(location.search).get('shadow') ??
   (import.meta.env.MODE === 'shadow' ? 'verdant' : null) : null;
 const shadowArena = import.meta.env.DEV && shadowChoice === 'arena';
+const useShadowNinja = !(import.meta.env.DEV && new URLSearchParams(location.search).get('hero') === 'legacy');
 // The packaged game blocks web navigation and keeps its menu usable offline.
 byId('menu-release-links').hidden = !['http:', 'https:'].includes(location.protocol);
 const stage = byId('stage');
@@ -117,6 +118,13 @@ if (shadowButton) {
   const target = Number.isInteger(index) && LEVELS[index] ? index : 0;
   shadowButton.textContent = shadowArena ? 'Train as Shadow Ninja' : `Shadow Ninja · ${LEVELS[target].name}`;
   byId('play-game').after(shadowButton);
+  shadowButton.addEventListener('click', () => {
+    if (!game.isBooted) return;
+    runMode = 'shadow';
+    startRun(target);
+  });
+}
+if (useShadowNinja) {
   for (const [action, label, display] of [['dash', 'Dash', 'Dash'], ['throw', 'Throw shuriken', '✦']]) {
     const button = document.createElement('button');
     button.type = 'button';
@@ -128,11 +136,6 @@ if (shadowButton) {
     document.querySelector('.touch-actions [data-action="attack"]').before(button);
     shadowTouchButtons.push(button);
   }
-  shadowButton.addEventListener('click', () => {
-    if (!game.isBooted) return;
-    runMode = 'shadow';
-    startRun(target);
-  });
 }
 if (shadowDebug) {
   shadowDebug.id = 'shadow-debug';
@@ -375,16 +378,17 @@ function startRun(index) {
   byId('boss-hud').hidden = true;
   bossMusic = undefined;
   currentLevel = index;
-  const shadow = runMode === 'shadow';
-  const level = shadowArena && shadow ? SHADOW_ARENA : challengeLevel(LEVELS[index], runMode);
+  const shadow = useShadowNinja;
+  const level = shadowArena && runMode === 'shadow' ? SHADOW_ARENA : challengeLevel(LEVELS[index], runMode);
   shadowHud(shadow);
+  shell.dataset.hero = shadow ? 'shadow' : 'legacy';
   if (shadow) byId('pause-level').dataset.shadow = 'A/D Move · Space Jump · X Katana · Z Shuriken · C Dash';
   else delete byId('pause-level').dataset.shadow;
   shell.dataset.mode = runMode;
   shell.dataset.theme = level.theme;
   byId('hud-level-number').textContent = pad(index + 1);
   byId('hud-level-name').textContent = level.name;
-  byId('pause-level').textContent = shadow ? `Shadow Ninja · ${level.name}` : runMode === 'normal' ? `Level ${index + 1} · ${level.name}`
+  byId('pause-level').textContent = runMode === 'shadow' ? `Shadow Ninja · ${level.name}` : runMode === 'normal' ? `Level ${index + 1} · ${level.name}`
     : `${challenges[runMode].name} · ${level.name}`;
   showScore(0);
   showTime(0);
@@ -410,6 +414,7 @@ function showMainMenu() {
   setMode('menu');
   delete shell.dataset.theme;
   delete shell.dataset.mode;
+  delete shell.dataset.hero;
   shadowHud(false);
   resize();
   game.scene.start('menu');
@@ -584,7 +589,7 @@ window.addEventListener('keydown', (event) => {
 
 const panel = byId('touch-controls');
 const hapticFeedback = setupTouchSettings(panel, preferences, savePreferences);
-const controls = createControls(panel, () => mode === 'playing', hapticFeedback, () => runMode === 'shadow');
+const controls = createControls(panel, () => mode === 'playing', hapticFeedback, () => useShadowNinja);
 window.matchMedia('(orientation: portrait)').addEventListener('change', controls.clear);
 document.addEventListener('fullscreenchange', controls.clear);
 const maxCoins = LEVELS.reduce((sum, level) => sum + level.coins.length, 0);
@@ -632,7 +637,7 @@ const scene = new PlatformerScene(controls, {
     byId('coin-total').textContent = pad(coinTotal);
     showScore(0);
     showTime(0);
-    if (runMode === 'shadow') this.onShadowCharges(3);
+    if (useShadowNinja) this.onShadowCharges(3);
     if (shadowDebug && runMode === 'shadow') shadowDebug.dataset.dummy = '40/40';
     setMode('playing');
     focusStage();
@@ -693,7 +698,7 @@ const scene = new PlatformerScene(controls, {
     if (meter.value !== boss.hp) meter.value = boss.hp;
     const phase = boss.phase === 'open' && boss.hits >= 2 ? 'guarded' : boss.phase;
     if (hud.dataset.phase !== phase) hud.dataset.phase = phase;
-    const label = runMode === 'shadow' && (phase === 'warn' || phase === 'attack') ? state + ' · Guarded' : state;
+    const label = useShadowNinja && (phase === 'warn' || phase === 'attack') ? state + ' · Guarded' : state;
     if (byId('boss-state').textContent !== label) byId('boss-state').textContent = label;
   },
   onComplete(count, coinTotal, elapsed, deaths) {
