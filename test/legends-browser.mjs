@@ -33,11 +33,12 @@ async function open(query='',options={},seed,fixtureDay){
     }
   },{fixture:seed,day:fixtureDay});
   await page.goto(address+query);
+  await page.locator('#enter-adventure').click();
   await page.locator('#legends-button').waitFor();
   await wait(page,()=>qaGame?.isBooted);
   return {page,errors};
 }
-const byText=(page,name)=>page.getByRole('button',{name,exact:true});
+const byText=(page,name)=>page.locator('#legends-dialog').getByRole('button',{name,exact:true});
 const shot=(page,file)=>screenshots?page.screenshot({path:output(file)}):Promise.resolve();
 
 async function choose(page,id){
@@ -131,6 +132,7 @@ async function heroTrial(id){
   const {page,errors}=await open('?shadow=arena');
   await choose(page,id);
   await page.reload();
+  await page.locator('#enter-adventure').click();
   await wait(page,()=>qaGame?.isBooted);
   await page.locator('#shadow-play').click();
   await wait(page,hero=>qaScene?.hero?.id===hero&&qaScene.player?.body.blocked.down,id);
@@ -195,7 +197,7 @@ async function extras(){
   const seed=JSON.parse(await readFile(output('campaign.json.storage.json'),'utf8'));
   const {page,errors}=await open('');
   await page.evaluate(({origins})=>{for(const {name,value} of origins[0].localStorage)localStorage.setItem(name,value);},seed);
-  await page.reload();await wait(page,()=>qaGame?.isBooted);
+  await page.reload();await page.locator('#enter-adventure').click();await wait(page,()=>qaGame?.isBooted);
   await page.locator('#legends-button').click();await byText(page,'Choose Hero').click();await byText(page,'Cosmetics').click();
   await byText(page,'Silver Trim · Mastery 3').click();await shot(page,'mastery.png');
   await byText(page,'Close Legends').click();
@@ -229,7 +231,7 @@ async function ending(){
   const save=JSON.parse(await readFile(output('campaign.json.storage.json'),'utf8'));
   const {page,errors}=await open('');
   await page.evaluate(({origins})=>{for(const {name,value} of origins[0].localStorage)localStorage.setItem(name,value);},save);
-  await page.reload();await wait(page,()=>qaGame?.isBooted);
+  await page.reload();await page.locator('#enter-adventure').click();await wait(page,()=>qaGame?.isBooted);
   await page.locator('#level-select').click();await page.locator('[data-level="59"]').click();
   await wait(page,()=>qaScene.boss?.kind==='emperor'&&qaScene.player.body.blocked.down);
   const stage=await page.evaluate(controller,{level:60,bridges:await page.evaluate(()=>qaScene.level.routes),timeout:90000,dash:true});
@@ -259,7 +261,9 @@ async function villageAndReplay(){
   await page.keyboard.up('KeyD');
   await page.keyboard.press('KeyE');
   await byText(page,'Unlock for 25 · Heavy Greatsword').click();
+  await page.locator('#confirm-action').click();
   await byText(page,'Hone Weapon · 18 Coins').click();
+  await page.locator('#confirm-action').click();
   await shot(page,'blacksmith.png');
   await stop(page,'village.webm');
   await byText(page,'Close Legends').click();
@@ -275,6 +279,7 @@ async function villageAndReplay(){
   const cycle=await page.evaluate(controller,{level:1,bridges:[],timeout:85000,dash:true});
   await stop(page,'new-game-plus.webm');
   assert.equal(cycle.status,'Completed',JSON.stringify(cycle));
+  assert.deepEqual(errors, []);
   assert.equal(await page.locator('#clear-title').textContent(),'New Game+ Clear');
   assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('pixel-adventure.legends')).ng.frontier),2);
   await page.locator('#clear-main').click();

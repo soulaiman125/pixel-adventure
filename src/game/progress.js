@@ -28,6 +28,7 @@ export function createProgress(levels, storage) {
   let frontier = legacy ? 1 : Math.min(levels.length, savedUnlocks);
   const granted = new Set(legacy ? legacyNames.slice(0, savedUnlocks)
     : Array.isArray(saved?.granted) ? saved.granted : []);
+  let hasRunHistory = Array.isArray(saved?.results);
   let results = levels.map((level, index) => readResult(level,
     saved?.results?.[legacy ? legacyNames.indexOf(level.name) : index]));
   const records = levels.map((level, index) => {
@@ -58,9 +59,18 @@ export function createProgress(levels, storage) {
 
   return {
     get unlocked() { return levels.filter((_, index) => canPlay(index)).length; },
+    get activeClears() { return results.filter(Boolean).length; },
+    get savedClears() { return records.filter(Boolean).length; },
+    get continueAt() {
+      if (results.every(Boolean)) return null;
+      if (!hasRunHistory && !legacy) return Math.max(0, frontier - 1);
+      const next = levels.findIndex((_, index) => canPlay(index) && !results[index]);
+      return next >= 0 ? next : Math.max(0, frontier - 1);
+    },
     canPlay,
     record(index) { return records[index]; },
     newAdventure() {
+      hasRunHistory = true;
       results = levels.map(() => null);
       save();
     },
@@ -69,6 +79,7 @@ export function createProgress(levels, storage) {
       const result = readResult(levels[index], { coins, elapsed, deaths });
       if (!result) return false;
       const wasUnlocked = canPlay(index + 1);
+      hasRunHistory = true;
       results[index] = result;
       const old = records[index];
       const bestCoins = Math.max(coins, old?.coins ?? 0);

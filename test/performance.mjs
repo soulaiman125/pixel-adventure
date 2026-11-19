@@ -14,15 +14,24 @@ const versions = {
 const outputDirectory = resolve(process.env.PIXEL_REVIEW_DIR || "artifacts/ninja-review");
 await mkdir(outputDirectory, {recursive:true});
 const report = resolve(outputDirectory, "performance.json");
+async function enterHub(page) {
+  const entry = page.locator('#enter-adventure');
+  if (await entry.count()) await entry.click();
+  else await page.locator('#game-mount canvas').waitFor({ state: 'attached' });
+}
 async function exposeScene(page) {
   await page.route(
-    (url) => /\/assets\/index-[\w-]+\.js$/.test(url.pathname),
+    (url) => /\/assets\/(index|main)-[\w-]+\.js$/.test(url.pathname),
     async (route) => {
       const response = await route.fetch(),
         main = await response.text();
       const scene = main.match(
         /scene:\[new [\w$]+\([^)]*\),([\w$]+)\]\}\)/,
       )?.[1];
+      if (!scene && /\/assets\/index-/.test(new URL(route.request().url()).pathname)) {
+        await route.fulfill({ response, body: main });
+        return;
+      }
       assert(scene);
       await route.fulfill({
         response,
@@ -52,7 +61,7 @@ async function benchmark(label, options, rate, version, stage) {
   const dashKey = "KeyZ";
   const throwKey = "KeyC";
   await page.goto(versions[version]);
-  await page.locator("canvas").waitFor();
+  await enterHub(page);
   await page.locator("#level-select").click();
   const stageLoadStarted=performance.now();
   await page.locator('[data-level="' + stage + '"]').click();
@@ -234,6 +243,7 @@ async function benchmarkExecution() {
     "pixel-adventure.preferences", '{"tutorialSeen":true,"sound":false}',
   ));
   await page.goto(versions.candidate);
+  await enterHub(page);
   const intervals = [];
   for (let run = 0; run < 5; run++) {
     await page.locator("#play-game").click();
@@ -291,6 +301,7 @@ async function benchmarkSurvival() {
     if (rate > 1) await cdp.send("Emulation.setCPUThrottlingRate",{rate});
     await exposeScene(page);
     await page.goto(versions.candidate);
+    await enterHub(page);
     await page.locator("#survival-button").click();
     await page.waitForFunction(() => qaScene.survival && qaScene.player.body.blocked.down);
     // Controlled six-enemy workload. The separate Survival playthrough advances by defeating waves.

@@ -4,7 +4,7 @@ import '@fontsource-variable/dm-sans/wght.css';
 import { createControls } from './game/controls.js';
 import { setupTouchSettings } from './game/touch-settings.js';
 import { RUSH_LEVELS, canChallenge, challengeLevel, challenges, createChallengeRecords } from './game/challenges.js';
-import { VIEW_HEIGHT } from './game/level-one.js';
+import { GROUND_Y, VIEW_HEIGHT } from './game/level-one.js';
 import { LEVELS } from './game/levels.js';
 import { MenuScene } from './game/menu-scene.js';
 import { createProgress, ratingFor } from './game/progress.js';
@@ -20,11 +20,20 @@ import { REALMS } from './game/legends-worlds.js';
 import { createLegendsProgress } from './game/legends-progress.js';
 import { HEROES } from './game/legends-heroes.js';
 import { installLegendsUI } from './game/legends-ui.js';
-import { NINJA_VILLAGE } from './game/ninja-village.js';
-import './styles.css';
+import { NINJA_VILLAGE, VILLAGE_STATIONS } from './game/ninja-village.js';
+import { createNavigation, installMenuGamepad } from './ui/navigation.js';
+import { showPortrait } from './ui/portrait.js';
+import { createWorldMap } from './ui/world-map.js';
+import { clockLabels, refreshControlLabels } from './ui/action-labels.js';
 
 const byId = (id) => document.getElementById(id);
 const shell = byId('shell');
+const navigation = createNavigation();
+const landing = byId('landing');
+const hub = byId('hub');
+const confirmation = byId('confirm-dialog');
+let confirmedAction;
+let stopLanding;
 const shadowAllowed = import.meta.env.DEV || import.meta.env.MODE === 'shadow';
 const shadowChoice = shadowAllowed ? new URLSearchParams(location.search).get('shadow') ??
   (import.meta.env.MODE === 'shadow' ? 'verdant' : null) : null;
@@ -78,7 +87,7 @@ const levelButtons = LEVELS.map((level, index) => {
       heading.scrollIntoView({ block: 'start' });
     });
     byId('world-nav').append(jump);
-    worldRows.push({ start: index, count, jump });
+    worldRows.push({ start: index, count, jump, heading });
   }
   const button = document.createElement('button');
   button.className = 'button level-option';
@@ -120,7 +129,6 @@ let runMode = 'normal';
 let runHero = legends.kit();
 let dailyRun=null;
 let rematchDifficulty='veteran';
-let villagePaused=false;
 let bossMusic;
 let rush = { time: 0, deaths: 0 };
 let outfitKey = 'scout';
@@ -128,7 +136,6 @@ let requestedLevel;
 let tutorialPurpose;
 let toastTimeout;
 let landscapeAnimation;
-let settingsFromPause = false;
 const shadowButton = shadowChoice && document.createElement('button');
 const shadowDebug = shadowArena && document.createElement('output');
 const shadowTouchButtons = [];
@@ -173,7 +180,7 @@ if (shadowDebug) {
   stage.appendChild(shadowDebug);
 }
 const actionButtons = new Map(shadowTouchButtons.map(button=>[button.dataset.action,button]));
-const clockLabels = {throw:'✦',dash:'»',charged:'刀',parry:'Q',cyclone:'V',execution:'F'};
+let configuredActions;
 
 function shadowHud(active) {
   byId('combat-hud').hidden = !active;
@@ -181,15 +188,7 @@ function shadowHud(active) {
   nextClockPaint = 0;
   for (const button of shadowTouchButtons) button.hidden = !active;
   if (shadowDebug) shadowDebug.hidden = !active;
-  byId('help-button').title = active ? 'Move A/D · Jump Space · Katana X · Shuriken C · Dash Z · Sprint Shift · Cyclone V · Execution F · Parry Q' : '';
-  const hints = byId('keyboard-hints');
-  hints.querySelector('.shadow-hints')?.remove();
-  if (active) {
-    const details = document.createElement('span');
-    details.className = 'shadow-hints';
-    details.innerHTML = '<kbd>C</kbd> Shuriken <kbd>Z</kbd> Dash <kbd>⇧</kbd> Sprint <kbd>V</kbd> Cyclone <kbd>F</kbd> Execute <kbd>Q</kbd> Parry';
-    hints.append(details);
-  }
+
 }
 
 function savePreferences() {
@@ -210,6 +209,7 @@ function percentage(value, fallback) {
 
 function updatePreferences() {
   const soundEnabled = preferences.sound !== false;
+  byId('motion-note').textContent = motionPreference.matches ? 'Your device requests reduced motion.' : 'Less background motion, particles, and flashing.';
   const volume = percentage(preferences.volume, 100);
   const musicVolume = percentage(preferences.musicVolume, 45);
   sound.configure(soundEnabled, volume / 100, musicVolume / 100);
@@ -308,7 +308,7 @@ function showChallengeRecord() {
   byId('challenge-start').disabled = !eligible;
   byId('challenge-record').textContent = record
     ? `Best ${preciseTime(record.time)} · ${record.deaths} deaths${record.clean ? ' · Flawless badge' : ''}`
-    : eligible ? '' : id === 'rush' ? 'Clear all three campaign bosses to unlock.'
+    : eligible ? '' : id === 'rush' ? 'Clear the Hollow Crown, Poison Queen and Thunder Titan to unlock Classic Boss Rush.'
       : id === 'nightmare' ? 'Clear The Hollow Crown in Normal to unlock.'
         : 'Clear a stage in Normal to unlock this challenge.';
 }
@@ -332,7 +332,8 @@ function setMode(nextMode) {
   document.documentElement.classList.toggle('game-view', !isMenu);
   shell.dataset.view = isMenu ? 'menu' : 'playing';
   byId('main-menu').hidden = !isMenu;
-  byId('menu-footer').hidden = !isMenu;
+  byId('game-arcade').hidden = isMenu;
+  if (!isMenu) stopLanding?.();
   byId('hud').hidden = isMenu;
   byId('loading-label').hidden = nextMode !== 'loading';
   byId('keyboard-hints').hidden = isMenu;
@@ -367,12 +368,16 @@ function showToast(message, effect) {
 }
 
 function viewportWidth() {
-  return Math.round(Math.max(1, gameMount.clientWidth) / Math.max(1, gameMount.clientHeight) * VIEW_HEIGHT);
+  return isPlayfieldVisible() ? Math.round(gameMount.clientWidth / gameMount.clientHeight * VIEW_HEIGHT) : 400;
+}
+
+function isPlayfieldVisible() {
+  return gameMount.clientWidth > 0 && gameMount.clientHeight > 0;
 }
 
 function resize() {
   const width = viewportWidth();
-  if (game.scale.width !== width) game.scale.resize(width, VIEW_HEIGHT);
+  if (isPlayfieldVisible() && game.scale.width !== width) game.scale.resize(width, VIEW_HEIGHT);
 }
 
 function transitionLandscape() {
@@ -390,7 +395,7 @@ function updateLevelSelect() {
     const locked = !progress.canPlay(index);
     button.disabled = locked;
     button.classList.toggle('level-ready', !locked);
-    button.querySelector('small').textContent = `Level ${index + 1}${locked ? ' · Locked' : ''}`;
+    button.querySelector('small').textContent = `Level ${index + 1}${LEVELS[index].boss ? ' · Guardian' : ''}${locked ? ' · Locked' : ''}`;
     button.querySelector('use').setAttribute('href', locked ? '#lock' : '#play');
     const record = progress.record(index);
     const label = button.querySelector('.level-record');
@@ -413,20 +418,89 @@ function updateLevelSelect() {
   });
 }
 
+function paintLanding() {
+  stopLanding?.();
+  stopLanding = showPortrait(byId('landing-hero'), game.textures, HEROES.shadow, 'scout', {
+    active: () => mode === 'menu' && !landing.hidden,
+    motion: () => !reduceMotion(),
+  });
+}
+
+function updateHub() {
+  const index = progress.continueAt;
+  byId('continue-label').textContent = index === null ? 'View Victory' : 'Continue Adventure';
+  byId('campaign-resume').textContent = index === null
+    ? 'All 60 stages cleared'
+    : 'Stage ' + (index + 1) + ' · ' + LEVELS[index].name;
+  byId('hub-hero-summary').textContent = HEROES[legends.selected].name + ' equipped';
+}
+
+function showHub() {
+  stopLanding?.();
+  landing.hidden = true;
+  hub.hidden = false;
+  updateHub();
+  window.scrollTo(0, 0);
+  byId('play-game').focus({ preventScroll: true });
+}
+
+function showLanding() {
+  hub.hidden = true;
+  landing.hidden = false;
+  window.scrollTo(0, 0);
+  paintLanding();
+  byId('enter-adventure').focus({ preventScroll: true });
+}
+
+function confirmAction({ title, message, label }, action) {
+  byId('confirm-title').textContent = title;
+  byId('confirm-message').textContent = message;
+  byId('confirm-action').textContent = label;
+  confirmedAction = action;
+  navigation.open(confirmation, {
+    initial: byId('confirm-cancel'),
+    onBack: () => { confirmedAction = undefined; },
+  });
+}
+
+function confirmNewAdventure() {
+  confirmAction({
+    title: 'Start a new adventure?',
+    message: 'The current run’s coins, times and deaths will start over. Your unlocked stages, best records, equipment, upgrades and settings will be kept.',
+    label: 'Start New Adventure',
+  }, () => requestPlay(0, true));
+}
+
+function showLevels(world) {
+  const limit = world === undefined ? LEVELS.length : worldRows.find(row => row.start > world)?.start ?? LEVELS.length;
+  const context = byId('level-context');
+  context.hidden = world === undefined;
+  if (world !== undefined) context.textContent = worlds.get(world) + ' · Stages ' + (world + 1) + '–' + limit;
+  byId('world-nav').hidden = world !== undefined;
+  for (const [index, tile] of levelButtons.entries()) tile.hidden = world !== undefined && (index < world || index >= limit);
+  for (const row of worldRows) row.heading.hidden = world !== undefined && row.start !== world;
+  navigation.open(levelDialog);
+}
+
+function showWorldMap() {
+  updateWorldMap();
+  const fromVillage = runMode === 'village' && mode === 'playing';
+  if (fromVillage) stopForDialog();
+  navigation.open(byId('world-dialog'), { onBack: fromVillage ? resumeRun : undefined });
+}
+
 function startRun(index) {
   byId('boss-hud').hidden = true;
+  byId('combat-announcement').textContent = '';
   byId('village-interact').hidden=true;
-  villagePaused=false;
+  byId('village-travel').hidden = runMode !== 'village';
+  navigation.reset();
   bossMusic = undefined;
   currentLevel = index;
   const shadow = useShadowNinja;
   runHero=legends.kit(legends.selected,!['normal','dojo','ng','shadow'].includes(runMode));
-  combatClocks.get('throw').title=runHero.abilities[2];
-  combatClocks.get('cyclone').title=runHero.abilities[4];
-  combatClocks.get('execution').title=runHero.ultimate;
-  actionButtons.get('throw')?.setAttribute('aria-label',runHero.abilities[2]);
-  actionButtons.get('cyclone')?.setAttribute('aria-label',runHero.abilities[4]);
-  actionButtons.get('execution')?.setAttribute('aria-label',runHero.ultimate);
+  refreshActionLabels(runHero);
+  clockValues.clear();
   const original=LEVELS[index];
   const level = runMode === 'village' ? NINJA_VILLAGE : runMode === 'survival' ? SURVIVAL_LEVEL :
     runMode==='dojo'||shadowArena&&runMode==='shadow' ? SHADOW_ARENA :
@@ -436,12 +510,12 @@ function startRun(index) {
   shadowHud(shadow);
   shell.dataset.hero = shadow ? 'shadow' : 'legacy';
   shell.dataset.legend=runHero.id;
-  if (shadow) byId('pause-level').dataset.shadow = `X ${runHero.abilities[0]} · C ${runHero.abilities[2]} · Z ${runHero.abilities[3]} · Shift Sprint · V ${runHero.abilities[4]} · F ${runHero.ultimate} · Q Parry`;
-  else delete byId('pause-level').dataset.shadow;
+  byId('pause-village-nav').hidden = runMode !== 'village';
   shell.dataset.mode = runMode;
   shell.dataset.theme = level.theme;
   byId('hud-level-number').textContent = runMode === 'survival' ? '∞' : runMode==='village'?'村':pad(index + 1);
   byId('hud-level-name').textContent = level.name;
+  byId('hud-hero').textContent = runHero.name;
   byId('retry-checkpoint').textContent = runMode === 'survival' ? 'End Survival Run' : 'Retry Checkpoint';
   byId('pause-level').textContent = (challenges[runMode]?.name??({survival:'Survival',village:'Ninja Village',dojo:'Dojo',daily:'Daily',rematch:'Rematch',ng:'New Game+'})[runMode]
     ?? (runMode==='normal'?'Level '+(index+1):runHero.name))+' · '+level.name;
@@ -462,10 +536,9 @@ function showMainMenu() {
   byId('boss-hud').hidden = true;
   controls.clear();
   byId('village-interact').hidden=true;
+  byId('village-travel').hidden=true;
   hideToast();
-  if (pause.open) pause.close();
-  if (clear.open) clear.close();
-  if (victory.open) victory.close();
+  navigation.reset();
   game.scene.stop('platformer');
   setMode('menu');
   delete shell.dataset.theme;
@@ -473,9 +546,7 @@ function showMainMenu() {
   delete shell.dataset.hero;
   shadowHud(false);
   resize();
-  game.scene.start('menu');
-  transitionLandscape();
-  byId('play-game').focus({ preventScroll: true });
+  showHub();
 }
 
 function beginRequestedRun() {
@@ -492,8 +563,7 @@ function requestPlay(index, newAdventure = false, challenge = 'normal') {
   const accessible = challenge === 'normal' ? progress.canPlay(index) : canChallenge(challenge, index, progress);
   if (!game.isBooted || !accessible) return;
   requestedLevel = { index, newAdventure, challenge };
-  if (levelDialog.open) levelDialog.close();
-  if (challengeDialog.open) challengeDialog.close();
+
   if (preferences.tutorialSeen) beginRequestedRun();
   else openHelp('first-run');
 }
@@ -516,53 +586,36 @@ function openHelp(purpose) {
   tutorialPurpose = purpose;
   if (purpose === 'run-controls') stopForDialog();
   tutorialDone.textContent = { 'first-run': 'Start Level', 'menu-controls': 'Back to Menu', 'run-controls': 'Back to Level', 'pause-controls': 'Back to Pause' }[purpose];
-  help.showModal();
-}
-
-function closeDialog(dialog, confirm = false) {
-  dialog.close();
-  if (dialog === settings && settingsFromPause) {
-    settingsFromPause = false;
-    pause.showModal();
-    byId('pause-settings').focus();
-  }
-  if (dialog === help && tutorialPurpose === 'pause-controls') {
-    pause.showModal();
-    byId('pause-controls').focus();
-  }
-  if (dialog === pause || (dialog === help && tutorialPurpose === 'run-controls')) resumeRun();
-  if (dialog === help && tutorialPurpose === 'first-run') {
-    if (confirm) {
-      preferences.tutorialSeen = true;
-      savePreferences();
-      beginRequestedRun();
-    } else {
-      requestedLevel = undefined;
-      byId('play-game').focus();
-    }
-  }
+  refreshActionLabels();
+  navigation.open(help, { onBack() {
+    if (purpose === 'run-controls') resumeRun();
+    if (purpose === 'first-run') requestedLevel = undefined;
+  } });
 }
 
 function openPause() {
   if (mode !== 'playing') return;
   stopForDialog();
-  pause.showModal();
+  navigation.open(pause, { initial: byId('resume'), onBack: resumeRun });
 }
 
-for (const dialog of document.querySelectorAll('dialog')) {
-  dialog.querySelectorAll('[data-close]').forEach((button) => {
-    button.addEventListener('click', () => closeDialog(dialog));
-  });
-  dialog.addEventListener('cancel', (event) => {
-    event.preventDefault();
-    if (dialog !== clear && dialog !== victory) closeDialog(dialog);
-  });
-}
+document.addEventListener('click', event => {
+  const dialog = event.target.closest('[data-close]')?.closest('dialog');
+  if (dialog && dialog === navigation.top()) navigation.back();
+});
+
+byId('confirm-action').addEventListener('click', () => {
+  const action = confirmedAction;
+  confirmedAction = undefined;
+  navigation.close();
+  action?.();
+});
+
 
 updateLevelSelect();
 refreshOutfits();
 for (const [key, { name }] of Object.entries(challenges)) challengeMode.add(new Option(name, key));
-byId('challenge-button').addEventListener('click', () => { refreshChallengeStages(); challengeDialog.showModal(); });
+byId('challenge-button').addEventListener('click', () => { refreshChallengeStages(); navigation.open(challengeDialog); });
 byId('survival-button').addEventListener('click', () => {
   if (!game.isBooted || !useShadowNinja) return;
   runMode = 'survival';
@@ -581,7 +634,7 @@ byId('combat-awards').addEventListener('click', () => {
     li.append(title,description);
     return li;
   }));
-  byId('awards-dialog').showModal();
+  navigation.open(byId('awards-dialog'));
 });
 challengeMode.addEventListener('change', refreshChallengeStages);
 challengeStage.addEventListener('change', showChallengeRecord);
@@ -595,24 +648,34 @@ outfit.addEventListener('change', () => {
   outfitKey = outfit.value;
   savePreferences();
 });
-byId('play-game').addEventListener('click', () => requestPlay(0, true));
+byId('enter-adventure').addEventListener('click', showHub);
+byId('hub-back').addEventListener('click', showLanding);
+byId('new-adventure').addEventListener('click', confirmNewAdventure);
+byId('play-game').addEventListener('click', () => {
+  const index = progress.continueAt;
+  if (index === null) showVictory();
+  else requestPlay(index);
+});
 levelButtons.forEach((button, index) => button.addEventListener('click', () => requestPlay(index)));
-byId('level-select').addEventListener('click', () => {
-  levelDialog.showModal();
-  levelButtons[0].focus({ preventScroll: true });
+byId('level-select').addEventListener('click', () => showLevels());
+byId('world-map').addEventListener('click', showWorldMap);
+for (const id of ['settings-button', 'pause-settings', 'landing-settings']) {
+  byId(id).addEventListener('click', () => navigation.open(settings));
+}
+byId('landing-accessibility').addEventListener('click', () => {
+  navigation.open(settings);
+  byId('motion-setting').closest('label').scrollIntoView({ block: 'nearest' });
+  (byId('motion-setting').disabled ? byId('danger-setting') : byId('motion-setting')).focus();
 });
-byId('settings-button').addEventListener('click', () => settings.showModal());
-byId('pause-settings').addEventListener('click', () => {
-  settingsFromPause = true;
-  pause.close();
-  settings.showModal();
+for (const id of ['landing-controls', 'hub-controls']) byId(id).addEventListener('click', () => openHelp('menu-controls'));
+byId('pause-controls').addEventListener('click', () => openHelp('pause-controls'));
+helpButton.addEventListener('click', () => openHelp('run-controls'));
+tutorialDone.addEventListener('click', () => {
+  if (tutorialPurpose !== 'first-run') { navigation.back(); return; }
+  preferences.tutorialSeen = true;
+  savePreferences();
+  beginRequestedRun();
 });
-byId('pause-controls').addEventListener('click', () => {
-  pause.close();
-  openHelp('pause-controls');
-});
-helpButton.addEventListener('click', () => openHelp(mode === 'menu' ? 'menu-controls' : 'run-controls'));
-tutorialDone.addEventListener('click', () => closeDialog(help, true));
 byId('pause-button').addEventListener('click', openPause);
 function restartRun() {
   if (runMode === 'rush') {
@@ -620,18 +683,17 @@ function restartRun() {
     startRun(RUSH_LEVELS[0]);
   } else startRun(currentLevel);
 }
-byId('restart-level').addEventListener('click', () => { pause.close(); restartRun(); });
+byId('restart-level').addEventListener('click', restartRun);
 byId('retry-checkpoint').addEventListener('click', () => {
-  pause.close();
-  resumeRun();
+  navigation.back();
   scene.respawn('retry');
 });
-byId('play-again').addEventListener('click', () => { clear.close(); restartRun(); });
+byId('play-again').addEventListener('click', restartRun);
 nextLevel.addEventListener('click', () => {
-  clear.close();
   startRun(runMode === 'rush' ? RUSH_LEVELS[RUSH_LEVELS.indexOf(currentLevel) + 1] : currentLevel + 1);
 });
-viewVictory.addEventListener('click', () => {
+viewVictory.addEventListener('click', showVictory);
+function showVictory() {
   const totals = progress.totals();
   byId('victory-coins').textContent = `${totals.coins} / ${maxCoins}`;
   byId('victory-time').textContent = formatTime(totals.elapsed);
@@ -640,21 +702,16 @@ viewVictory.addEventListener('click', () => {
   byId('victory-deaths').textContent = totals.deaths ?? '';
   byId('victory-summary').textContent = `All ${LEVELS.length} levels complete.`;
   byId('ending-story').textContent='The eclipse breaks. Twelve lanterns relight in Ninja Village, one for each realm. New Game+ and guardian rematches await in the Hall of Legends.';
-  clear.close();
-  victory.showModal();
+  navigation.open(victory, { onBack: () => { if (!navigation.top() && mode !== 'menu') showMainMenu(); } });
   sound.play('victory');
-});
-byId('victory-replay').addEventListener('click', () => {
-  victory.close();
-  runMode = 'normal';
-  dailyRun=null;
-  progress.newAdventure();
-  startRun(0);
-});
+}
+byId('victory-replay').addEventListener('click', confirmNewAdventure);
 byId('pause-main').addEventListener('click', showMainMenu);
 byId('clear-main').addEventListener('click', showMainMenu);
 byId('victory-main').addEventListener('click', showMainMenu);
-byId('victory-village').addEventListener('click',()=>{victory.close();runMode='village';dailyRun=null;startRun(0);});
+byId('victory-village').addEventListener('click', enterVillage);
+byId('hub-village').addEventListener('click', enterVillage);
+function enterVillage() { runMode = 'village'; dailyRun = null; startRun(0); }
 window.addEventListener('keydown', (event) => {
   if (controls.keyFor('pause').includes(event.code) && !event.repeat && mode === 'playing'
     && !event.ctrlKey&&!event.metaKey&&!event.altKey) {
@@ -672,8 +729,13 @@ window.addEventListener('keydown', (event) => {
 const panel = byId('touch-controls');
 const hapticFeedback = setupTouchSettings(panel, preferences, savePreferences);
 const controls = createControls(panel, () => mode === 'playing', hapticFeedback, () => useShadowNinja, preferences);
-setupCombatSettings(preferences,savePreferences,controls.clear);
-setupSkillTree(skills,shadowArena);
+setupCombatSettings(preferences,savePreferences,controls.clear,refreshActionLabels);
+function refreshActionLabels(hero = mode === 'menu' ? HEROES[legends.selected] : runHero) {
+  configuredActions = refreshControlLabels({ hero, controls, shadow: useShadowNinja });
+  for (const [key, node] of combatClocks) node.title = configuredActions[key];
+}
+refreshActionLabels();
+setupSkillTree(skills,shadowArena,navigation,confirmAction);
 window.matchMedia('(orientation: portrait)').addEventListener('change', controls.clear);
 document.addEventListener('fullscreenchange', controls.clear);
 const maxCoins = LEVELS.reduce((sum, level) => sum + level.coins.length, 0);
@@ -689,7 +751,7 @@ function expansionResult(title,note,coins,total,elapsed,deaths,advance=false){
   byId('result-best').textContent='';
   byId('continue-note').hidden=true;
   nextLevel.hidden=!advance;viewVictory.hidden=true;
-  clear.showModal();
+  navigation.open(clear, { onBack: showMainMenu });
 }
 function showChallengeResult(coins, coinTotal, elapsed, deaths, success = true) {
   const isRush = runMode === 'rush';
@@ -723,7 +785,7 @@ function showChallengeResult(coins, coinTotal, elapsed, deaths, success = true) 
   byId('continue-note').textContent = record && newOutfit ? `${newOutfit.textContent.split(' · ')[0]} outfit unlocked` : '';
   viewVictory.hidden = true;
   nextLevel.hidden = !nextArena;
-  clear.showModal();
+  navigation.open(clear, { onBack: showMainMenu });
   if (nextArena) nextLevel.focus();
 }
 
@@ -732,7 +794,7 @@ const scene = new PlatformerScene(controls, {
   get reduceMotion() { return reduceMotion(); },
   get dangerGuides() { return dangerSetting.checked; },
   get costume() { return runHero.id==='shadow'?outfitKey:legends.profile(runHero.id).cosmetic; },
-  onPlayfieldPress: focusStage,
+  onPlayfieldPress() { if (mode === 'playing') focusStage(); },
   onPause() { if (mode === 'playing') { openPause(); return true; } return false; },
   onReady(coinTotal) {
     byId('coin-total').textContent = pad(coinTotal);
@@ -756,16 +818,21 @@ const scene = new PlatformerScene(controls, {
     if (!state || time < nextClockPaint) return;
     nextClockPaint = time + 80;
     const grounded = scene.animationState.grounded;
+    const ready = [];
     for (const [action,node] of combatClocks) {
       const wait = (action === 'dash' ? grounded ? state.groundDashAt : 0 : state.readyAt[action] ?? 0) - time;
       const remaining = action === 'dash' && !grounded && state.airUsed ? 'air' : wait > 0 ? (Math.ceil(wait/100)/10).toFixed(1) : '';
-      if (clockValues.get(action) === remaining) continue;
+      const previous = clockValues.get(action);
+      if (previous === remaining) continue;
+      if (previous && !remaining) ready.push(configuredActions[action]);
       clockValues.set(action,remaining);
       node.textContent = remaining === 'air' ? 'Land' : remaining ? `${clockLabels[action]} ${remaining}` : clockLabels[action];
+      node.setAttribute('aria-label', configuredActions[action] + (remaining === 'air' ? ': land to recharge' : remaining ? ': ' + remaining + ' seconds' : ': ready'));
       node.classList.toggle('cooling',Boolean(remaining));
       const button = actionButtons.get(action);
       if (button) button.dataset.unready = String(Boolean(remaining));
     }
+    if (ready.length) byId('combat-announcement').textContent = ready.join(', ') + ' ready';
     const tally = scene.runTally;
     const combo = tally && time-tally.lastHit < 4000 && tally.chain > 1 ? `${tally.chain} hits` : '';
     if (byId('combo-count').textContent !== combo) byId('combo-count').textContent = combo;
@@ -826,7 +893,7 @@ const scene = new PlatformerScene(controls, {
       byId('continue-note').hidden = true;
       nextLevel.hidden = true;
       viewVictory.hidden = true;
-      clear.showModal();
+      navigation.open(clear, { onBack: showMainMenu });
       return;
     }
     if (runMode === 'flawless') {
@@ -905,7 +972,7 @@ const scene = new PlatformerScene(controls, {
       byId('continue-note').hidden = true;
       nextLevel.hidden = true;
       viewVictory.hidden = true;
-      clear.showModal();
+      navigation.open(clear, { onBack: showMainMenu });
       return;
     }
     if (runMode !== 'normal') {
@@ -942,11 +1009,26 @@ const scene = new PlatformerScene(controls, {
     byId('continue-note').hidden = !unlocked;
     nextLevel.hidden = !following;
     viewVictory.hidden = !canViewVictory;
-    clear.showModal();
+    navigation.open(clear, { onBack: showMainMenu });
     if (following) nextLevel.focus();
     else if (canViewVictory) viewVictory.focus();
   },
 });
+
+let completeBoot, rejectBoot;
+export const ready = new Promise((resolve, reject) => { completeBoot = resolve; rejectBoot = reject; });
+
+function onGameReady() {
+  queueMicrotask(() => {
+    try {
+      paintLanding();
+      updateHub();
+      completeBoot();
+    } catch (error) {
+      rejectBoot(error);
+    }
+  });
+}
 
 const game = new Phaser.Game({
   type: Phaser.CANVAS,
@@ -967,40 +1049,97 @@ const game = new Phaser.Game({
   },
   scale: { mode: Phaser.Scale.NONE },
   physics: { default: 'arcade', arcade: { gravity: { y: 700 } } },
-  scene: [new MenuScene(reduceMotion), scene],
+  scene: [new MenuScene(onGameReady, rejectBoot), scene],
 });
 
-const legendsUI=installLegendsUI({store:legends,levels:LEVELS,progress,game,reduceMotion,
-  actions:{
-    canSelect:()=>mode==='menu'||mode==='complete'||runMode==='village',
-    selection:()=>{byId('legends-button').title='Selected · '+HEROES[legends.selected].name;},
-    pauseVillage(){
-      if(runMode==='village'&&mode==='playing'){villagePaused=true;stopForDialog();}
+const updateWorldMap = createWorldMap({
+  game, worlds, levels: LEVELS, progress, progressElement: byId('world-progress'),
+  container: byId('world-cards'), openLevels: showLevels,
+});
+
+const legendsUI = installLegendsUI({ store: legends, levels: LEVELS, progress, game, reduceMotion, navigation,
+  actions: {
+    canSelect: () => mode === 'menu' || mode === 'complete' || runMode === 'village',
+    selection: () => { updateHub(); refreshActionLabels(); },
+    confirm: confirmAction,
+    pauseVillage() {
+      if (runMode !== 'village' || mode !== 'playing') return undefined;
+      stopForDialog();
+      return resumeRun;
     },
-    resumeVillage(){
-      if(villagePaused&&runMode==='village'&&mode==='paused'){villagePaused=false;resumeRun();}
+    shadowSkills: () => byId('skill-tree').click(),
+    village: enterVillage,
+    dojo() {
+      runMode = 'dojo';
+      dailyRun = null;
+      startRun(0);
     },
-    shadowSkills:()=>byId('skill-tree').click(),
-    village(){runMode='village';dailyRun=null;startRun(0);},
-    dojo(){runMode='dojo';dailyRun=null;startRun(0);},
-    worlds(){if(mode!=='menu')showMainMenu();byId('level-select').click();},
-    rematch(stage,difficulty){runMode='rematch';dailyRun=null;rematchDifficulty=difficulty;startRun(stage);},
-    ng(){if(legends.beginCycle()){runMode='ng';dailyRun=null;startRun(legends.ng.frontier-1);}},
-    daily(challenge,stage){dailyRun=challenge;runMode=challenge.kind==='arena'?'survival':'daily';startRun(stage);},
+    travel(station) {
+      if (runMode !== 'village') return;
+      navigation.reset();
+      controls.clear();
+      scene.player.body.reset(station.x, GROUND_Y - 2);
+      scene.resetJump();
+      scene.moveCamera(1);
+      resumeRun();
+      showToast('Arrived at ' + station.name, 'checkpoint');
+    },
+    worlds: showWorldMap,
+    rematch(stage, difficulty) {
+      runMode = 'rematch';
+      dailyRun = null;
+      rematchDifficulty = difficulty;
+      startRun(stage);
+    },
+    ng() {
+      if (!legends.beginCycle()) return;
+      runMode = 'ng';
+      dailyRun = null;
+      startRun(legends.ng.frontier - 1);
+    },
+    daily(challenge, stage) {
+      dailyRun = challenge;
+      runMode = challenge.kind === 'arena' ? 'survival' : 'daily';
+      startRun(stage);
+    },
   },
 });
-byId('legends-button').addEventListener('click',()=>legendsUI.open());
-for(const button of document.querySelectorAll('[data-legends-heroes]'))button.addEventListener('click',()=>legendsUI.open('heroes'));
-function interactVillage(){
-  if(mode!=='playing'||runMode!=='village'||!scene.villageStation)return;
-  const {id,npc,line}=scene.villageStation;
-  if(id==='worlds'){showMainMenu();byId('level-select').click();}
-  else if(id==='dojo'){runMode='dojo';startRun(0);}
-  else legendsUI.open(id);
-  showToast(npc+' · '+line,'checkpoint');
+for (const [id, route] of [['legends-button','home'], ['hub-heroes','heroes'], ['hub-rematches','hall'],
+  ['hub-daily','daily'], ['village-travel','travel'], ['pause-village-nav','travel']]) {
+  byId(id).addEventListener('click', () => legendsUI.open(route));
 }
-byId('village-interact').addEventListener('click',interactVillage);
-window.addEventListener('keydown',event=>{if(event.code==='KeyE'&&!event.repeat)interactVillage();});
+for (const button of document.querySelectorAll('[data-legends-heroes]')) {
+  button.addEventListener('click', () => legendsUI.open('heroes'));
+}
+function interactVillage() {
+  if (mode !== 'playing' || runMode !== 'village' || !scene.villageStation) return;
+  const { id, npc, line } = scene.villageStation;
+  if (id === 'worlds') {
+    showToast(npc + ' · ' + line, 'checkpoint');
+    showWorldMap();
+  } else legendsUI.open(id);
+}
+byId('village-interact').addEventListener('click', interactVillage);
+window.addEventListener('keydown', event => {
+  if (event.code === 'KeyE' && !event.repeat && document.activeElement === stage) interactVillage();
+});
+
+installMenuGamepad({
+  scope: () => navigation.top() ?? (mode === 'menu' ? (hub.hidden ? landing : hub) : null),
+  back(root) {
+    if (navigation.top()) {
+      const action = root.querySelector('[data-back-action]');
+      if (action) action.click();
+      else navigation.back();
+    } else if (root === hub) showLanding();
+  },
+  pause(root) {
+    if (root !== pause) return false;
+    navigation.back();
+    return true;
+  },
+});
+
 
 new ResizeObserver(() => {
   if (game.isBooted) resize();

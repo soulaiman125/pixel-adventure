@@ -1,8 +1,8 @@
-# Pixel Adventure 4.0 — Legends of Shadows
+# Pixel Adventure 4.1 — Legends of Shadows
 
-A free action-platformer with 60 stages across twelve worlds and five playable heroes. Legends of Shadows is a local review candidate on `feature/v4-legends-of-shadows`. The public links below lead to Pixel Adventure 2.0.0.
+A free action-platformer with 60 stages across twelve worlds and five playable heroes. The Hybrid UI redesign is a local review candidate on `feature/v4.1-hybrid-aaa-ui-redesign`. The public links below lead to Pixel Adventure 2.0.0.
 
-Open **Legends of Shadows → Choose Hero** to preview and select Shadow Ninja, Flame Samurai, Frost Assassin, Thunder Ronin, or Forest Ranger. All five are available from the start. Select a hero between stages. **Enter Ninja Village** takes you to the Blacksmith, Training Dojo, Quest Board, Outfit Shop, World Portal, and Hall of Legends. Press **E** near a village resident or tap the interaction button. The menu also provides direct access to several stations. See [the private QA report](docs/legends-qa.md) for validation and known limitations.
+Choose **Enter Adventure** on the title screen, then **Continue Adventure** to resume the current campaign. **New Adventure** asks for confirmation before resetting active run totals and keeps unlocks, records, and equipment. Open **Heroes → Choose Hero** to preview and select Shadow Ninja, Flame Samurai, Frost Assassin, Thunder Ronin, or Forest Ranger. All five are available from the start. Select a hero between stages. **Enter Ninja Village** takes you to the Blacksmith, Training Dojo, Quest Board, Outfit Shop, World Portal, and Hall of Legends. Press **E** near a village resident or tap the interaction button. The menu also provides direct access to several stations. See [the v4.1 private UI audit resolution](docs/ui-ux-resolution-v4.1.md) for the redesigned screens, validation, and known limitations.
 
 [Play online](https://pixel-adventure-phi.vercel.app/) · [Download for Windows x64](https://github.com/soulaiman125/pixel-adventure/releases/download/v2.0.0/Pixel-Adventure-Setup-2.0.0-x64.exe) · [Release notes](https://github.com/soulaiman125/pixel-adventure/releases/tag/v2.0.0)
 
@@ -38,7 +38,7 @@ Open [http://127.0.0.1:5173/](http://127.0.0.1:5173/). The browser version can a
 
 Download the setup executable from [GitHub Releases](https://github.com/soulaiman125/pixel-adventure/releases/tag/v2.0.0), close any open Pixel Adventure window, and run the installer on Windows x64. Open **Pixel Adventure** from the desktop or Start menu. Run the same installer over v1.0.0 to upgrade and retain your existing Windows save. The installer includes the runtime, game, and assets. It plays offline after installation and saves progress separately from the browser version.
 
-To rebuild the installer on Windows, run `npm.cmd run package:win`. It writes the NSIS installer to `release/`. The installer is unsigned, so Windows SmartScreen may display a warning when it is opened. The v4 review uses the source Electron app.
+To rebuild the installer on Windows, run `npm.cmd run package:win`. It writes the NSIS installer to `release/`. The installer is unsigned, so Windows SmartScreen may display a warning when it is opened. The 4.1 review uses the source Electron app.
 
 To run the desktop edition from source, run `npm.cmd run build` followed by `npm.cmd run desktop`.
 
@@ -122,7 +122,7 @@ npm.cmd run test:desktop
 
 Run the browser suites with the development server running and Microsoft Edge installed. The browser smoke suite verifies scene loads and completion triggers with controlled player placement, plus real input for selected movement, combat, and touch checks. The separate `test:campaign` runner clears stages through keyboard inputs, checks each boss phase, and verifies the final Victory totals. `test:ninja` exercises combat, upgrades, remapping, touch inputs and the training arena. Install FFmpeg for its review-video exports. The desktop suite uses a temporary profile, samples offline audio, opens all 60 stages with networking disabled, and checks save persistence after relaunch.
 
-Use `PIXEL_TEST_URL` to select a candidate server, `PIXEL_REPORT` for campaign evidence, and `PIXEL_REVIEW_DIR` for screenshots and benchmark output. The performance runner compares the private Combat & Movement 3.0 build at `PIXEL_BASELINE_URL` with the candidate server. Set `PIXEL_EXECUTION_BENCH=1` for the finisher or `PIXEL_SURVIVAL_BENCH=1` for a six-enemy workload. See [the Legends of Shadows QA report](docs/legends-qa.md) and [the earlier Ultimate Ninja QA report](docs/ultimate-qa.md).
+Run `npm run test:hybrid` against `http://127.0.0.1:4240/` or set `PIXEL_TEST_URL` to a production preview. Use `PIXEL_TEST_URL` to select a candidate server, `PIXEL_REPORT` for campaign evidence, and `PIXEL_REVIEW_DIR` for screenshots and benchmark output. The performance runner compares the server at `PIXEL_BASELINE_URL` with the candidate server. Set `PIXEL_EXECUTION_BENCH=1` for the finisher or `PIXEL_SURVIVAL_BENCH=1` for a six-enemy workload. See [the Legends of Shadows QA report](docs/legends-qa.md) and [the earlier Ultimate Ninja QA report](docs/ultimate-qa.md).
 
 ## Credits
 

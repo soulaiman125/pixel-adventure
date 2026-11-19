@@ -47,7 +47,7 @@ async function open(choice, options = {}) {
   await page.goto(
     "http://127.0.0.1:5173/" + (['normal','survival'].includes(choice) ? '' : choice ? "?shadow=" + choice : "?hero=legacy"),
   );
-  await page.locator("canvas").waitFor();
+  await page.locator("#enter-adventure").click();
   await page.locator(choice === 'survival' ? '#survival-button' : choice && choice !== 'normal' ? "#shadow-play" : "#play-game").click();
   await page.waitForFunction(
     () => qaScene?.sys.isActive() && qaScene.player?.body.blocked.down,
@@ -659,7 +659,10 @@ async function skillsAndBindings() {
   assert.equal(await page.locator('#skill-points').textContent(),'36');
   await shot(page,'skill-tree.png');
   for(const id of ['katana','shuriken','dash','sprint','cyclone','execution']){
-    for(let n=0;n<3;n++)await page.locator('[data-skill="'+id+'"]').click();
+    for(let n=0;n<3;n++) {
+      await page.locator('[data-skill="'+id+'"]').click();
+      await page.locator('#confirm-action').click();
+    }
   }
   assert.equal(await page.locator('#skill-points').textContent(),'0');
   await page.locator('#skills-dialog [data-close]').click();
@@ -833,6 +836,7 @@ async function secretDiscovery() {
   const hasGrove = () => page.evaluate(()=>JSON.parse(localStorage.getItem('pixel-adventure.ultimate')).feats.includes('grove'));
   assert(await hasGrove());
   await page.reload();
+  await page.locator('#enter-adventure').click();
   await page.locator('#settings-button').click();
   assert(await page.locator('#hero-outfit option[value=jade]').isEnabled());
   await page.locator('#hero-outfit').selectOption('jade');
@@ -1061,6 +1065,7 @@ async function survivalRun() {
   const saved = await page.evaluate(()=>JSON.parse(localStorage.getItem('pixel-adventure.ultimate')));
   assert(saved.feats.includes('arena') && saved.arena.wave === 6 && saved.arena.score >= outcome.score);
   await key(page,'KeyR');
+  assert.deepEqual(run.errors, []);
   await page.locator('#clear-dialog[open]').waitFor();
   assert.equal(await page.locator('#clear-title').textContent(),'Survival Complete');
   await page.locator('#play-again').click();

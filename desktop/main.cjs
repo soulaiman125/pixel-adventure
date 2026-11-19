@@ -36,7 +36,9 @@ function openGame() {
     webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false },
   });
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-  window.webContents.on('will-navigate', (event) => event.preventDefault());
+  window.webContents.on('will-navigate', (event, url) => {
+    if (url !== entry) event.preventDefault();
+  });
   window.loadURL(entry);
 }
 

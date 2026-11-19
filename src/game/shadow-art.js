@@ -435,7 +435,7 @@ const OUTFITS = {
 };
 
 export function loadHeroPortrait(scene,hero,costume='scout'){
-  const key='legends-portrait-'+hero.id+'-'+Number(hero.alternate)+'-'+costume;
+  const key='legends-portrait-'+hero.id+'-'+Number(hero.alternate === true)+'-'+costume;
   const colors=hero.id==='shadow'?OUTFITS[costume]??OUTFITS.scout:
     costume==='silver'?hero.colors.map((color,i)=>i===3?'#fbfff0':color):hero.colors;
   atlas(scene,key,SHADOW_WIDTH,SHADOW_HEIGHT,{idle:shadowClips.idle},

@@ -21,7 +21,7 @@ await mkdir(dirname(reportPath), {recursive:true});
 async function startRecording(page) {
   await page.evaluate(() => {
     window.qaRecording = new Promise((resolve) => {
-      const stream = document.querySelector("canvas").captureStream(30);
+      const stream = document.querySelector("#game-mount canvas").captureStream(30);
       const recorder = new MediaRecorder(stream, {
         mimeType: "video/webm;codecs=vp8",
         videoBitsPerSecond: 1400000,
@@ -105,7 +105,7 @@ try {
     },
   );
   await page.route(
-    (url) => /\/assets\/index-[\w-]+\.js$/.test(url.pathname),
+    (url) => /\/assets\/main-[\w-]+\.js$/.test(url.pathname),
     async (route) => {
       const response = await route.fetch();
       const body = await response.text();
@@ -152,10 +152,10 @@ try {
       );
     });
   await page.goto(process.env.PIXEL_TEST_URL || "http://127.0.0.1:5173/");
-  await page.locator("canvas").waitFor();
+  await page.locator("#enter-adventure").click();
   if(process.env.PIXEL_HERO && process.env.PIXEL_HERO!=='shadow'){
     await page.locator('#legends-button').click();
-    await page.getByRole('button',{name:'Choose Hero',exact:true}).click();
+    await page.locator('#legends-dialog').getByRole('button',{name:'Choose Hero',exact:true}).click();
     await page.locator('[data-legend-hero="'+process.env.PIXEL_HERO+'"]').click();
     await page.locator('#legend-select').click();
     await page.getByRole('button',{name:'Close Legends'}).click();

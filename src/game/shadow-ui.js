@@ -1,13 +1,14 @@
 import { bindingsFor, DEFAULT_KEYS } from './controls.js';
 import { SKILLS } from './shadow-skills.js';
+import { keyName } from '../ui/action-labels.js';
 
 const ACTION_LABELS = {
   left:'Move left',right:'Move right',jump:'Jump',drop:'Drop',attack:'Katana Rush',throw:'Shuriken',
   dash:'Shadow Dash',sprint:'Shadow Sprint',cyclone:'Blade Cyclone',execution:'Shadow Execution',parry:'Perfect Parry',pause:'Pause',
 };
-const labelKey = code => code.replace(/^Key/,'').replace(/^Digit/,'').replace('ShiftLeft','Left Shift');
+const labelKey = keyName;
 
-export function setupCombatSettings(preferences, save, clear) {
+export function setupCombatSettings(preferences, save, clear, refreshLabels) {
   const list=document.querySelector('#combat-bindings');
   const status=document.querySelector('#binding-status');
   let pending;
@@ -21,7 +22,10 @@ export function setupCombatSettings(preferences, save, clear) {
     const button=document.createElement('button');
     button.type='button'; button.className='button'; button.dataset.bind=action;
     button.setAttribute('aria-label','Rebind '+label);
-    row.append(label,button); list.append(row); nodes.set(action,button);
+    const caption = document.createElement('span');
+    caption.className = 'binding-action';
+    caption.textContent = label;
+    row.append(caption,button); list.append(row); nodes.set(action,button);
     button.addEventListener('click',()=>{pending=action;status.textContent='Choose a key for '+label;refresh();});
   }
   list.closest('dialog').addEventListener('close',()=>{pending=undefined;refresh();});
@@ -36,14 +40,15 @@ export function setupCombatSettings(preferences, save, clear) {
       status.textContent='That key is reserved or assigned to another action.';
     }else{
       preferences.keys={...preferences.keys,[selected]:event.code};
-      save();clear();status.textContent=ACTION_LABELS[selected]+' uses '+labelKey(event.code)+'.';
+      save();clear();refreshLabels();
+      status.textContent=nodes.get(selected).getAttribute('aria-label').replace(/^Rebind /,'')+' uses '+labelKey(event.code)+'.';
     }
     refresh();
   },true);
   document.querySelector('#reset-bindings').addEventListener('click',()=>{
     delete preferences.keys;
     pending=undefined;
-    save();clear();refresh();status.textContent='Default controls restored.';
+    save();clear();refresh();refreshLabels();status.textContent='Default controls restored.';
   });
   const toggle=document.querySelector('#sprint-toggle');
   toggle.checked=Boolean(preferences.sprintToggle);
@@ -51,7 +56,7 @@ export function setupCombatSettings(preferences, save, clear) {
   refresh();
 }
 
-export function setupSkillTree(skills, training) {
+export function setupSkillTree(skills, training, navigation, confirmAction) {
   const dialog=document.querySelector('#skills-dialog');
   const list=document.querySelector('#skill-grid');
   function paint(){
@@ -76,21 +81,40 @@ export function setupSkillTree(skills, training) {
       const cost = skills.cost(id);
       buy.textContent = level === 3 ? 'Mastered' : `Upgrade · ${cost} ${cost === 1 ? 'point' : 'points'}`;
       buy.disabled = level === 3 || skills.points() < cost;
-      buy.addEventListener('click',()=>{
-        skills.buy(id);paint();
-        (list.querySelector('[data-skill="'+id+'"]:not(:disabled)')||dialog.querySelector('[data-close]')).focus();
-      });
+      buy.addEventListener('click',()=>confirmAction({
+        title: 'Upgrade ' + name + '?',
+        message: descriptions[level] + ' · Costs ' + cost + ' Shadow Points.',
+        label: 'Learn Upgrade',
+      }, () => {
+        skills.buy(id);
+        paint();
+        document.querySelector('#skill-feedback').textContent = name + ' upgraded. ' + skills.points() + ' points left.';
+        (list.querySelector('[data-skill="'+id+'"]:not(:disabled)') || dialog.querySelector('[data-close]')).focus();
+      }));
       card.append(title,progress,tiers,buy);list.append(card);
     }
   }
   document.querySelector('#skill-tree').addEventListener('click',()=>{
-    paint();dialog.showModal();
+    paint();navigation.open(dialog);
   });
   const reset=document.querySelector('#reset-skills');
   const confirm=document.querySelector('#confirm-skills');
-  reset.addEventListener('click',()=>{confirm.hidden=false;confirm.focus();});
-  confirm.addEventListener('click',()=>{skills.reset();confirm.hidden=true;paint();reset.focus();});
-  dialog.addEventListener('close',()=>{confirm.hidden=true;});
+  const cancel = document.querySelector('#cancel-skills');
+  const feedback = document.querySelector('#skill-feedback');
+  function leaveRefund() { confirm.hidden = true; cancel.hidden = true; }
+  reset.addEventListener('click',()=>{
+    confirm.hidden = false;
+    cancel.hidden = false;
+    cancel.focus();
+    feedback.textContent = 'Refund all learned Shadow upgrades and return the points?';
+  });
+  confirm.addEventListener('click',()=>{
+    skills.reset(); leaveRefund(); paint();
+    feedback.textContent = 'Upgrades refunded.';
+    reset.focus();
+  });
+  cancel.addEventListener('click',()=>{ leaveRefund(); feedback.textContent = ''; reset.focus(); });
+  dialog.addEventListener('close',()=>{ leaveRefund(); feedback.textContent = ''; });
   if(training){
     const panel = document.createElement('div');
     panel.id = 'training-controls';

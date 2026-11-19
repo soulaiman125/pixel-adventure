@@ -4,7 +4,7 @@ export const RUSH_LEVELS = [19, 24, 29];
 export const challenges = {
   hardcore: { name: 'Hardcore', rules: 'Faster traps and fewer checkpoints on unlocked stages.' },
   nightmare: { name: 'Nightmare', rules: 'Added hazards, shorter boss openings, and the final checkpoint only.' },
-  rush: { name: 'Boss Rush', rules: 'Three bosses back to back. Time and deaths carry across arenas.' },
+  rush: { name: 'Classic Boss Rush', rules: 'Fight the Hollow Crown, Poison Queen and Thunder Titan. Time and deaths carry across arenas.' },
   trial: { name: 'Time Trial', rules: 'Replay a cleared stage for a separate personal best.' },
   flawless: { name: 'No-Death', rules: 'One life. Reach the flag for a Flawless badge.' },
 };

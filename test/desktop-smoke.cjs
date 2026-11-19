@@ -36,7 +36,7 @@ async function main() {
     const failures = [];
     page.on('pageerror', (error) => errors.push(error.message));
     page.on('request', (request) => { if (/^https?:/.test(request.url())) external.push(request.url()); });
-    await page.locator('canvas').waitFor();
+    await page.waitForFunction(() => document.documentElement.dataset.startup === 'ready');
     assert.equal(page.url(), 'pixel://game/index.html');
     const context = await page.evaluate(() => ({
       node: typeof window.require, process: typeof window.process, storage: typeof localStorage,
@@ -66,6 +66,7 @@ async function main() {
         return mix;
       };
     });
+    await page.locator('#enter-adventure').click();
     if (legacyBundle) {
       await page.locator('#level-select').click();
       assert(await page.locator('[data-level="20"]').isEnabled());
@@ -76,11 +77,15 @@ async function main() {
       await page.locator('#skill-tree').click();
       assert.equal(await page.locator('#skill-points').textContent(), '2');
       await page.locator('[data-skill=dash]').click();
+      await page.locator('#confirm-action').click();
       assert.equal(await page.locator('#skill-points').textContent(), '1');
       await page.locator('#skills-dialog [data-close]').click();
       console.log('Read the legacy 20-stage save shape and effects setting from the same isolated Windows profile.');
     }
-    await page.locator('#play-game').click();
+    if (legacyBundle) {
+      await page.locator('#new-adventure').click();
+      await page.locator('#confirm-action').click();
+    } else await page.locator('#play-game').click();
     await page.locator('#tutorial-done').click();
     await page.locator('#pause-button').waitFor();
     await page.waitForFunction(() => window.qaAudioSignal?.());
@@ -138,7 +143,7 @@ async function main() {
     page.on('request', (request) => { if (/^https?:/.test(request.url())) external.push(request.url()); });
     page.on('requestfailed', (request) => failures.push(request.url()));
     await page.context().setOffline(true);
-    await page.locator('canvas').waitFor();
+    await page.locator('#enter-adventure').click();
     assert.deepEqual(await page.evaluate(() => {
       const { sound, tutorialSeen } = JSON.parse(localStorage.getItem('pixel-adventure.preferences'));
       const { version, unlocked } = JSON.parse(localStorage.getItem('pixel-adventure.progress'));
@@ -158,13 +163,13 @@ async function main() {
         && document.activeElement.id === 'stage', String(index + 1).padStart(2, '0'));
       assert(await page.locator('#pause-button').isVisible());
       assert(!(await page.locator('#help-dialog').isVisible()));
-      await page.waitForFunction(() => document.querySelector('canvas')
+      await page.waitForFunction(() => document.querySelector('#game-mount canvas')
         ?.getContext('2d').getImageData(12, 12, 1, 1).data[3] === 255);
       await page.locator('#pause-button').click();
       await page.locator('#pause-main').click();
     }
     await page.locator('#legends-button').click();
-    await page.getByRole('button',{name:'Choose Hero',exact:true}).click();
+    await page.locator('#legends-dialog').getByRole('button',{name:'Choose Hero',exact:true}).click();
     await page.locator('[data-legend-hero="thunder"]').click();
     await page.locator('#legend-select').click();
     await page.getByRole('button',{name:'Close Legends'}).click();
@@ -172,8 +177,9 @@ async function main() {
     app = await launch();
     page = await app.firstWindow();
     await page.context().setOffline(true);
+    await page.locator('#enter-adventure').click();
     await page.locator('#legends-button').click();
-    await page.getByRole('button',{name:'Choose Hero',exact:true}).click();
+    await page.locator('#legends-dialog').getByRole('button',{name:'Choose Hero',exact:true}).click();
     assert.equal(await page.locator('[data-legend-hero="thunder"]').getAttribute('aria-pressed'),'true');
     assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('pixel-adventure.legends')).version),4);
     assert.deepEqual(external, []);

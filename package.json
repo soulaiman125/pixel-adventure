@@ -1,6 +1,6 @@
 {
   "name": "pixel-adventure",
-  "version": "4.0.0-rc.1",
+  "version": "4.1.0-rc.1",
   "description": "A colorful pixel-art platformer built with Phaser 3 and Vite.",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5173 --strictPort",
@@ -10,6 +10,7 @@
     "desktop": "electron .",
     "package:win": "npm run build && electron-builder --config desktop/builder.json --win nsis --x64 --publish never",
     "test:browser": "node test/browser-smoke.cjs",
+    "test:hybrid": "node test/hybrid-browser.mjs",
     "test:touch": "node test/touch-controls.cjs",
     "test:desktop": "node test/desktop-smoke.cjs",
     "test:campaign": "node test/campaign.mjs",

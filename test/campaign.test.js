@@ -67,10 +67,25 @@ test('the campaign unlocks in order and keeps records on replay and reload', () 
   const reload = createProgress(LEVELS, disk);
   assert.equal(reload.unlocked, LEVELS.length);
   assert.equal(reload.totals().elapsed, 2000 * LEVELS.length);
+  assert.equal(reload.continueAt, null);
   reload.newAdventure();
   assert.equal(reload.totals(), null);
   reload.finish(0, 1, 1000);
   assert.deepEqual(reload.record(0), { coins: LEVELS[0].coins.length, elapsed: 1000, stars: 3 });
+});
+
+test('Continue reads the active run or a legacy frontier without writing to storage', () => {
+  const disk = storage({ version: 2, unlocked: 3, results: [{ coins: 2, elapsed: 1000 }],
+    records: [{ coins: 3, elapsed: 900 }] });
+  const original = disk.getItem();
+  const run = createProgress(LEVELS, disk);
+  assert.equal(run.continueAt, 1);
+  assert.equal(disk.getItem(), original);
+  assert.equal(createProgress(LEVELS, storage({ version: 2, unlocked: 11 })).continueAt, 10);
+  run.newAdventure();
+  assert.equal(run.continueAt, 0);
+  assert.equal(run.unlocked, 3);
+  assert.equal(run.record(0).coins, 3);
 });
 
 test('legacy results are indexed by original level identity', () => {

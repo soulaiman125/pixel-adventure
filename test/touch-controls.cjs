@@ -16,6 +16,7 @@ async function testTouch(browser) {
       body: (await response.text()) + '\nwindow.touchQA = { scene, controls };' });
   });
   await page.goto(url);
+  await page.locator('#enter-adventure').tap();
   await page.locator('#play-game').tap();
   await page.locator('#tutorial-done').tap();
   await wait(page, () => window.touchQA?.scene.player?.body.blocked.down);
@@ -166,7 +167,7 @@ async function testTouch(browser) {
   for (const [width, height] of [[320, 568], [360, 640], [390, 844], [412, 915], [568, 320], [844, 390]]) {
     await page.setViewportSize({ width, height });
     await wait(page, () => {
-      const canvas = document.querySelector('canvas');
+      const canvas = document.querySelector('#game-mount canvas');
       return Math.abs(canvas.width / canvas.height - canvas.clientWidth / canvas.clientHeight) < 0.015;
     });
     const result = await page.evaluate(() => {
@@ -186,6 +187,7 @@ async function testTouch(browser) {
   }
   await page.setViewportSize({ width: 320, height: 568 });
   await page.reload();
+  await page.locator('#enter-adventure').tap();
   await page.locator('#settings-button').tap();
   assert(await page.locator('#settings-dialog').evaluate(dialog => dialog.scrollWidth <= dialog.clientWidth));
   assert.equal(await page.locator('#touch-size').inputValue(), 'large');
