@@ -67,6 +67,14 @@ async function main() {
       };
     });
     await page.locator('#enter-adventure').click();
+    await page.locator('#settings-button').click();
+    const fullscreen = page.locator('#fullscreen');
+    await fullscreen.click();
+    await page.waitForFunction(() => Boolean(document.fullscreenElement));
+    await fullscreen.click();
+    await page.waitForFunction(() => !document.fullscreenElement);
+    await page.locator('#settings-dialog .dialog-close').click();
+    console.log('Entered and exited native fullscreen from the offline Settings screen.');
     if (legacyBundle) {
       await page.locator('#level-select').click();
       assert(await page.locator('[data-level="20"]').isEnabled());
@@ -132,7 +140,7 @@ async function main() {
     assert.deepEqual(external, []);
     await page.evaluate(() => {
       // Unlock selection for the independent content-availability check.
-      const progress = JSON.parse(localStorage.getItem('pixel-adventure.progress'));
+      const progress = JSON.parse(localStorage.getItem('pixel-adventure.progress')) ?? { version: 2 };
       progress.unlocked = 60;
       localStorage.setItem('pixel-adventure.progress', JSON.stringify(progress));
     });

@@ -24,17 +24,24 @@ function localFile(request) {
   }
 }
 
+function canEnterFullscreen(contents, permission, details) {
+  return permission === 'fullscreen' && details.isMainFrame &&
+    details.requestingUrl === entry && contents?.getURL() === entry;
+}
+
 function openGame() {
   const window = new BrowserWindow({
     width: 1320,
     height: 890,
     minWidth: 360,
     minHeight: 400,
-    title: 'Pixel Adventure',
+    title: `Pixel Adventure ${app.getVersion()}`,
+    icon: path.join(__dirname, 'icon.ico'),
     backgroundColor: '#101822',
     autoHideMenuBar: true,
     webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false },
   });
+  window.on('page-title-updated', event => event.preventDefault());
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', (event, url) => {
     if (url !== entry) event.preventDefault();
@@ -43,8 +50,12 @@ function openGame() {
 }
 
 app.whenReady().then(() => {
-  session.defaultSession.setPermissionRequestHandler((_contents, _name, callback) => callback(false));
-  session.defaultSession.setPermissionCheckHandler(() => false);
+  if (process.platform === 'win32') app.setAppUserModelId('com.pixeladventure.game');
+  session.defaultSession.setPermissionRequestHandler((contents, permission, callback, details) => {
+    callback(canEnterFullscreen(contents, permission, details));
+  });
+  session.defaultSession.setPermissionCheckHandler((contents, permission, _origin, details) =>
+    canEnterFullscreen(contents, permission, details));
   session.defaultSession.webRequest.onBeforeRequest({ urls: ['http://*/*', 'https://*/*', 'ws://*/*', 'wss://*/*'] },
     (_details, callback) => callback({ cancel: true }));
   protocol.handle(scheme, async (request) => {

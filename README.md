@@ -38,7 +38,7 @@ Open [http://127.0.0.1:5173/](http://127.0.0.1:5173/). The browser version can a
 
 Download the setup executable from [GitHub Releases](https://github.com/soulaiman125/pixel-adventure/releases/tag/v2.0.0), close any open Pixel Adventure window, and run the installer on Windows x64. Open **Pixel Adventure** from the desktop or Start menu. Run the same installer over v1.0.0 to upgrade and retain your existing Windows save. The installer includes the runtime, game, and assets. It plays offline after installation and saves progress separately from the browser version.
 
-To rebuild the installer on Windows, run `npm.cmd run package:win`. It writes the NSIS installer to `release/`. The installer is unsigned, so Windows SmartScreen may display a warning when it is opened. The 4.1 review uses the source Electron app.
+For the private 4.1.0 Windows candidate, follow the [Windows release candidate guide](docs/windows-release-candidate.md). The build writes the x64 installer to `release/windows/v4.1.0/`. The installer is unsigned, so Windows SmartScreen may display a warning.
 
 To run the desktop edition from source, run `npm.cmd run build` followed by `npm.cmd run desktop`.
 
