@@ -1,5 +1,5 @@
-import { makeCanvas } from './lighting.js';
-import { canvasLayer } from './shadows.js';
+import { makeCanvas } from '../rendering/lighting.js';
+import { canvasLayer } from '../rendering/projected-shadows.js';
 import { VIEW_HEIGHT, GROUND_Y } from '../level-one.js';
 import { softenDistance } from './post.js';
 
@@ -145,6 +145,6 @@ export function addSwampRuins(scene, weather) {
     }
     const ruin=scene.add.image(left+(right-left)*.65,GROUND_Y+1,key).setOrigin(.5,1).setDepth(-2.6);
     scene.swamp.light?.(ruin);
-    scene.swamp.cast?.(ruin);
+    scene.swamp.cast?.(ruin,false,true);
   });
 }

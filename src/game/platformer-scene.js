@@ -11,7 +11,7 @@ import { heroPose, heroTexture } from './hero-art.js';
 import { monsters } from './monster-ai.js';
 import { isCheckpoint } from './challenges.js';
 import { createPrototypeActors } from './prototype-actors.js';
-import { createTitanHall, createValley, isVerdantPrototype, valleyObjects, valleyProps, valleySurface } from './prototype-world.js';
+import { createTitanHall, createValley, isVerdantPrototype, valleyObjects, valleyProps } from './prototype-world.js';
 import { clearShadow, createShadow, parryAttack, specialMovement, updateDash } from './shadow-combat.js';
 import { SPRINT_SPEED } from './combat-techniques.js';
 import { createShadowPresentation } from './shadow-presentation.js';
@@ -20,13 +20,15 @@ import { createCampaignBackdrop } from './campaign-backdrop.js';
 import { canWallJump, wallSide, WALL_FALL, WALL_JUMP_SPEED, WALL_LOCK } from './wall-movement.js';
 import { createTally } from './ultimate-progress.js';
 import { createSurvival } from './ultimate-levels.js';
-import { flyingUltimate, loadUltimateEnemies, ultimateEnemyFrame, ULTIMATE_ENEMIES } from './ultimate-enemies.js';
+import { flyingUltimate, loadUltimateEnemies, ultimateEnemyFrame, ultimateFallFrame, ULTIMATE_ENEMIES } from './ultimate-enemies.js';
 import { createLegendVista } from './legends-vista.js';
 import { DEFAULT_HERO } from './legends-heroes.js';
 import { paintVillage, VILLAGE_STATIONS } from './ninja-village.js';
-import { createNormalLighting } from './swamp/lighting.js';
+import { createCacheArt } from './rendering/cache-art.js';
+import { pruneVisualTextures } from './rendering/texture-budget.js';
+import { addBiomeProps, paintedSurface } from './rendering/world-materials.js';
+import { createLightRig, lightProp } from './rendering/light-rig.js';
 import { SWAMP_STAGE } from './swamp/options.js';
-import { createSwampShadows } from './swamp/shadows.js';
 import { addSwampRuins, createSwampBackdrop } from './swamp/scenery.js';
 import { addSwampLamps, addSwampPost } from './swamp/post.js';
 import { addSwampWater, swampSurface, swampTree, weatherStone } from './swamp/materials.js';
@@ -93,8 +95,7 @@ export class PlatformerScene extends Phaser.Scene {
       options: this.swampOptions,
       lamps: this.level.ground.map(([start]) => ({ x: start + 89, y: 148 })),
     } : null;
-    if (this.swamp?.options.normals) this.swamp.light = createNormalLighting(this);
-    if (this.swamp?.options.shadows) this.swamp.cast = createSwampShadows(this);
+    this.lightRig = createLightRig(this);
 
     this.backdrop = (this.swamp?.options.depth && createSwampBackdrop(this)) || createLegendVista(this) || ((this.valleyPrototype || this.shadowEnabled && this.level.theme==='verdant') && createValley(this))
       || (this.shadowEnabled && createCampaignBackdrop(this,this.level.theme))
@@ -122,6 +123,7 @@ export class PlatformerScene extends Phaser.Scene {
     if (this.swamp?.options.motion) this.swamp.sway = addReactiveFerns(this);
     this.resizeBackdrop();
     this.createContacts();
+    pruneVisualTextures(this);
     const paintPrototype = (time, delta) => {
       this.swamp?.sway?.(delta);
       this.prototypeActors?.update();
@@ -168,13 +170,16 @@ export class PlatformerScene extends Phaser.Scene {
 
   createTerrain() {
     this.fieldProps=this.valleyPrototype?valleyProps(this):null;
-    if(!this.valleyPrototype) {
+    if (!this.valleyPrototype && !this.swamp) {
+      addBiomeProps(this);
+      drawMeadow(this,this.level.ground,GROUND_Y,this.level.theme);
+    }
+    if (this.swamp) {
       for (const [index, [x, scale]] of this.level.trees.entries()) {
         const detail = this.swamp?.options.materials;
         const texture = detail ? swampTree(this,index) : terrainTexture(this.level.theme, 'tree');
         const tree = this.add.image(x, GROUND_Y + 1, texture).setOrigin(0.5, 1).setScale(detail ? scale * .74 : scale).setDepth(-4);
-        this.swamp?.light?.(tree);
-        this.swamp?.cast?.(tree);
+        lightProp(this,tree,'fixed');
       }
       drawMeadow(this, this.level.ground, GROUND_Y, this.level.theme);
       if (this.swamp?.options.depth || this.swamp?.options.materials)
@@ -195,7 +200,7 @@ export class PlatformerScene extends Phaser.Scene {
       if (isCheckpoint(this.level, index)) {
         const flag=this.valleyPrototype ? this.add.image(start+19,GROUND_Y,'field-signs','checkpoint0').setOrigin(.5,1)
           : this.add.image(start+19,GROUND_Y,'checkpoint').setOrigin(.25,1);
-        this.checkpointFlags.set(start,flag.setDepth(1));
+        this.checkpointFlags.set(start,lightProp(this,flag.setDepth(1),false));
       }
     }
     for (const [left, right, force] of this.windZones) {
@@ -224,12 +229,11 @@ export class PlatformerScene extends Phaser.Scene {
   }
 
   addSurface(group, x, y, width, height, key, kind) {
-    let visual = this.valleyPrototype ? valleySurface(this,x,y,width,height)
-      : this.swamp?.options.materials ? swampSurface(this,x,y,width,height)
-        : this.shadowEnabled || this.swamp?.options.normals || this.swamp?.options.shadows ? campaignSurface(this,x,y,width,height)
-        : this.add.tileSprite(x,y,width,height,terrainTexture(this.level.theme,key)).setOrigin(0);
-    this.swamp?.light?.(visual);
-    if (key === 'platform') this.swamp?.cast?.(visual, true);
+    let visual = !this.swamp ? paintedSurface(this,x,y,width,height)
+      : this.swamp.options.materials ? swampSurface(this,x,y,width,height)
+        : campaignSurface(this,x,y,width,height);
+    this.lightRig.light?.(visual);
+    if (key === 'platform') this.lightRig.cast?.(visual,true,!kind);
     if (kind) {
       const marker = this.add.graphics();
       marker.fillStyle(0xffe998).fillRect(4, 3, 4, 2).fillRect(width - 8, 3, 4, 2);
@@ -250,15 +254,14 @@ export class PlatformerScene extends Phaser.Scene {
       .setOrigin(0.5, 1).setDepth(4).setCollideWorldBounds(true).setMaxVelocity(MOVE_SPEED, 370);
     this.player.body.setSize(12, 18, false).setOffset(2, 3);
     if (!this.shadowEnabled) {
-      this.swamp?.light?.(this.player);
-      this.swamp?.cast?.(this.player);
+      lightProp(this,this.player);
     }
 
     this.coins = this.physics.add.group({ allowGravity: false, immovable: true });
     this.level.coins.forEach(([x, y], index) => {
       const coin = this.coins.create(x, y, 'coin-wide').setDepth(2);
       coin.body.setSize(11, 12);
-      this.swamp?.light?.(coin);
+      lightProp(this,coin,false);
       this.tweens.add({
         targets: coin, y: y - 3, duration: 540 + (index % 3) * 95, yoyo: true, repeat: -1,
         ease: 'Sine.inOut',
@@ -288,8 +291,7 @@ export class PlatformerScene extends Phaser.Scene {
       if (ultimate) slime.body.setSize(16,22,false).setOffset(11,11);
       else if (type === 'dummy') slime.body.setSize(18, 17, false).setOffset(3, 5);
       else slime.body.setSize(15, expansion ? 13 : 11, false).setOffset(1, expansion ? 5 : 2);
-      this.swamp?.light?.(slime);
-      this.swamp?.cast?.(slime);
+      lightProp(this,slime);
       slime.setData({ left, right: left + distance, speed, type, homeY });
       if (ultimate) {
         slime.setData({ ultimateState:{phase:'patrol',until:0,facing:1}, signal:this.add.graphics().setDepth(6), captain });
@@ -301,13 +303,10 @@ export class PlatformerScene extends Phaser.Scene {
       }
     }
 
+    this.cacheArt=null;
     if (this.level.secret) {
-      const { x,y,id } = this.level.secret;
-      const color = id === 'grove' ? 0xeb7298 : 0xcfa4ff;
-      this.add.graphics().setDepth(2).fillStyle(color,.9)
-        .fillRect(30,151,3,5).fillRect(25,158,3,5).fillRect(20,165,3,5)
-        .fillRect(x-8,y-4,16,12).fillStyle(0x342b46).fillRect(x-6,y-2,12,8)
-        .fillStyle(0xffffbf).fillRect(x-2,y,4,4);
+      const {x,y}=this.level.secret;
+      this.cacheArt=createCacheArt(this,this.level.secret);
       this.secret = this.add.zone(x,y,17,15);
       this.physics.add.existing(this.secret,true);
     } else this.secret = null;
@@ -315,7 +314,7 @@ export class PlatformerScene extends Phaser.Scene {
     if (this.level.survival || this.level.village) return;
     const flag=this.valleyPrototype ? this.add.image(this.level.flagX,GROUND_Y,'field-signs','exit0').setOrigin(.5,1)
       : this.add.image(this.level.flagX-10,GROUND_Y,'flag').setOrigin(0,1);
-    flag.setDepth(1);
+    lightProp(this,flag.setDepth(1),false);
     this.finish = this.add.zone(this.level.flagX + 1, GROUND_Y - 21, 21, 42);
     this.physics.add.existing(this.finish, true);
   }
@@ -365,6 +364,7 @@ export class PlatformerScene extends Phaser.Scene {
     if (this.finish) this.physics.add.overlap(this.player, this.finish, () => this.finishLevel());
     if (this.secret) this.physics.add.overlap(this.player,this.secret,() => {
       this.secret.body.enable = false;
+      this.cacheArt.setVisible(false);
       this.burst(this.secret.x,this.secret.y,0xeebaff,12);
       this.ui.playSound('secret');
       this.ui.onSecret?.(this.level.secret);
@@ -423,7 +423,7 @@ export class PlatformerScene extends Phaser.Scene {
       const echo = this.add.image(enemy.x,enemy.y,enemy.texture.key,'fall0').setOrigin(.5,1).setDepth(4).setFlipX(enemy.flipX);
       this.tweens.addCounter({ from:0, to:4, duration:210, onUpdate:tween=>{
         const age = tween.getValue();
-        echo.setFrame('fall'+Math.min(3,Math.floor(age))).setAlpha(1-age/4);
+        echo.setFrame(ultimateFallFrame(age/4)).setAlpha(1-age/4);
       }, onComplete:()=>echo.destroy() });
       this.ui.playSound('stomp');
       return;
@@ -476,7 +476,7 @@ export class PlatformerScene extends Phaser.Scene {
     this.controls.consumeAttack();
     this.invulnerableUntil = this.elapsed + RESPAWN_GRACE;
     this.moveCamera(1);
-    this.burst(x, Math.min(y, VIEW_HEIGHT), 0xffa7a4);
+    this.burst(x, Math.min(y, VIEW_HEIGHT)-6, 0xffa7b5,10);
     if (this.boss?.kind && this.boss.hp > 0 && this.boss.phase !== 'waiting') resetExpansionBoss(this, this.boss);
     this.ui.onRespawn(this.deaths, reason);
   }

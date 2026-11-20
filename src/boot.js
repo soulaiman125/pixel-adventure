@@ -1,5 +1,6 @@
 import './styles.css';
 import './hybrid.css';
+import './ui/game-panel.css';
 
 const state = document.getElementById('startup-state');
 const retry = document.getElementById('startup-retry');

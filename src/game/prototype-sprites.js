@@ -1,5 +1,12 @@
+import { ACTOR_DENSITY, actorBiome, configureDenseTexture, materialPen, useActorPalette } from './rendering/actor-art.js';
+
+import { rememberVisualTexture } from './rendering/texture-budget.js';
+import { inbetweens, sampleTrack } from './rendering/frame-tracks.js';
+
 // Scanline fills keep diagonals on the same opaque pixel grid as the hand-placed details.
 export function pixelPen(context, ox = 0, oy = 0) {
+  const painted = materialPen(context,ox,oy);
+  if (painted) return painted;
   function rect(color, x, y, width, height) {
     context.fillStyle = color;
     context.fillRect(ox + x, oy + y, width, height);
@@ -37,26 +44,24 @@ const metal = '#77a5ac';
 const shine = '#d9efcf';
 const gold = '#ebbe71';
 
-export const heroClips = {
-  idle: 4, run: 8, rise: 3, fall: 3, land: 3, attack: 4,
-  hurt: 2, recoil: 3, death: 5, respawn: 4, victory: 4,
-};
-export const brambleClips = { idle: 4, patrol: 6, windup: 3, lunge: 3, hurt: 2, death: 5 };
+export const heroClips = inbetweens({idle:4,run:8,rise:3,fall:3,land:3,attack:4,
+  hurt:2,recoil:3,death:5,respawn:4,victory:4},new Set(['idle','run','victory']));
+export const brambleClips = inbetweens({idle:4,patrol:6,air:3,windup:3,lunge:3,hurt:2,death:5},new Set(['idle','patrol']));
 const heroSteps = [[-4,4],[-2,3],[0,2],[3,-2],[4,-4],[2,-3],[0,-2],[-3,2]];
 
 function hero(context, ox, oy, pose, frame, colors) {
   const { rect: r, shape: s } = pixelPen(context, ox, oy);
   const [shadow, armor, light, clothDark, cloth, clothLight] = colors;
   const dead = pose === 'death';
-  const crouch = dead ? frame * 4 : pose === 'land' ? [4,3,1][frame] : 0;
+  const crouch = dead ? frame * 4 : pose === 'land' ? sampleTrack([4,3,1],frame) : 0;
   const recoil = pose === 'hurt' || pose === 'recoil';
   const run = pose === 'run';
   const rising = pose === 'rise';
   const falling = pose === 'fall';
   const air = rising || falling;
-  const step = run ? [0,1,2,1,0,1,2,1][frame] : 0;
+  const step = run ? sampleTrack([0,1,2,1,0,1,2,1],frame,true) : 0;
   const low = crouch + step + (recoil ? frame + 1 : pose === 'idle' && frame === 2 ? 1 : 0);
-  const face = recoil ? -[2,5,3][frame] : pose === 'attack' && frame === 1 ? 2 : 0;
+  const face = recoil ? -sampleTrack([2,5,3],frame) : pose === 'attack' && frame === 1 ? 2 : 0;
   const x = 22 + face;
   const y = 11 + low;
   if (dead && frame === 4) {
@@ -80,8 +85,8 @@ function hero(context, ox, oy, pose, frame, colors) {
   s(cloth,[x-7,y+12],[x+4,y+12],[x+3,y+14],[x-9,y+15],[x-17-trail,y+14-trail],[x-10,y+14]);
   r(clothLight,x-4,y+12,5,1);
   // Legs and articulated boots, behind the belted coat.
-  const feet = run ? heroSteps[frame] : rising ? [[0,-4],[2,-4],[4,-3]][frame] :
-    falling ? [[2,-3],[2,-2],[3,-1]][frame] : recoil ? [-4,2] : [-3,3];
+  const feet = run ? sampleTrack(heroSteps,frame,true) : rising ? sampleTrack([[0,-4],[2,-4],[4,-3]],frame) :
+    falling ? sampleTrack([[2,-3],[2,-2],[3,-1]],frame) : recoil ? [-4,2] : [-3,3];
   for (const [index, foot] of feet.entries()) {
     const hip = x + (index ? 3 : -4);
     const px = x + foot * 2;
@@ -117,17 +122,17 @@ function hero(context, ox, oy, pose, frame, colors) {
   // Leading arm and blade silhouette change around the swing.
   const strike = pose === 'attack';
   const raise = pose === 'victory';
-  const handX = x + (strike ? [0,11,12,7][frame] : raise ? [7,9,10,9][frame] :
+  const handX = x + (strike ? sampleTrack([0,11,12,7],frame) : raise ? sampleTrack([7,9,10,9],frame,true) :
     run ? 5 + feet[0] : rising ? 11 : falling ? 6 : recoil ? 10 - frame * 3 : 7);
-  const handY = y + (strike ? [12,18,18,21][frame] : raise ? [12,9,8,10][frame] :
-    rising ? [14,12,14][frame] : falling ? [16,18,21][frame] : recoil ? 11 + frame * 2 : 21);
+  const handY = y + (strike ? sampleTrack([12,18,18,21],frame) : raise ? sampleTrack([12,9,8,10],frame,true) :
+    rising ? sampleTrack([14,12,14],frame) : falling ? sampleTrack([16,18,21],frame) : recoil ? 11 + frame * 2 : 21);
   s(ink,[x-3,y+15],[x+3,y+14],[handX+4,handY-2],[handX+3,handY+3],[handX-2,handY+3],[x-4,y+20]);
   s(armor,[x-2,y+16],[x+2,y+15],[handX+2,handY-1],[handX,handY+2],[x-3,y+19]);
   r(light,x-2,y+16,5,2);
   r('#f0b47d',handX,handY-1,3,3);
   if (strike || raise) {
-    const tipX = raise ? handX+3 : Math.min(51, handX+[4,16,13,8][frame]);
-    const tipY = raise ? handY-19 : handY+[-12,-4,0,8][frame];
+    const tipX = raise ? handX+3 : Math.min(51, handX+sampleTrack([4,16,13,8],frame));
+    const tipY = raise ? handY-19 : handY+sampleTrack([-12,-4,0,8],frame);
     s(ink,[handX+1,handY-3],[tipX,tipY-1],[tipX+2,tipY+2],[handX+2,handY+4]);
     s(metal,[handX+2,handY-2],[tipX,tipY],[tipX+1,tipY+1],[handX+2,handY+2]);
     s(shine,[handX+2,handY-2],[tipX,tipY],[handX+3,handY]);
@@ -150,9 +155,9 @@ function bramble(context, ox, oy, pose, frame) {
     r('#c5d982',19-frame,21,2,2);
     return;
   }
-  const slide = pose === 'lunge' ? [0,3,4][frame] : pose === 'hurt' ? -2 - frame : 0;
-  const squash = pose === 'windup' || dying ? frame * 2 : pose === 'idle' ? frame % 2 :
-    pose === 'lunge' ? [1,-2,-1][frame] : pose === 'hurt' ? frame : 0;
+  const slide = pose === 'lunge' ? sampleTrack([0,3,4],frame) : pose === 'hurt' ? -2 - frame : 0;
+  const squash = pose === 'windup' || dying ? frame * 2 : pose === 'idle' ? Math.sin(frame*Math.PI*.5)**2 :
+    pose === 'lunge' ? sampleTrack([1,-2,-1],frame) : pose === 'hurt' ? frame : pose === 'air' ? -1-frame : 0;
   const x = 20 + slide;
   const y = 17 + squash;
   // Pale bark feet, a chestnut shell, and a readable fern crest.
@@ -177,17 +182,22 @@ function bramble(context, ox, oy, pose, frame) {
     r('#ebc581',x+14,y+3,1,2);
   } else r('#ebc581',x+13,y+5,1,2);
   for (let foot=0;foot<3;foot++) {
-    const k = x-11+foot*9 + (pose === 'patrol' ? (frame+foot)%3-1 : 0);
+    const k = x-11+foot*9 + (pose === 'patrol' ? Math.sin((frame+foot*3)*Math.PI/3)*1.4 : 0);
     r(ink,k,y+7,6,Math.max(1,29-y-7));
     r('#ad9567',k+1,Math.min(27,y+8),4,2);
   }
 }
 
-export function atlas(scene, key, width, height, clips, paint) {
+export function atlas(scene, key, width, height, clips, paint, density = 1) {
   if (scene.textures.exists(key)) return;
   const frames = Object.entries(clips).flatMap(([pose, count]) => Array.from({ length:count }, (_, n) => [pose, n]));
-  const columns = 8;
-  const texture = scene.textures.createCanvas(key, columns * width, Math.ceil(frames.length / columns) * height);
+  const columns = Math.min(8,frames.length);
+  const texture = scene.textures.createCanvas(key, density * columns * width, density * Math.ceil(frames.length / columns) * height);
+  if (density > 1) {
+    configureDenseTexture(texture,density);
+    useActorPalette(texture.context,actorBiome(scene));
+    texture.context.scale(density,density);
+  }
   frames.forEach(([pose, n], index) => {
     const x = (index % columns) * width;
     const y = Math.floor(index / columns) * height;
@@ -197,20 +207,26 @@ export function atlas(scene, key, width, height, clips, paint) {
     texture.context.clip();
     paint(texture.context, x, y, pose, n);
     texture.context.restore();
-    texture.add(pose + n, 0, x, y, width, height);
+    const frame = texture.add(pose+n,0,x*density,y*density,width*density,height*density);
+    if (density>1) frame.setTrim(width,height,0,0,width,height);
   });
   texture.refresh();
+}
+
+export function actorAtlas(scene,key,width,height,clips,paint,density=ACTOR_DENSITY) {
+  atlas(scene,key,width,height,clips,paint,density);
+  rememberVisualTexture(scene,key);
 }
 
 export function heroAtlas(scene, costume) {
   const name = Object.hasOwn(outfits, costume) ? costume : 'scout';
   const key = 'field-hero-' + name;
-  atlas(scene, key, 56, 46, heroClips, (ctx, x, y, pose, frame) => hero(ctx, x + 5, y, pose, frame, outfits[name]));
+  actorAtlas(scene, key, 56, 46, heroClips, (ctx, x, y, pose, frame) => hero(ctx, x + 5, y, pose, frame/2, outfits[name]));
   return key;
 }
 
 export function brambleAtlas(scene) {
-  atlas(scene, 'brambleback', 42, 29, brambleClips, bramble);
+  actorAtlas(scene, 'brambleback', 42, 29, brambleClips, (ctx,x,y,pose,frame)=>bramble(ctx,x,y,pose,frame/2));
 }
 
 export function clipFrame(clips, name, age, duration, loop = false) {

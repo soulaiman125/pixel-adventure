@@ -98,7 +98,7 @@ async function benchmark(label, options, rate, version, stage) {
       return emit(...args);
     };
     for (const item of s.children.list.filter(
-      (item) => item.type === "Rectangle" && item.depth === 6,
+      (item) => item.name === 'feedback-bursts' || item.type === 'Rectangle' && item.depth === 6,
     )) {
       const render = item.renderCanvas.bind(item);
       item.renderCanvas = (...args) => {

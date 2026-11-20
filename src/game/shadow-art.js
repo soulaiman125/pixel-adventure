@@ -1,4 +1,6 @@
-import { atlas, pixelPen } from './prototype-sprites.js';
+import { actorAtlas, atlas, pixelPen } from './prototype-sprites.js';
+import { actorBiome } from './rendering/actor-art.js';
+import { inbetweens } from './rendering/frame-tracks.js';
 
 // Each line is a native-pixel pose. Hips, chest, hood, rear hand, front hand,
 // then knee and ankle for each leg. Sword coordinates are the visible tip.
@@ -255,23 +257,20 @@ export const SHADOW_WIDTH = 112;
 export const SHADOW_HEIGHT = 80;
 export const shadowClips = Object.fromEntries(Object.entries(shadowFrames).map(([name, frames]) => [name, frames.length]));
 
-const inbetweenClips = new Set(['run','sprintLoop','jumpStart','sprintJump','rise','fall','land',
-  'airSlash','airFollow','airHeavy','slash1','slash2','slash3','sprintAttack','diveSlash','chargeRelease']);
-const loopedClips = new Set(['run','sprintLoop']);
-export const swampShadowClips = Object.fromEntries(Object.entries(shadowClips).map(([name,count]) =>
-  [name, inbetweenClips.has(name) ? count * 2 - Number(!loopedClips.has(name)) : count]));
+const loopedClips = new Set(['idle','run','sprintLoop','chargePrep','cycloneSpin','wallSlide','victory']);
+export const detailedShadowClips = inbetweens(shadowClips,loopedClips);
 
 export function shadowPoseAt(name, frame, detailed = false) {
   const frames = shadowFrames[name];
   if (!frames || !Number.isInteger(frame)) return undefined;
-  if (!detailed || !inbetweenClips.has(name)) return frames[frame];
+  if (!detailed) return frames[frame];
   const left = frames[Math.floor(frame / 2)];
   if (!(frame % 2) || !left) return left;
   const right = frames[(Math.floor(frame / 2) + 1) % frames.length];
   return Object.fromEntries(Object.entries(left).map(([part, values]) => {
     const next = right[part];
     return [part, next && values?.length === next.length ?
-      values.map((value,i) => Math.round((value + next[i]) / 2)) : values];
+      values.map((value,i) => (value + next[i]) / 2) : values];
   }));
 }
 
@@ -313,7 +312,8 @@ function drawNinja(context, ox, oy, name, frame, colors, hero, detailed = false)
     [tailX+1,tailY-2],[tailX+4,tailY+1],[tailX+1,tailY+3],[tailX+10,tailY+2],[neckX-13,neckY+7],[neckX,neckY+5]);
   area(cloth,[neckX-1,neckY],[neckX-10,neckY+1],[neckX-17,neckY+4],[tailX+11,tailY+2],
     [tailX+3,tailY-1],[tailX+12,tailY],[neckX-16,neckY+2],[neckX-9,neckY-1]);
-  dot(seam,neckX-11,neckY+2,5,1);
+  dot(seam,neckX-11,neckY+2,5,.65);
+  area(seam,[neckX-14,neckY+4],[tailX+10,tailY+1.2],[tailX+5,tailY+.2],[tailX+11,tailY+1.9],[neckX-14,neckY+4.7]);
 
   function arm(palm, far) {
     const shoulder = [cx+(far?-5:4),cy+2];
@@ -338,6 +338,8 @@ function drawNinja(context, ox, oy, name, frame, colors, hero, detailed = false)
     area(ink,[ax-4,ay-4],[ax+3,ay-4],[ax+4,ay-1],[ax+8,ay],[ax+9,ay+3],[ax+8,ay+4],[ax-4,ay+4],[ax-6,ay+2]);
     area(far?fold:navy,[ax-3,ay-3],[ax+2,ay-3],[ax+3,ay],[ax+7,ay+1],[ax+7,ay+2],[ax-3,ay+2]);
     dot(edge,ax-2,ay-2,4,1);
+    dot(far?navy:rim,ax-.5,ay-1.6,3,.45);
+    dot(ink,ax+3,ay+.5,1,1.5);
     dot(far?edge:rim,ax-2,ay+2,9,1);
   }
   if (!blade && !['death','knockback','throw'].includes(name)) {
@@ -359,6 +361,9 @@ function drawNinja(context, ox, oy, name, frame, colors, hero, detailed = false)
   dot('#aa9185',hx+1,hy-4,5,3);
   dot(ink,hx+2,hy-3,2,1);
   dot(edge,hx-4,hy+1,3,1);
+  area(edge,[cx-5,cy+1],[cx-3,cy+.3],[hx+2,hy-5],[hx+1,hy-4],[cx-5,cy+2]);
+  area(ink,[cx-5,cy+4],[cx-4,cy+4],[hx+1,hy-6],[hx+2,hy-5],[cx-4,cy+6]);
+  for (let seamIndex=0;seamIndex<4;seamIndex++) dot(rim,cx-4+seamIndex*1.25,cy+2+seamIndex*1.75,.58,.55);
 
   if(hero?.id==='flame'){
     area(ink,[cx-13,cy-5],[cx-2,cy-13],[cx+9,cy-9],[cx+15,cy+1],[cx+6,cy+6],[cx-12,cy+4]);
@@ -383,6 +388,9 @@ function drawNinja(context, ox, oy, name, frame, colors, hero, detailed = false)
   area(fold,[x-8,y-4],[x-5,y-8],[x+3,y-9],[x+8,y-6],[x+9,y],[x+9,y+5],[x+4,y+8],[x-5,y+8],[x-8,y+4]);
   area(navy,[x-7,y-5],[x-4,y-8],[x+3,y-8],[x+7,y-5],[x+2,y-5],[x-2,y-3],[x-6,y+1],[x-7,y+4]);
   dot(edge,x-4,y-8,6,1);
+  area(rim,[x-5,y-7.5],[x-1,y-8.3],[x+3,y-7.4],[x-.5,y-7],[x-5,y-6.7]);
+  dot(edge,x-7,y-.3,1,4.3);
+  dot(rim,x-1,y+6,3,.55);
   area('#9f8389',[x+1,y-1],[x+8,y-2],[x+10,y],[x+9,y+3],[x+5,y+4],[x,y+3]);
   area('#1a2333',[x-2,y+3],[x+6,y+1],[x+10,y+2],[x+9,y+6],[x+4,y+9],[x-4,y+8],[x-6,y+5]);
   area(edge,[x-2,y+4],[x+6,y+2],[x+9,y+3],[x+6,y+4],[x+2,y+4],[x-3,y+6]);
@@ -420,7 +428,7 @@ function drawNinja(context, ox, oy, name, frame, colors, hero, detailed = false)
       band([px-draw,py],[px+1,py+12],.5,.5,rim);
       if(blade)band([px-draw,py],[px+20,py-2],.6,.8,rim);
     }
-  } else if (blade) {
+  } else if (blade?.length) {
     const [bx,by] = blade;
     const base = [hand[0]+3, hand[1]-1];
     const reach=hero?.id==='frost'?.65:hero?.id==='thunder'?1.24:hero?.alternate?1.08:1;
@@ -458,26 +466,20 @@ export function loadHeroPortrait(scene,hero,costume='scout'){
   const key='legends-portrait-'+hero.id+'-'+Number(hero.alternate === true)+'-'+costume;
   const colors=hero.id==='shadow'?OUTFITS[costume]??OUTFITS.scout:
     costume==='silver'?hero.colors.map((color,i)=>i===3?'#fbfff0':color):hero.colors;
-  atlas(scene,key,SHADOW_WIDTH,SHADOW_HEIGHT,{idle:shadowClips.idle},
-    (ctx,x,y,clip,frame)=>drawNinja(ctx,x,y,clip,frame,colors,hero));
+  actorAtlas(scene,key,SHADOW_WIDTH,SHADOW_HEIGHT,{idle:detailedShadowClips.idle},
+    (ctx,x,y,clip,frame)=>drawNinja(ctx,x,y,clip,frame,colors,hero,true));
   return key;
 }
 
-export function loadSwampHero(scene, costume, hero) {
-  const key = 'swamp-hero-' + hero.id + '-' + Number(hero.alternate) + '-' + costume;
-  const colors = hero.id === 'shadow' ? OUTFITS[costume] ?? OUTFITS.scout :
-    costume === 'silver' ? hero.colors.map((color,i) => i === 3 ? '#fbfff0' : color) : hero.colors;
-  atlas(scene,key,SHADOW_WIDTH,SHADOW_HEIGHT,swampShadowClips,
-    (ctx,x,y,clip,frame) => drawNinja(ctx,x,y,clip,frame,colors,hero,true));
-  return key;
-}
-
-export function loadShadowArt(scene, costume='scout', hero) {
+export function loadShadowArt(scene, costume='scout', hero, detailed = true) {
+  const counts = detailed ? detailedShadowClips : shadowClips;
+  const variant = detailed ? '' : '-simple';
   const outfit=Object.hasOwn(OUTFITS,costume)?costume:'scout';
   if(hero&&(hero.id!=='shadow'||hero.alternate)){
-    const key='legends-art-'+hero.id+'-'+Number(hero.alternate)+'-'+outfit;
+    const key='legends-art-'+hero.id+'-'+Number(hero.alternate)+'-'+outfit+'-'+actorBiome(scene)+variant;
     const colors=hero.id==='shadow'?OUTFITS[outfit]:outfit==='silver'?hero.colors.map((color,i)=>i===3?'#fbfff0':color):hero.colors;
-    atlas(scene,key,SHADOW_WIDTH,SHADOW_HEIGHT,shadowClips,(ctx,x,y,clip,frame)=>drawNinja(ctx,x,y,clip,frame,colors,hero));
+    actorAtlas(scene,key,SHADOW_WIDTH,SHADOW_HEIGHT,counts,
+      (ctx,x,y,clip,frame)=>drawNinja(ctx,x,y,clip,frame,colors,hero,detailed),1.5);
     atlas(scene,'legends-shot-'+hero.id,24,16,{star:4},(ctx,x,y,_clip,frame)=>{
       const {rect,shape}=pixelPen(ctx,x,y);
       if(hero.id==='frost')shape(colors[3],[4+frame,8],[11,1],[20-frame,8],[10,15]);
@@ -490,16 +492,23 @@ export function loadShadowArt(scene, costume='scout', hero) {
       }
     });
     if(hero.id!=='shadow')return key;
-    loadShadowArt(scene,costume);
+    loadShadowWeapons(scene);
     return key;
   }
-  const key=outfit==='scout'?'shadow-ninja':'shadow-ninja-'+outfit;
-  atlas(scene,key,SHADOW_WIDTH,SHADOW_HEIGHT,shadowClips,(ctx,x,y,clip,frame)=>drawNinja(ctx,x,y,clip,frame,OUTFITS[outfit]));
+  const mood = actorBiome(scene);
+  const base = outfit==='scout'?'shadow-ninja':'shadow-ninja-'+outfit;
+  const key = (mood==='verdant'?base:base+'-'+mood)+variant;
+  actorAtlas(scene,key,SHADOW_WIDTH,SHADOW_HEIGHT,counts,
+    (ctx,x,y,clip,frame)=>drawNinja(ctx,x,y,clip,frame,OUTFITS[outfit],hero,detailed),1.5);
+  loadShadowWeapons(scene);
+  return key;
+}
+
+function loadShadowWeapons(scene) {
   atlas(scene,'shadow-weapons',12,12,{star:4},(ctx,x,y,_clip,frame)=>drawStar(ctx,x,y,frame));
   atlas(scene,'shadow-wave',28,21,{wave:1},(ctx,x,y)=>{
     const {shape}=pixelPen(ctx,x,y);
     shape('#872f54',[0,18],[13,16],[21,10],[23,0],[26,7],[25,13],[19,18],[8,20]);
     shape('#ffd4d6',[4,18],[15,15],[21,9],[23,2],[24,9],[20,15],[12,18]);
   });
-  return key;
 }

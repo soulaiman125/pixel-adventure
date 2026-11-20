@@ -1,0 +1,94 @@
+[data-view="playing"] {
+  --hud-top:#1b2b3b;
+  --hud-bottom:#101925;
+  --hud-trim:#416079;
+  --hud-accent:#88dfe3;
+}
+[data-theme="jungle"] { --hud-accent:#a8e7b3; }
+[data-theme="fire"],[data-theme="canyon"] { --hud-accent:#ffd398; }
+[data-theme="castle"] { --hud-accent:#e0b4df; }
+[data-theme="crystal"],[data-theme="thunder"] { --hud-accent:#ade4ff; }
+
+.hud,.arcade-footer {
+  background:linear-gradient(155deg,var(--hud-top,#1b2b3b),var(--hud-bottom,#101925) 77%);
+  border-color:var(--hud-trim,#416079);
+}
+.hud { box-shadow:inset 0 1px #ffffff18; }
+.hud-level .level-chip {
+  background:linear-gradient(155deg,#31475a,#192834);
+  color:var(--hud-accent);
+  border:1px solid #5a7b8d;
+  box-shadow:inset 0 1px #ffffff35,inset 0 -3px #090e18a1;
+  font-variant-numeric:tabular-nums;
+}
+#hud-hero { color:var(--hud-accent); }
+.hud .stat + .stat { border-color:#ffffff24; }
+.hud .stat svg { color:#b1d8e4; width:19px; height:19px; }
+.hud .stat[data-stat="coins"] svg { color:#ffdc89; }
+.hud .stat[data-stat="score"] svg { color:#b7eab8; }
+.hud .stat-deaths svg { color:#ffabb3; }
+.hud .stat.stat-deaths { padding-inline:40px 8px; }
+.hud .hud-pause { border-color:#536f83; background:linear-gradient(160deg,#2c4354,#213342); }
+.hud .hud-pause:hover { border-color:var(--hud-accent); }
+.hud .hud-pause svg { color:var(--hud-accent); }
+
+.combat-hud { gap:5px; left:8px; bottom:8px; }
+.combat-hud > .ability-tile,
+.combat-hud > #combo-count {
+  align-items:center;
+  gap:4px;
+  min-height:25px;
+  padding:3px 6px;
+  background:linear-gradient(160deg,#263d50f5,#101a28f7);
+  border:1px solid #617c92;
+  border-radius:6px;
+  box-shadow:inset 0 1px #eef9ff1f,0 1px 3px #08101ba0;
+  color:#eef8ff;
+  font-size:.72rem;
+  font-variant-numeric:tabular-nums;
+}
+.combat-hud > .ability-tile { display:inline-flex; }
+.combat-hud > :is([data-clock="throw"],[data-clock="charged"]) svg { color:#ffe09e; }
+.combat-hud > :is([data-clock="dash"],[data-clock="parry"]) svg { color:#a4f0e6; }
+.combat-hud > :is([data-clock="cyclone"],[data-clock="execution"]) svg { color:#dfc0ff; }
+.ability-tile svg { width:14px;height:14px;flex:none; }
+.ability-tile b { font-weight:720; }
+.ability-tile small { min-width:0;color:#ffdbac;font-size:.61rem; }
+.ability-tile small:empty { display:none; }
+.combat-hud > .cooling {
+  border-color:#82735d;
+  background:linear-gradient(155deg,#322d39f7,#161d28f7);
+}
+.combat-hud > .cooling svg { color:#bfada3; }
+.combat-hud > #player-health { color:#ffb0bd;background:linear-gradient(155deg,#413044,#241e30); }
+#player-health[data-empty="true"] { color:#d0bdc3; }
+.combat-hud > #combo-count { display:inline-flex;color:#ffdfa0; }
+.boss-hud { background:linear-gradient(155deg,#2d2d42f5,#171e2ff7); }
+.boss-hud meter { border:1px solid #997889; border-radius:4px; }
+.boss-hud meter::-webkit-meter-bar { background:#161722;border:0; }
+.boss-hud meter::-webkit-meter-optimum-value { background:linear-gradient(90deg,#ad536e,#f99da0 67%,#ffe3af); }
+.boss-hud meter::-moz-meter-bar { background:linear-gradient(90deg,#ad536e,#f99da0 67%,#ffe3af); }
+
+.touch-button:has(.touch-caption) { flex-direction:column;gap:2px; }
+.touch-button:has(.touch-caption) svg { width:17px;height:17px;flex:none; }
+.game-view .touch-button:not(.button-primary) {
+  background:linear-gradient(155deg,#2c4355,#1b2c3b);
+  border-color:#4e6980;
+}
+.game-view .touch-button[data-pressed]:not(.button-primary) { background:#455d74; }
+.game-view .touch-button.button-primary {
+  background:linear-gradient(155deg,#ffc0bc,#e784a1);
+  border-color:#ffc4c4;
+}
+.game-view .touch-button.button-primary[data-pressed] { background:#ffd2cf; }
+.touch-caption { line-height:1; }
+
+@media (max-width:750px), (orientation:landscape) and (max-height:550px) {
+  .game-view .hud .stat.stat-deaths { padding-inline:5px; }
+  .game-view .hud .stat-deaths svg { display:none; }
+}
+@media (max-width:500px), (orientation:landscape) and (max-height:435px) {
+  .combat-hud { gap:3px;left:5px;bottom:5px; }
+  .combat-hud > .ability-tile,.combat-hud > #combo-count { min-height:21px;gap:2px;padding:2px 4px;font-size:.63rem; }
+  .ability-tile svg { width:12px;height:12px; }
+}

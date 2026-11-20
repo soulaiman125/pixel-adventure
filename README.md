@@ -128,6 +128,8 @@ Run the browser suites with the development server running and Microsoft Edge in
 
 Run `npm run test:hybrid` against `http://127.0.0.1:4240/` or set `PIXEL_TEST_URL` to a production preview. Use `PIXEL_TEST_URL` to select a candidate server, `PIXEL_REPORT` for campaign evidence, and `PIXEL_REVIEW_DIR` for screenshots and benchmark output. The performance runner compares the server at `PIXEL_BASELINE_URL` with the candidate server. Set `PIXEL_EXECUTION_BENCH=1` for the finisher or `PIXEL_SURVIVAL_BENCH=1` for a six-enemy workload. See [the Legends of Shadows QA report](docs/legends-qa.md) and [the earlier Ultimate Ninja QA report](docs/ultimate-qa.md).
 
+The [global visual audit](docs/global-visual-audit.md) records the art coverage, rendering pipeline, and per-pass profiling results.
+
 ## Credits
 
 Character, enemy, terrain and combat animation frames are authored in the project's Canvas code. Sound effects and original music themes are synthesized with Web Audio. The detailed world background plates were created with ImageGen. Their prompts and saved assets are recorded in [the artwork provenance](docs/campaign-art-provenance.md) and [the earlier visual prototype](docs/visual-prototype.md). [Phaser](https://phaser.io/) powers the game. [Vite](https://vite.dev/) builds the web edition, and [Electron](https://www.electronjs.org/) powers the Windows edition. The interface uses [Bricolage Grotesque](https://github.com/ateliertriay/bricolage) and [DM Sans](https://github.com/googlefonts/dm-fonts) via Fontsource.

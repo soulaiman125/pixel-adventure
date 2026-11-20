@@ -1,5 +1,7 @@
+import { paintCoin } from './rendering/world-materials.js';
+import { lightProp } from './rendering/light-rig.js';
 import { VIEW_HEIGHT } from './level-one.js';
-import { atlas, pixelPen } from './prototype-sprites.js';
+import { actorAtlas, pixelPen } from './prototype-sprites.js';
 
 export const isVerdantPrototype = level => level?.name === 'Verdant Hills';
 
@@ -85,40 +87,6 @@ export function createTitanHall(scene) {
   };
 }
 
-export function valleySurface(scene, x, y, width, height) {
-  const key = `field-surface-${x}-${y}-${width}`;
-  if (!scene.textures.exists(key)) {
-    const texture = scene.textures.createCanvas(key, width, height);
-    const { rect:r, shape:s } = pixelPen(texture.context);
-    const random = seeded(x * 6959 + y);
-    const soil = ['#3d3033','#544039','#63463c','#79553e','#9d6f48','#bd8c57'];
-    r('#2b2b2e',0,0,width,height);
-    r(soil[1],1,3,width-2,height-5);
-    for (let i=0;i<width*height/13;i++) {
-      const px=1+Math.floor(random()*(width-3));
-      const py=4+Math.floor(random()*Math.max(1,height-6));
-      const color=soil[Math.floor(random()*soil.length)];
-      r(color,px,py,Math.min(width-px-1,2+Math.floor(random()*5)),py>height-3?1:2);
-    }
-    for (let px=0;px<width;px++) {
-      const root = 2+Math.floor(random()*5);
-      r('#244b3f',px,1,1,root+2);
-      if (px>1 && px<width-2) r(random()>.35?'#5c9c55':'#91b95c',px,0,1,2);
-      if (random()>.7 && px>2 && px<width-2) r('#bed67a',px,0,1,1);
-    }
-    s('#263d36',[0,0],[4,2],[3,4],[1,7],[0,8]);
-    s('#213530',[width,0],[width-4,2],[width-3,4],[width-1,7],[width,8]);
-    for (let px=10;px<width-8;px+=Math.round(14+random()*18)) {
-      const py = Math.min(height-4,6+Math.floor(random()*(height-5)));
-      s('#302831',[px-3,py+3],[px-1,py],[px+5,py],[px+8,py+4],[px+3,py+5],[px-3,py+5]);
-      s('#8f7c6f',[px-1,py+1],[px+3,py],[px+5,py+2],[px+1,py+3],[px-1,py+3]);
-      r('#d0ad8b',px,py+1,2,1);
-    }
-    texture.refresh();
-  }
-  return scene.add.image(x,y,key).setOrigin(0);
-}
-
 function foliage(context,x,y,kind) {
   const {rect:r,shape:s} = pixelPen(context,x,y);
   if (kind === 'tree') {
@@ -149,16 +117,16 @@ function foliage(context,x,y,kind) {
 }
 
 export function valleyProps(scene) {
-  atlas(scene, 'field-flora',64,63,{ tree:1,shrub:1,flowers:1 },foliage);
+  actorAtlas(scene, 'field-flora',64,63,{ tree:1,shrub:1,flowers:1 },foliage);
   const branches = [];
   for (const [x, scale] of scene.level.trees) {
-    const image = scene.add.image(x,184,'field-flora','tree0').setOrigin(.5,1).setDepth(-3).setScale(scale*1.3);
+    const image = lightProp(scene,scene.add.image(x,184,'field-flora','tree0').setOrigin(.5,1).setDepth(-3).setScale(scale*1.3),'fixed');
     branches.push(image);
   }
   const random=seeded(436);
   for (const [left,right] of scene.level.ground) {
     for (let x=left+14;x<right-14;x+=25+Math.floor(random()*38)) {
-      scene.add.image(x,229,'field-flora',random()>.45?'shrub0':'flowers0').setOrigin(.25,1).setDepth(-2);
+      lightProp(scene,scene.add.image(x,229,'field-flora',random()>.45?'shrub0':'flowers0').setOrigin(.25,1).setDepth(-2),false);
     }
   }
   return {
@@ -171,20 +139,9 @@ export function valleyProps(scene) {
 }
 
 export function valleyObjects(scene) {
-  atlas(scene, 'field-coins',20,20,{ spin:6 },(ctx,x,y,_pose,frame)=>{
-    const {rect:r,shape:s}=pixelPen(ctx,x,y);
-    const half=[6,5,3,1,3,5][frame];
-    const a = 10-half;
-    const b = 10+half;
-    s('#603f31',[a+1,2],[b-1,2],[b+2,6],[b+2,14],[b-1,18],[a+1,18],[a-2,14],[a-2,6]);
-    s('#d99141',[a+1,3],[b-1,3],[b+1,7],[b+1,13],[b-1,17],[a+1,17],[a-1,13],[a-1,7]);
-    s('#f9cc5e',[a+1,4],[b-1,4],[b,7],[b,12],[b-1,15],[a+1,15],[a,12],[a,7]);
-    r('#fff4ad',a+1,5,Math.max(1,half),1);
-    r('#fff4ad',a,7,1,5);
-    if (half>=3) s('#b1743f',[10,6],[13,10],[10,14],[7,10]);
-    r('#fff4ad',10,8,1,3);
-  });
-  atlas(scene,'field-signs',38,42,{ checkpoint:1,active:1,exit:1 },(ctx,x,y,pose)=>{
+  actorAtlas(scene,'field-coins',20,20,{spin:6},(ctx,x,y,_pose,frame)=>
+    paintCoin(ctx,x,y,20,[6,5,3,1,3,5][frame]));
+  actorAtlas(scene,'field-signs',38,42,{ checkpoint:1,active:1,exit:1 },(ctx,x,y,pose)=>{
     const {rect:r,shape:s}=pixelPen(ctx,x,y);
     const lit=pose!=='checkpoint';
     s('#263333',[3,42],[3,35],[7,30],[7,10],[13,4],[24,4],[30,10],[30,30],[34,35],[34,42]);

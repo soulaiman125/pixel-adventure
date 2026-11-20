@@ -88,7 +88,7 @@ async function isolatedLayers() {
     depth: () => qa.backdrop.layers.map(layer => layer.speed).join() === '0.12,0.28,0.48,0.7',
     post: () => qa.backdrop.layers[0].image.texture.key.endsWith('-swamp-soft'),
     materials: () => qa.textures.getTextureKeys().some(key => key.startsWith('swamp-stone-')),
-    motion: () => typeof qa.swamp.sway === 'function' && qa.textures.getTextureKeys().some(key => key.startsWith('swamp-hero-')),
+    motion: () => typeof qa.swamp.sway === 'function' && qa.textures.getTextureKeys().some(key => key === 'shadow-ninja-jungle'),
   };
   for (const [option, verify] of Object.entries(checks)) {
     const { page, hub, close } = await open(option);

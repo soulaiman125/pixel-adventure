@@ -1,6 +1,9 @@
-import { atlas, clipFrame, pixelPen } from './prototype-sprites.js';
+import { actorAtlas, clipFrame, pixelPen } from './prototype-sprites.js';
 
-const clips = { idle:4, wind:4, wave:4, bolts:4, impact:4, open:4, hurt:2, defeat:5 };
+import { lightProp } from './rendering/light-rig.js';
+import { inbetweens, sampleTrack } from './rendering/frame-tracks.js';
+
+const clips = inbetweens({idle:4,wind:4,wave:4,bolts:4,impact:4,open:4,hurt:2,defeat:5},new Set(['idle','open']));
 const outline = '#15182c';
 const shadow = '#272b4b';
 const iron = '#45486a';
@@ -15,11 +18,11 @@ function forgeTitan(context, ox, oy, pose, frame) {
   const lift = pose === 'wind' ? Math.min(frame*2,6) : pose === 'bolts' ? 5 : 0;
   const fall = pose === 'defeat' ? frame*9 : 0;
   const lean = pose === 'hurt' ? (frame ? 2 : 4) : 0;
-  const drop = smash ? [5,1,7,5][frame] : pose === 'idle' ? frame%2 : 0;
+  const drop = smash ? sampleTrack([5,1,7,5],frame) : pose === 'idle' ? Math.sin(frame*Math.PI*.5)**2 : 0;
   const x = 48+lean, y = 42+drop+fall;
   const dead = pose === 'defeat';
   const exposed = pose === 'open' || pose === 'hurt';
-  const energy = dead ? '#795d61' : exposed ? '#f9c872' : ['#8ae8ed','#abf4ec','#78d5ee','#d4fffa'][frame%4];
+  const energy = dead ? '#795d61' : exposed ? '#f9c872' : ['#8ae8ed','#abf4ec','#78d5ee','#d4fffa'][Math.floor(frame)%4];
   if (dead && frame===4) {
     s(outline,[15,81],[23,71],[38,73],[45,68],[61,72],[75,73],[86,82]);
     s(iron,[20,81],[27,74],[40,75],[45,70],[55,73],[63,78],[74,75],[83,82]);
@@ -66,9 +69,9 @@ function forgeTitan(context, ox, oy, pose, frame) {
     }
     r(mid,cx-7,cy-23,15,5);
     r(light,cx-5,cy-23,8,2);
-    const reach = pose==='wave' ? [0,7,10,3][frame] : smash ? [0,5,7,4][frame] : 0;
+    const reach = pose==='wave' ? sampleTrack([0,7,10,3],frame) : smash ? sampleTrack([0,5,7,4],frame) : 0;
     const armX=x+direction*(31+reach);
-    const armY=y+(smash?[1,8,20,14][frame]:pose==='bolts'?-4:6)-lift;
+    const armY=y+(smash?sampleTrack([1,8,20,14],frame):pose==='bolts'?-4:6)-lift;
     s(outline,[armX-12,armY-9],[armX+10,armY-9],[armX+14,armY+1],[armX+10,armY+17],[armX-9,armY+17],[armX-13,armY+8]);
     s(iron,[armX-10,armY-7],[armX+8,armY-7],[armX+11,armY+2],[armX+8,armY+14],[armX-7,armY+14],[armX-11,armY+7]);
     r(mid,armX-8,armY-7,14,3);
@@ -109,8 +112,9 @@ function forgeTitan(context, ox, oy, pose, frame) {
 }
 
 export function addTitanPresentation(scene, boss) {
-  atlas(scene,'forge-titan',96,82,clips,forgeTitan);
+  actorAtlas(scene,'forge-titan',96,82,clips,(ctx,x,y,pose,frame)=>forgeTitan(ctx,x,y,pose,frame/2));
   const sprite=scene.add.image(boss.x,184,'forge-titan','idle0').setOrigin(.5,1).setDepth(3.2);
+  lightProp(scene,sprite);
   const mark=scene.add.graphics().setDepth(3.4);
   let defeatAt;
   return {

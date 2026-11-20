@@ -1,7 +1,7 @@
 import { VIEW_HEIGHT } from '../level-one.js';
-import { makeCanvas } from './lighting.js';
+import { makeCanvas } from '../rendering/lighting.js';
 import { randomFrom, shape, treeTexture } from './scenery.js';
-import { canvasLayer } from './shadows.js';
+import { canvasLayer } from '../rendering/projected-shadows.js';
 
 export function weatherStone(ctx, width, height, seed, mossLine = 1) {
   const random = randomFrom(seed);
@@ -78,16 +78,16 @@ export function swampTree(scene, index) {
 
 export function addSwampWater(scene) {
   const pools = scene.level.hazards.filter(({kind}) => kind === 'poisonPool');
-  const reflection = makeCanvas(1, 31);
-  const sample = reflection.getContext('2d');
+  const view = scene.textures.get(scene.textures.exists('swamp-distance') ? 'swamp-distance' : 'campaign-world-jungle').getSourceImage();
+  // Reuse the lit vista as a reflection plate. Copying the live playfield caused a Canvas readback on each moving frame.
+  const reflection = makeCanvas(720,31);
+  reflection.getContext('2d').drawImage(view,0,view.height*.55,view.width,view.height*.33,0,0,720,31);
   canvasLayer(scene, -.82, (ctx, camera) => {
     const width = Math.ceil(camera.width);
-    if (reflection.width !== width) reflection.width = width;
     const visible = pools.filter(p => Math.abs(p.x - (camera.scrollX + width / 2)) < (width + p.width) / 2);
     if (!visible.length) return;
     const time = scene.ui.reduceMotion ? 0 : scene.elapsed / 650;
-    sample.clearRect(0, 0, width, 31);
-    sample.drawImage(ctx.canvas, 0, 152, width, 31, 0, 0, width, 31);
+    const reflectionScroll=Math.min(180,camera.scrollX*.12);
     for (const pool of visible) {
       const x = Math.max(0, pool.x - pool.width / 2 - camera.scrollX);
       const right = Math.min(width, pool.x + pool.width / 2 - camera.scrollX);
@@ -106,7 +106,7 @@ export function addSwampWater(scene) {
       for (let row = 0; row < 26; row += 3) {
         const displacement = Math.sin(time * 2 + row * .48) * (1.8 + row * .09);
         ctx.globalAlpha = .37 - row * .01;
-        ctx.drawImage(reflection, 0, 28 - row, width, 3, displacement, y + row, width, 3);
+        ctx.drawImage(reflection,reflectionScroll,28-row,540,3,displacement,y+row,width,3);
       }
       ctx.globalAlpha = .74;
       ctx.fillStyle = '#bfce70';

@@ -2,9 +2,16 @@ import { VIEW_HEIGHT } from './level-one.js';
 import { costumes, drawHeroSprite, heroPoses, heroTexture } from './hero-art.js';
 import { drawLandmarks } from './landmark-art.js';
 import { monsters } from './monster-ai.js';
+import { paintCoin } from './rendering/world-materials.js';
+import { ACTOR_DENSITY, configureDenseTexture } from './rendering/actor-art.js';
 
-function texture(scene, key, width, height, draw) {
-  const canvas = scene.textures.createCanvas(key, width, height);
+function texture(scene, key, width, height, draw, density=1) {
+  const canvas = scene.textures.createCanvas(key,width*density,height*density);
+  if (density>1) {
+    configureDenseTexture(canvas,density);
+    canvas.get().setTrim(width,height,0,0,width,height);
+    canvas.context.scale(density,density);
+  }
   draw(canvas.context);
   canvas.refresh();
 }
@@ -172,19 +179,8 @@ function drawSlime(context, rising, colors = {}) {
   pixels(context, palette, rows, 0, rising ? 0 : 2);
 }
 
-function drawCoin(context, width) {
-  const x = Math.floor((14 - width) / 2);
-  box(context, '#ae631f', x, 3, width, 8);
-  box(context, '#ae631f', x + 1, 1, width - 2, 12);
-  box(context, '#ffb52e', x + 1, 3, width - 2, 8);
-  box(context, '#ffd453', x + 2, 2, width - 4, 9);
-  box(context, '#fff0a0', x + 2, 3, 1, 5);
-  box(context, '#fff0a0', x + 2, 2, Math.max(1, width - 5), 1);
-  if (width > 8) {
-    const middle = x + Math.floor(width / 2);
-    box(context, '#e4912c', middle, 4, 1, 6);
-    box(context, '#e4912c', middle - 1, 6, 3, 2);
-  }
+function drawCoin(context,width) {
+  paintCoin(context,0,0,14,width*.48);
 }
 
 function drawCheckpoint(context, active) {
@@ -225,17 +221,17 @@ export function createArt(scene) {
   texture(scene, 'platform', 48, 12, (ctx) => drawDirt(ctx, 12));
   for (const costume of Object.keys(costumes)) {
     for (const pose of heroPoses) {
-      texture(scene, heroTexture(pose, costume), 16, 21, (ctx) => drawHeroSprite(ctx, pose, costume));
+      texture(scene, heroTexture(pose, costume), 16, 21, (ctx) => drawHeroSprite(ctx, pose, costume),ACTOR_DENSITY);
     }
   }
   texture(scene, 'slime-rest', 18, 13, (ctx) => drawSlime(ctx, false));
   texture(scene, 'slime-hop', 18, 13, (ctx) => drawSlime(ctx, true));
-  texture(scene, 'coin-wide', 14, 14, (ctx) => drawCoin(ctx, 11));
-  texture(scene, 'coin-narrow', 14, 14, (ctx) => drawCoin(ctx, 7));
-  texture(scene, 'coin-edge', 14, 14, (ctx) => drawCoin(ctx, 4));
-  texture(scene, 'checkpoint', 18, 24, (ctx) => drawCheckpoint(ctx, false));
-  texture(scene, 'checkpoint-active', 18, 24, (ctx) => drawCheckpoint(ctx, true));
-  texture(scene, 'flag', 39, 50, drawFlag);
+  texture(scene, 'coin-wide', 14, 14, (ctx) => drawCoin(ctx,11),ACTOR_DENSITY);
+  texture(scene, 'coin-narrow', 14, 14, (ctx) => drawCoin(ctx,7),ACTOR_DENSITY);
+  texture(scene, 'coin-edge', 14, 14, (ctx) => drawCoin(ctx,4),ACTOR_DENSITY);
+  texture(scene, 'checkpoint', 18, 24, (ctx) => drawCheckpoint(ctx,false),ACTOR_DENSITY);
+  texture(scene, 'checkpoint-active', 18, 24, (ctx) => drawCheckpoint(ctx,true),ACTOR_DENSITY);
+  texture(scene, 'flag', 39, 50,drawFlag,ACTOR_DENSITY);
   for (const type of ['guard', 'bat', 'charger', 'poison', 'robot', ...Object.keys(monsters)]) {
     for (const pose of ['rest', 'hop']) {
       texture(scene, `${type}-${pose}`, 18, 18, (ctx) => drawExpansionEnemy(ctx, type, pose === 'hop'));

@@ -1,6 +1,6 @@
 import { VIEW_HEIGHT, GROUND_Y } from '../level-one.js';
-import { makeCanvas } from './lighting.js';
-import { canvasLayer } from './shadows.js';
+import { makeCanvas } from '../rendering/lighting.js';
+import { canvasLayer } from '../rendering/projected-shadows.js';
 
 export function softenDistance(source) {
   const scale = Math.min(1, 880 / source.width, 400 / source.height);
@@ -53,7 +53,6 @@ export function addSwampPost(scene) {
   });
   canvasLayer(scene, 5.7, (ctx, camera) => {
     const left = camera.scrollX - 55, right = camera.scrollX + camera.width + 55;
-    ctx.globalCompositeOperation = 'screen';
     for (const { x,y } of scene.swamp.lamps) {
       if (x < left || x > right) continue;
       ctx.drawImage(torch, x - 50, y - 50, 100, 100);
@@ -73,6 +72,8 @@ export function addSwampPost(scene) {
       width = camera.width;
       cache = makeCanvas(width, VIEW_HEIGHT);
       const paint = cache.getContext('2d');
+      paint.fillStyle='#7a945514';
+      paint.fillRect(0,0,width,VIEW_HEIGHT);
       const edges = paint.createRadialGradient(width * .49, VIEW_HEIGHT * .44, 19,
         width * .50, VIEW_HEIGHT * .46, Math.max(132, width * .61));
       edges.addColorStop(.10, 'transparent');
@@ -81,11 +82,6 @@ export function addSwampPost(scene) {
       paint.fillStyle = edges;
       paint.fillRect(0, 0, width, VIEW_HEIGHT);
     }
-    // A soft-light olive grade adds contrast without reading back the front buffer.
-    ctx.globalCompositeOperation = 'soft-light';
-    ctx.fillStyle = '#95a16634';
-    ctx.fillRect(0, 0, width, VIEW_HEIGHT);
-    ctx.globalCompositeOperation = 'source-over';
     ctx.drawImage(cache, 0, 0);
   }, false);
 }

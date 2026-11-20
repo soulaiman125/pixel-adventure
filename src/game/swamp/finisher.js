@@ -6,6 +6,11 @@ const accents = {
   cyber: [0x9cffff,0xf775e1], emperor: [0xffc2d8,0xe87a90],
 };
 
+const rays=Array.from({length:24},(_,i)=>{
+  const angle=i*2.39996;
+  return [Math.cos(angle),Math.sin(angle),20+i%7*7];
+});
+
 export function beginBossFinisher(scene, boss) {
   if (!scene.swampOptions?.finisher || scene.ui.reduceMotion || scene.bossFinisher) return false;
   const camera = scene.cameras.main, originalZoom = camera.zoom;
@@ -27,15 +32,19 @@ export function beginBossFinisher(scene, boss) {
     const x = boss.x, y = 159;
     graphics.clear();
     if (release > 0) {
-      graphics.lineStyle(2, light, .65 * (1 - t) ** 2).strokeCircle(x, y, 8 + 51 * t);
-      for (let i = 0; i < 27; i++) {
-        const angle = i * 2.39996;
-        const travel = (20 + i % 7 * 7) * (1 - (1 - t) ** 2);
-        const px = x + Math.cos(angle) * travel;
-        const py = y + Math.sin(angle) * travel * .83 - 20 * t + 16 * t * t;
+      const flare=(1-t)**2;
+      graphics.lineStyle(2,light,.72*flare).strokeCircle(x,y,8+51*t)
+        .lineStyle(.8,color,.64*flare).strokeEllipse(x,y,24+95*t,9+38*t)
+        .fillStyle(light,.3*flare).fillEllipse(x,y,16+24*t,5+12*t);
+      for (let i = 0; i < rays.length; i++) {
+        const [dx,dy,distance]=rays[i];
+        const travel=distance*(1-flare);
+        const px=x+dx*travel;
+        const py=y+dy*travel*.83-20*t+16*t*t;
         const size = (1.4 + i % 4) * (1 - t * .72), lightness = (1 - t) ** 1.15;
         graphics.fillStyle(i % 3 ? color : light, lightness)
-          .fillTriangle(px - size, py, px + size * .72, py - size, px + size, py + size * .5);
+          .fillTriangle(px-dx*size*2,py-dy*size*2,px+size*.7,py-size,px+size,py+size*.5);
+        if(i%3===0)graphics.fillStyle(light,.66*lightness).fillCircle(px,py,Math.max(.5,size*.38));
       }
     }
     if (t === 1) {

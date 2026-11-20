@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { reliefNormals } from '../src/game/swamp/lighting.js';
+import { reliefNormals } from '../src/game/rendering/lighting.js';
 import { swampOptions, visualOptions } from '../src/game/swamp/options.js';
-import { shadowClips, shadowFrames, shadowPoseAt, swampShadowClips } from '../src/game/shadow-art.js';
+import { shadowClips, shadowFrames, shadowPoseAt, detailedShadowClips } from '../src/game/shadow-art.js';
 
 test('swamp features default on, can be isolated, and normalize invalid death limits', () => {
   assert.equal(swampOptions().deaths, 3);
@@ -34,7 +34,7 @@ test('alpha-aware normal maps curve in opposite directions around a sprite rim',
 
 test('detailed run, jump and slash clips preserve authored endpoints and add intermediate poses', () => {
   for (const name of ['run','jumpStart','rise','fall','slash1','slash2','slash3','airSlash']) {
-    assert(swampShadowClips[name] > shadowClips[name]);
+    assert(detailedShadowClips[name] > shadowClips[name]);
     const frames = shadowFrames[name];
     assert.deepEqual(shadowPoseAt(name,0,true), frames[0]);
     assert.deepEqual(shadowPoseAt(name,(frames.length-1)*2,true), frames.at(-1));

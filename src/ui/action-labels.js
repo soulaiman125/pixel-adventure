@@ -19,7 +19,6 @@ const specialties = {
   shadow: ['Stars', 'Spin'], flame: ['Fire', 'Burst'], frost: ['Ice', 'Trap'],
   thunder: ['Bolt', 'Field'], ranger: ['Vine', 'Rain'],
 };
-export const clockLabels = { throw: 'Shot', dash: 'Dash', charged: 'Charge', parry: 'Parry', cyclone: 'Skill', execution: 'Ultimate' };
 
 export function refreshControlLabels({ hero, controls, shadow }) {
   const names = actionNames(hero, shadow);
@@ -69,7 +68,19 @@ export function refreshControlLabels({ hero, controls, shadow }) {
     const { action } = button.dataset;
     button.setAttribute('aria-label', names[action]);
     button.title = names[action];
-    if (captions[action]) button.textContent = captions[action];
+    if (!captions[action]) continue;
+    let caption = button.querySelector('.touch-caption');
+    if (!caption) {
+      const ns='http://www.w3.org/2000/svg';
+      const icon=document.createElementNS(ns,'svg'), use=document.createElementNS(ns,'use');
+      icon.setAttribute('aria-hidden','true');
+      use.setAttribute('href','#ability-'+action);
+      icon.append(use);
+      caption=document.createElement('span');
+      caption.className='touch-caption';
+      button.replaceChildren(icon,caption);
+    }
+    caption.textContent=captions[action];
   }
   for (const select of document.querySelectorAll('#touch-swap-from,#touch-swap-to')) {
     for (const option of select.options) option.textContent = names[option.value];

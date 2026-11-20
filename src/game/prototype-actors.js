@@ -1,3 +1,4 @@
+import { lightProp } from './rendering/light-rig.js';
 import {
   brambleAtlas,
   brambleClips,
@@ -27,6 +28,7 @@ export function createPrototypeActors(scene, valley) {
     .setDepth(4.5)
     .setVisible(false);
   const impacts = scene.add.graphics().setDepth(7);
+  lightProp(scene,hero);
   if (scene.ninja) hero.setVisible(false);
   const enemies = valley
     ? scene.enemies.getChildren().map((body) => ({
@@ -45,7 +47,8 @@ export function createPrototypeActors(scene, valley) {
           .setDepth(2.05),
       }))
     : [];
-  for (const { body } of [...enemies, ...coins]) body.setVisible(false);
+  for (const {body,visual} of enemies) { body.setVisible(false); lightProp(scene,visual); }
+  for (const {body,visual} of coins) { body.setVisible(false); lightProp(scene,visual,false); }
   const arenaStart = scene.level.ground.at(-1)[0];
   let lastPose;
   let started = 0;
@@ -179,7 +182,8 @@ export function createPrototypeActors(scene, valley) {
               ? Math.abs(separation) < 23
                 ? "lunge"
                 : "windup"
-              : Math.abs(velocity.x) > 8
+              : Math.abs(velocity.y)>48 ? 'air'
+                : Math.abs(velocity.x) > 8
                 ? "patrol"
                 : "idle";
         const frameAge = approaching ? (54 - Math.abs(separation)) * 8 : now;

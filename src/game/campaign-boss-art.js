@@ -1,6 +1,9 @@
-import { atlas, clipFrame, pixelPen } from "./prototype-sprites.js";
+import { actorAtlas, clipFrame, pixelPen } from "./prototype-sprites.js";
 
-const CLIPS = { idle: 4, wind: 4, strike: 5, open: 4, hurt: 3, defeat: 6 };
+import { lightProp } from './rendering/light-rig.js';
+import { inbetweens, sampleTrack } from './rendering/frame-tracks.js';
+
+const CLIPS = inbetweens({idle:4,wind:4,strike:5,open:4,hurt:3,defeat:6},new Set(['idle','open']));
 
 function paint(ctx, ox, oy, clip, frame, queen) {
   const { rect: r, shape: s } = pixelPen(ctx, ox, oy);
@@ -15,7 +18,7 @@ function paint(ctx, ox, oy, clip, frame, queen) {
       : clip === "hurt"
         ? 1
         : clip === "idle"
-          ? frame % 2
+          ? Math.sin(frame*Math.PI*.5) ** 2
           : clip === "wind"
             ? -Math.min(3, frame)
             : 0;
@@ -25,7 +28,7 @@ function paint(ctx, ox, oy, clip, frame, queen) {
     clip === "wind"
       ? frame * 2
       : clip === "strike"
-        ? [5, 9, 8, 3, 0][frame]
+        ? sampleTrack([5,9,8,3,0],frame)
         : 0;
   const core =
     clip === "open" || clip === "hurt"
@@ -260,13 +263,14 @@ export function addCampaignBoss(scene, boss) {
   const key = "campaign-boss-" + boss.kind;
   // Top padding preserves crown and horn tips during the lifted wind-up.
   // The equal atlas/paint offset keeps the feet at their original anchor.
-  atlas(scene, key, 80, 88, CLIPS, (ctx, x, y, clip, frame) =>
-    paint(ctx, x, y + 8, clip, frame, boss.kind === "queen"),
+  actorAtlas(scene, key, 80, 88, CLIPS, (ctx, x, y, clip, frame) =>
+    paint(ctx, x, y + 8, clip, frame/2, boss.kind === "queen"),
   );
   const image = scene.add
     .image(boss.x, 184, key, "idle0")
     .setOrigin(0.5, 1)
     .setDepth(3.2);
+  lightProp(scene,image);
   const cue = scene.add.graphics().setDepth(3.4);
   let defeated;
   return {

@@ -24,7 +24,7 @@ import { NINJA_VILLAGE, VILLAGE_STATIONS } from './game/ninja-village.js';
 import { createNavigation, installMenuGamepad } from './ui/navigation.js';
 import { showPortrait } from './ui/portrait.js';
 import { createWorldMap } from './ui/world-map.js';
-import { clockLabels, refreshControlLabels } from './ui/action-labels.js';
+import { refreshControlLabels } from './ui/action-labels.js';
 import { swampOptions } from './game/swamp/options.js';
 import { installSwampSettings } from './ui/swamp-settings.js';
 
@@ -834,7 +834,7 @@ const scene = new PlatformerScene(controls, {
       if (previous === remaining) continue;
       if (previous && !remaining) ready.push(configuredActions[action]);
       clockValues.set(action,remaining);
-      node.textContent = remaining === 'air' ? 'Land' : remaining ? `${clockLabels[action]} ${remaining}` : clockLabels[action];
+      node.querySelector('small').textContent = remaining === 'air' ? 'Land' : remaining;
       node.setAttribute('aria-label', configuredActions[action] + (remaining === 'air' ? ': land to recharge' : remaining ? ': ' + remaining + ' seconds' : ': ready'));
       node.classList.toggle('cooling',Boolean(remaining));
       const button = actionButtons.get(action);
@@ -847,7 +847,8 @@ const scene = new PlatformerScene(controls, {
   },
   onSurvival(run,message) {
     const heart = byId('player-health');
-    heart.textContent = '♥'.repeat(run.health) || '♡';
+    heart.querySelector('b').textContent = run.health + (runMode === 'survival' ? '/3' : '');
+    heart.dataset.empty = String(run.health === 0);
     heart.setAttribute('aria-label',`Health ${run.health} of ${runMode === 'survival' ? 3 : 1}`);
     if (runMode !== 'survival') return;
     if (message) byId('arena-wave').textContent = message;

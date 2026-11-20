@@ -1,4 +1,6 @@
-import { atlas, clipFrame, pixelPen } from "./prototype-sprites.js";
+import { actorAtlas, clipFrame, pixelPen } from "./prototype-sprites.js";
+import { lightProp } from './rendering/light-rig.js';
+import { inbetweens, sampleTrack } from './rendering/frame-tracks.js';
 
 const STEPS = [
   [-4, 4],
@@ -10,7 +12,8 @@ const STEPS = [
   [0, 1],
   [-3, 2],
 ];
-const CLIPS = { patrol: 8, prepare: 4, strike: 4, hurt: 3, death: 5 };
+const loops = new Set(['idle','patrol']);
+const CLIPS = inbetweens({idle:5,patrol:8,air:4,prepare:4,strike:4,hurt:3,death:5},loops);
 const PALETTES = {
   verdant: ["#263330", "#4d5b48", "#83916d", "#c8d4a3", "#a98b5b"],
   canyon: ["#372d3e", "#75525c", "#af8075", "#edbf92", "#ce9b63"],
@@ -31,10 +34,10 @@ function creature(ctx, ox, oy, clip, frame, type, theme) {
   const y = dead
     ? Math.min(11, frame * 3)
     : clip === "patrol"
-      ? frame % 4 === 1
-        ? 1
-        : 0
-      : 0;
+      ? Math.sin(frame*Math.PI*.5) ** 2 * 1.5
+      : clip === 'idle' ? Math.sin(frame*Math.PI*.4) * 1.2
+        : clip === 'air' ? -3-Math.sin(frame/3*Math.PI)*2
+          : clip === 'hurt' ? frame : 0;
   if (dead && frame === 4) {
     s(ink, [4, 38], [7, 32], [17, 34], [24, 31], [33, 38]);
     r(metal, 9, 35, 8, 2);
@@ -47,8 +50,8 @@ function creature(ctx, ox, oy, clip, frame, type, theme) {
       clip === "prepare"
         ? 5
         : clip === "strike"
-          ? 0
-          : [-7, -4, 2, 6, 5, 1, -3, -6][frame % 8];
+          ? 3-frame*1.6
+          : sampleTrack([-7,-4,2,6,5,1,-3,-6],frame,true);
     for (const side of [-1, 1]) {
       s(
         ink,
@@ -150,7 +153,7 @@ function creature(ctx, ox, oy, clip, frame, type, theme) {
   const machine = ["robot", "sentinel"].includes(type);
   const plant = ["poison", "stalker"].includes(type);
   const x = 20 + recoil + (clip === "strike" ? 2 : 0);
-  const step = clip === "patrol" ? STEPS[frame] : [-3, 3];
+  const step = clip === "patrol" ? sampleTrack(STEPS,frame,true) : clip === 'air' ? [-3+frame,4-frame] : [-3,3];
   for (const [index, offset] of step.entries()) {
     const foot = x + offset * 1.4;
     s(
@@ -348,8 +351,8 @@ export function createCampaignActors(scene) {
       const type = body.getData("type");
       if (type === "dummy" || body.getData('ultimateState')) return null;
       const key = "campaign-" + scene.level.theme + "-" + (type ?? "slime");
-      atlas(scene, key, 44, 40, CLIPS, (ctx, x, y, clip, frame) =>
-        creature(ctx, x, y, clip, frame, type, scene.level.theme),
+      actorAtlas(scene, key, 44, 40, CLIPS, (ctx, x, y, clip, frame) =>
+        creature(ctx, x, y, clip, frame/2, type, scene.level.theme),
       );
       return {
         body,
@@ -361,10 +364,7 @@ export function createCampaignActors(scene) {
       };
     })
     .filter(Boolean);
-  for (const { image } of actors) {
-    scene.swamp?.light?.(image);
-    scene.swamp?.cast?.(image);
-  }
+  for (const { image } of actors) lightProp(scene,image);
   return {
     update() {
       const now = scene.elapsed,
@@ -402,20 +402,22 @@ export function createCampaignActors(scene) {
             ? "prepare"
             : attacking
               ? "strike"
-              : "patrol";
-        const age = hurt
-          ? now - (data.shadowHitUntil - 240)
-          : brain
-            ? now - (brain.until - 650)
-            : now;
+              : Math.abs(body.body.velocity.y)>54 ? 'air'
+                : Math.abs(body.body.velocity.x)>5 ? 'patrol' : 'idle';
+        if (actor.pose !== clip) {
+          actor.pose = clip;
+          actor.poseAt = now;
+        }
+        const age = now-actor.poseAt;
+        const duration = {idle:850,patrol:560,air:370,prepare:650,strike:240,hurt:240}[clip];
         image
           .setFrame(
             clipFrame(
               CLIPS,
               clip,
-              reduced && clip === "patrol" ? 0 : age,
-              clip === "patrol" ? 560 : clip === "prepare" ? 650 : 240,
-              true,
+              reduced && loops.has(clip) ? 0 : age,
+              duration,
+              loops.has(clip),
             ),
           )
           .setPosition(Math.round(body.x), Math.round(body.y))

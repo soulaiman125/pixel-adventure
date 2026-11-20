@@ -32,7 +32,7 @@ export function addReactiveFerns(scene) {
       const sprite = scene.add.image(x, GROUND_Y + 1, key).setOrigin(.5,1)
         .setScale(.36 + random() * .37).setFlipX(random()>.5).setDepth(-1.64);
       scene.swamp.light?.(sprite);
-      scene.swamp.cast?.(sprite);
+      scene.swamp.cast?.(sprite,false,true);
       plants.push({ sprite, phase: random() * 6.28, angle: 0, speed: 0 });
     }
   }

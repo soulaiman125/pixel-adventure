@@ -1,5 +1,6 @@
+import { lightProp } from './rendering/light-rig.js';
 import { clipFrame } from "./prototype-sprites.js";
-import { loadShadowArt, loadSwampHero, shadowClips, shadowPoseAt, swampShadowClips } from "./shadow-art.js";
+import { loadShadowArt, shadowClips, shadowPoseAt, detailedShadowClips } from "./shadow-art.js";
 import { DASH, KATANA, SHURIKEN, strikeBox } from "./shadow-rules.js";
 import { activeWindows, AIR_DIVE, SPECIALS } from "./combat-techniques.js";
 
@@ -47,12 +48,10 @@ function techniquePose(state, now) {
 }
 
 export function createShadowPresentation(scene) {
-  const detailed = Boolean(scene.swamp?.options.motion);
-  const frameCounts = detailed ? swampShadowClips : shadowClips;
-  const loadArt = detailed ? loadSwampHero : loadShadowArt;
+  const detailed = scene.swamp?.options.motion !== false;
+  const frameCounts = detailed ? detailedShadowClips : shadowClips;
   let costume = scene.ui.costume;
-  let texture = loadArt(scene, costume,scene.hero);
-  if (detailed) scene.events.once('shutdown', () => scene.textures.remove(texture));
+  let texture = loadShadowArt(scene,costume,scene.hero,detailed);
   for (const key of scene.textures.getTextureKeys()) {
     if ((key.startsWith('shadow-ninja-')||key.startsWith('legends-art-')) && key !== texture) scene.textures.remove(key);
   }
@@ -63,9 +62,7 @@ export function createShadowPresentation(scene) {
       .setScale(SIZE)
       .setDepth(depth);
   }
-  const hero = sprite(4.35);
-  scene.swamp?.light?.(hero);
-  scene.swamp?.cast?.(hero);
+  const hero = lightProp(scene,sprite(4.35));
   const echo = sprite(4.2).setVisible(false);
   const hitboxes = scene.ui.onShadowStatus && scene.add.graphics().setDepth(9);
   const trail = Array.from({ length: 3 }, () => ({
@@ -101,7 +98,7 @@ export function createShadowPresentation(scene) {
       if (scene.ui.costume !== costume) {
         const previous = texture;
         costume = scene.ui.costume;
-        texture = loadArt(scene, costume,scene.hero);
+        texture = loadShadowArt(scene,costume,scene.hero,detailed);
         for (const image of [hero, echo, ...trail.map((item) => item.image)])
           image.setTexture(texture, "idle0");
         if (previous !== texture && previous !== 'shadow-ninja') scene.textures.remove(previous);
@@ -253,9 +250,20 @@ function paintEffects(scene,hero,pose,detailed) {
   const reduced = scene.ui.reduceMotion;
   if (effect.commandBuffer.length) effect.clear();
   const {special,charging}=scene.ninja;
+  const accent=Number.parseInt(scene.hero.colors[3].slice(1),16);
   if(charging) {
-    effect.fillStyle(0xeb92ba,.85).fillRect(hero.x-12,hero.y-4,
-      Math.min(24,(now-charging.since-320)/20),2);
+    const progress=Math.min(1,Math.max(0,(now-charging.since-320)/480));
+    effect.fillStyle(0x101d31,.86).fillRoundedRect(hero.x-12,hero.y-4,24,3,1)
+      .fillStyle(accent,.9).fillRoundedRect(hero.x-12,hero.y-4,24*progress,2,1);
+    if(!reduced&&progress>0){
+      const radius=10+progress*6;
+      const direction=hero.flipX?-1:1;
+      for(let i=0;i<3;i++){
+        const t=now/115+i*2.094;
+        const x=hero.x+Math.cos(t)*radius,y=hero.y-16+Math.sin(t)*radius*.64;
+        effect.fillStyle(accent,.42+progress*.28).fillTriangle(x-1.4,y,x+direction*2.2,y-1.2,x+1,y+1.6);
+      }
+    }
   }
   const spec = attack && (attack.dive ? AIR_DIVE : scene.hero.combo[attack.index]);
   const swing = spec && now-attack.since>=spec.open && now-attack.since<spec.close;
@@ -263,9 +271,10 @@ function paintEffects(scene,hero,pose,detailed) {
   const tracing = special && !special.interrupted &&
     (special.spec??SPECIALS[special.kind]).windows.some(([open, close]) => phase >= open && phase < close);
   if(special?.anchor!==undefined && !special.interrupted){
-    const color=Number.parseInt(scene.hero.colors[3].slice(1),16);
+    const color=accent;
     const size=special.kind==='execution'?37:scene.hero.radius;
     effect.lineStyle(1,color,tracing?.85:.37).strokeEllipse(special.anchor,hero.y-3,size*2,12);
+    if(!reduced) effect.lineStyle(.6,color,tracing?.58:.22).strokeEllipse(special.anchor,hero.y-3,size*1.72,8);
     if(tracing&&!reduced){
       if(scene.hero.id==='thunder'){
         const x=special.anchor,y=hero.y;
@@ -296,23 +305,26 @@ function paintEffects(scene,hero,pose,detailed) {
       const heavy = attack?.index === 2 || pose === 'executionFinal';
       const costume = scene.ui.costume;
       const trail = costume === 'jade' ? 0x84e3ab : costume === 'plum' ? 0xe2acff
-        : costume === 'dawn' ? 0xffcf91 : costume === 'silver' ? 0xd9f6ff : special || heavy ? 0xef7498 : 0xaedfed;
+        : costume === 'dawn' ? 0xffcf91 : costume === 'silver' ? 0xd9f6ff
+          : scene.hero.id!=='shadow' ? accent : special || heavy ? 0xef7498 : 0xaedfed;
       effect.fillStyle(trail,.65);
       effect.fillTriangle(x(current.hand[0]),y(current.hand[1]),x(previous.blade[0]),y(previous.blade[1]),x(current.blade[0]),y(current.blade[1]));
       effect.lineStyle(1,0xffecd1,.92).lineBetween(x(current.hand[0]),y(current.hand[1]),x(current.blade[0]),y(current.blade[1]));
-      if (!reduced) effect.fillStyle(0xd9f1fa, .75)
-        .fillRect(Math.round(x(current.blade[0])) - 1, Math.round(y(current.blade[1])), heavy ? 3 : 2, 1);
+      if (!reduced) {
+        const tipX=x(current.blade[0]),tipY=y(current.blade[1]);
+        effect.lineStyle(1.1,trail,.74).lineBetween(x(previous.blade[0]),y(previous.blade[1]),tipX,tipY);
+        effect.fillStyle(0xfff3d5,.92).fillCircle(tipX,tipY,heavy?1.7:1.2);
+      }
     }
   }
   if (spark.commandBuffer.length) spark.clear();
   if (!lastHit || now >= lastHit.time + 120) return;
   const { x, y, direction, heavy } = lastHit;
-  const radius = heavy ? 10 : 6;
-  spark
-    .fillStyle(
-      heavy ? 0xffbb90 : 0xe1fbff,
-      reduced ? 0.75 : 1 - (now - lastHit.time) / 150,
-    )
-    .fillTriangle(x - 2, y - 4, x + direction * radius, y - 2, x - 2, y + 3)
-    .fillRect(x - 1, y - 5, 2, 10);
+  const t=(now-lastHit.time)/120, alpha=reduced?.75:(1-t)**1.25;
+  const radius=(heavy?13:7)*(reduced?1:1+t*.36), tint=heavy?0xffc396:0xbdf7ff;
+  spark.fillStyle(tint,.76*alpha)
+    .fillTriangle(x-2,y-3,x+direction*radius,y-2,x-1,y+4)
+    .fillTriangle(x-1,y-5,x+direction*2,y+5,x+direction*3,y-1)
+    .fillStyle(0xfff9df,alpha).fillCircle(x,y,Math.max(.75,(heavy?3:2)*(1-t*.7)));
+  if(heavy&&!reduced) spark.lineStyle(1.1,tint,alpha*.65).strokeEllipse(x,y,radius*1.15,radius*.82);
 }

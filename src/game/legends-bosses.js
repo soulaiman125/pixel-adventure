@@ -1,4 +1,6 @@
-import { atlas, clipFrame, pixelPen } from './prototype-sprites.js';
+import { actorAtlas, clipFrame, pixelPen } from './prototype-sprites.js';
+import { lightProp } from './rendering/light-rig.js';
+import { inbetweens, sampleTrack } from './rendering/frame-tracks.js';
 
 const phase = (pattern, warning, attack, open, plan, shot) => ({ pattern,warning,attack,open,plan,shot });
 const field = (kind, x, y, width, height, extra={}) =>
@@ -60,23 +62,49 @@ const poses = {
 export function addLegendBoss(scene,boss) {
   const key = 'legends-boss-'+boss.kind;
   const colors=LEGEND_BOSSES[boss.kind].colors;
-  const clips=Object.fromEntries(Object.entries(poses).map(([name,frames])=>[name,frames.length]));
-  atlas(scene,key,96,73,clips,(ctx,ox,oy,clip,frame)=>{
+  const counts=Object.fromEntries(Object.entries(poses).map(([name,frames])=>[name,frames.length]));
+  const clips=inbetweens(counts,new Set(['waiting']));
+  actorAtlas(scene,key,96,73,clips,(ctx,ox,oy,clip,frame)=>{
     const r=pixelPen(ctx,ox,oy);
-    const [ink,shade,metal,light]=colors,[tilt,sink,reach]=poses[clip][frame];
+    const [ink,shade,metal,light]=colors,[tilt,sink,reach]=sampleTrack(poses[clip],frame/2,clip==='waiting');
     const x=45+tilt,y=25+sink;
     if (boss.kind==='dragon') {
       r.shape(ink,[x-10,y+16],[5,y-11+reach],[11,y+15],[1,y+23],[x-8,y+29],[x+23,y+27],[90,y+13],[81,y+8],[87,y-8],[x+18,y+8]);
       r.shape(shade,[x-12,y+17],[9,y-7+reach],[14,y+17],[6,y+22],[x+7,y+25],[80,y+14],[84,y-4],[x+16,y+12]);
     } else {
-      r.shape(ink,[x-20,y+10],[x+18,y+6],[x+25,y+45],[x-24,y+45]);
-      r.shape(shade,[x-17,y+13],[x+15,y+11],[x+18,y+42],[x-20,y+42]);
-      r.rect(metal,x-17,y+21,32,3);
+      const stride=Math.max(-4,Math.min(9,reach*.58));
+      r.shape(ink,[x-9,y+10],[x-20,y+13],[x-24,y+31],[x-32-stride,y+42],
+        [x-13,y+43],[x-6,y+37],[x+4,y+42],[x+26,y+44],[x+19,y+37],[x+17,y+20],[x+8,y+9]);
+      r.shape(shade,[x-17,y+16],[x-23,y+30],[x-29-stride,y+41],[x-16,y+38],[x-13,y+27],[x-9,y+16]);
+      r.shape(shade,[x+10,y+12],[x+18,y+22],[x+16,y+37],[x+23,y+42],[x+5,y+38],[x+3,y+25]);
+      r.shape(metal,[x-18,y+18],[x-22,y+30],[x-26-stride,y+38],[x-19,y+34],[x-16,y+21]);
+      r.shape(ink,[x-14,y+32],[x-5,y+33],[x-7,y+42],[x-3,y+45],[x-19,y+45],[x-20,y+42]);
+      r.shape(ink,[x+3,y+32],[x+13,y+31],[x+18,y+42],[x+23,y+44],[x+5,y+45]);
+      r.shape(metal,[x-14,y+33],[x-6,y+34],[x-8,y+39],[x-15,y+39]);
+      r.shape(metal,[x+6,y+33],[x+13,y+33],[x+15,y+38],[x+7,y+39]);
+      r.shape(ink,[x-16,y+15],[x-4,y+12],[x+12,y+13],[x+18,y+20],[x+12,y+27],[x+8,y+34],
+        [x-7,y+34],[x-13,y+27],[x-17,y+22]);
+      for(let arc=0;arc<3;arc++){
+        const ry=y+22+arc*3;
+        r.shape(arc===0?metal:shade,[x-13+arc,ry],[x-4,ry+2],[x+9,ry-.5],[x+12-arc,ry+1],
+          [x+5,ry+3.5],[x-6,ry+4],[x-12+arc,ry+2]);
+      }
+      r.shape(metal,[x-17,y+15],[x-24,y+18],[x-23,y+23],[x-18,y+25],[x-13,y+19]);
+      r.shape(ink,[x-23,y+23],[x-24,y+29],[x-21,y+33],[x-17,y+28],[x-17,y+24]);
+      r.shape(metal,[x+11,y+15],[x+18,y+13],[x+24,y+18],[x+20,y+22],[x+14,y+21]);
+      r.rect(light,x+1,y+23,1.2,1.2);
+      r.rect(light,x-8,y+33,4,.7);
     }
     r.shape(ink,[x-17,y+9],[x-14,y-10],[x+10,y-13],[x+20,y-4],[x+16,y+16],[x-10,y+20]);
     r.shape(shade,[x-12,y+9],[x-10,y-8],[x+9,y-10],[x+16,y-3],[x+11,y+13],[x-8,y+15]);
     r.rect(metal,x-11,y-2,25,7);
     r.rect(light,x+1,y,10,2);
+    r.shape(metal,[x-11,y-8],[x-3,y-12],[x+10,y-10],[x+16,y-5],[x+2,y-7],[x-10,y-4]);
+    r.shape(ink,[x-12,y+5],[x+13,y+4],[x+12,y+8],[x+5,y+9],[x,y+14],[x-8,y+12]);
+    r.shape(metal,[x-13,y+24],[x+8,y+20],[x+17,y+23],[x+9,y+27],[x-12,y+29]);
+    r.rect(light,x-10,y+24,12,.7);
+    r.shape(ink,[x-8,y+31],[x+9,y+30],[x+9,y+33],[x-8,y+34]);
+    r.shape(light,[x+1,y+30.4],[x+4,y+31.8],[x+1,y+33.5],[x-2,y+32]);
     if (boss.kind==='abyss') {
       r.shape(ink,[x-32,y+5],[x-14,y+2],[x-11,y+28],[x-31,y+35],[x-37,y+24]);
       r.shape(metal,[x-30,y+9],[x-16,y+6],[x-15,y+24],[x-30,y+30],[x-34,y+22]);
@@ -84,10 +112,17 @@ export function addLegendBoss(scene,boss) {
       for (const offset of [-11,11]) r.shape(metal,[x+offset-4,y-7],[x+offset-2,y-17],[x+offset+3,y-7]);
       r.shape(light,[x+10,y+17],[x+21,y+12],[Math.min(95,x+35+reach),y+9-reach],[x+30,y+19],[x+15,y+22]);
     }
+    if (boss.kind==='phantom') {
+      r.shape(shade,[x-8,y+19],[x-20,y+29],[x-34,y+15-reach],[x-29,y+32],[x-15,y+41],[x,y+34]);
+      r.shape(metal,[x-8,y+20],[x-20,y+29],[x-34,y+15-reach],[x-21,y+32],[x-12,y+31]);
+    }
+    if (boss.kind==='dragon') for (let ridge=0;ridge<4;ridge++)
+      r.shape(metal,[x+11+ridge*7,y+22],[x+15+ridge*7,y+14],[x+18+ridge*7,y+19]);
     if (boss.kind==='cyber') for (let i=0;i<3;i++) r.rect(light,x-15+i*6,y+26,3,2);
     if (boss.kind==='emperor') r.shape(light,[x-12,y-12],[x-4,y-18],[x,y-14],[x+7,y-20],[x+13,y-12],[x+6,y-9]);
   });
   const sprite=scene.add.image(boss.x,185,key,'waiting0').setOrigin(.5,1).setDepth(3);
+  lightProp(scene,sprite);
   return { update(){
     const elapsed=scene.elapsed;
     const clip=boss.phase;
