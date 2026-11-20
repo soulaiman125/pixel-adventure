@@ -1,7 +1,8 @@
 import { terrainBlocks } from './monster-ai.js';
-import { actorAtlas, pixelPen } from './prototype-sprites.js';
 import { REALMS } from './legends-worlds.js';
-import { inbetweens, sampleTrack } from './rendering/frame-tracks.js';
+import { expandedClips, paintedAtlas } from './rendering/painted-atlas.js';
+import { actorBiome } from './rendering/actor-art.js';
+import { paintEnemy } from './rendering/painted-enemy.js';
 
 export const ULTIMATE_ENEMIES = {
   shadowRival: { reach:49, wind:620, active:210, recovery:530, hp:17, colors:['#161d35','#3f416d','#e670b3','#ffe6df'] },
@@ -114,80 +115,16 @@ export function updateUltimateEnemy(scene, enemy, fire, hit) {
   }
 }
 
-// Each row specifies head, front foot, weapon arm and wing/shield angles in pixel coordinates.
-const POSES = {
-  patrol:[[12,7,17,29,18,18,5],[13,8,14,27,17,19,8],[12,7,9,29,15,18,5],[11,8,11,27,16,16,10]],
-  windup:[[11,9,15,29,11,18,8],[10,10,15,30,7,15,11],[9,11,17,30,5,14,13]],
-  strike:[[13,8,15,28,13,8,5],[16,11,21,29,27,13,2],[17,13,20,29,29,19,7],[15,12,18,29,22,24,11]],
-  recover:[[15,12,18,29,21,23,11],[12,13,15,29,16,23,13],[12,9,14,29,15,19,7]],
-  evade:[[17,10,19,29,19,13,11],[13,12,20,28,13,15,7],[10,10,17,28,11,16,10]],
-  hit:[[11,9,14,29,15,17,7],[8,10,12,30,9,20,12],[10,10,15,29,12,21,7]],
-  fall:[[10,10,16,29,11,18,7],[8,16,19,30,10,24,15],[10,22,23,31,13,28,22],[16,26,23,32,23,30,24]],
-};
-
 const looping = new Set(['patrol','idle']);
-const clips = inbetweens({...Object.fromEntries(Object.entries(POSES).map(([name,poses])=>[name,poses.length])),idle:4,air:4},looping);
+const clips = expandedClips({patrol:4,idle:4,air:4,windup:3,strike:4,recover:3,evade:3,hit:3,fall:4},looping);
 
-export function loadUltimateEnemies(scene, roster=Object.keys(ULTIMATE_ENEMIES)) {
-  for (const [type,{colors}] of Object.entries(ULTIMATE_ENEMIES)) {
-    if (!roster.includes(type) || scene.textures.exists(type)) continue;
-    actorAtlas(scene,type,38,34,clips,(ctx,x,y,clip,frame)=>{
-      const pen = pixelPen(ctx,x,y);
-      const rect = (px,py,width,height,color) => pen.rect(color,px,py,width,height);
-      const line = (ax,ay,bx,by,color,width) => {
-        const length = Math.max(1,Math.abs(bx-ax),Math.abs(by-ay));
-        for (let i=0;i<=length;i++) {
-          rect(Math.round(ax+(bx-ax)*i/length-width/2),Math.round(ay+(by-ay)*i/length-width/2),width,width,color);
-        }
-      };
-      const track = POSES[clip] ?? POSES.patrol;
-      const offset = clip==='air' ? -Math.sin(frame/6*Math.PI)*3 : 0;
-      const [hx,hy,fx,fy,ax,ay,wing] = sampleTrack(track,frame/2,looping.has(clip))
-        .map((value,i)=>i%2 ? value+offset : value);
-      const [ink,metal,mark,light] = colors;
-      const heavy = armouredUltimate(type);
-      const flying = flyingUltimate(type);
-      if (flying) {
-        line(hx-2,hy+12,2,wing,ink,6);
-        line(hx-1,hy+10,3,wing,metal,3);
-        line(hx+7,hy+12,23,wing+2,ink,6);
-        line(hx+8,hy+10,23,wing+2,metal,3);
-      }
-      line(hx+2,hy+14,Math.max(3,hx-5),fy-1,ink,6);
-      line(hx+5,hy+14,fx,fy,ink,7);
-      line(hx+5,hy+14,fx,fy-1,metal,4);
-      rect(fx-2,fy,7,3,ink);
-      rect(hx-2,hy+7,heavy?14:11,Math.min(13,31-hy),ink);
-      rect(hx,hy+8,heavy?10:8,Math.min(9,28-hy),metal);
-      pen.shape(ink,[hx-3,hy+4],[hx-2,hy+.5],[hx+1,hy-1],[hx+6,hy-1],[hx+9,hy+2],[hx+8,hy+7],[hx+4,hy+9],[hx-2,hy+7]);
-      pen.shape(metal,[hx-2,hy+3],[hx-.5,hy+.3],[hx+5.5,hy-.3],[hx+7.5,hy+2.5],[hx+2,hy+3.5]);
-      pen.shape(mark,[hx-1,hy+8],[hx+3,hy+9],[hx+7,hy+7],[hx+5,hy+10],[hx+1,hy+11]);
-      rect(hx+4,hy+3,5,2,mark);
-      rect(hx+7,hy+3,2,1,light);
-      rect(hx+2,hy+11,7,.6,light);
-      rect(hx+4,hy+14,4,.55,mark);
-      rect(fx,fy,4,.5,metal);
-      line(hx+5,hy+11,ax,ay,ink,6);
-      line(hx+5,hy+10,ax,ay,metal,3);
-      rect(ax-1,ay-1,3,3,mark);
-      if (heavy && clip !== 'fall') {
-        rect(ax-2,ay-4,9,12,ink);
-        rect(ax,ay-3,6,9,metal);
-        pen.shape(mark,[ax+1,ay-2],[ax+4,ay-2],[ax+5,ay],[ax+4,ay+4],[ax+2,ay+5],[ax+1,ay+2]);
-        rect(ax+2,ay-1,2,.6,light);
-        rect(ax+1,ay+2,1,1,ink);
-      } else if (!flying) {
-        line(ax,ay,Math.min(36,ax+8),Math.max(1,ay-6),ink,4);
-        line(ax,ay,Math.min(36,ax+8),Math.max(1,ay-6),light,2);
-      } else rect(ax+3,ay-1,3,3,light);
-      if(flying) {
-        pen.shape(ink,[hx-1,hy+10],[2,wing-1],[.5,wing+7],[4,wing+7],[hx-2,hy+17]);
-        pen.shape(mark,[hx-2,hy+11],[3,wing+3],[5,wing+8],[hx-2,hy+14]);
-      } else {
-        const tail=hy+11+frame%3;
-        pen.shape(mark,[hx-1,hy+7],[hx-6,tail-2],[Math.max(1,hx-10),tail+3],[hx-6,tail+1],[hx,hy+9]);
-      }
-    });
+export const ultimateTexture=(scene,type)=>'painted-enemy-'+actorBiome(scene)+'-'+type;
+
+export function loadUltimateEnemies(scene,roster=Object.keys(ULTIMATE_ENEMIES)) {
+  for(const type of new Set(roster)){
+    if(!Object.hasOwn(ULTIMATE_ENEMIES,type))continue;
+    paintedAtlas(scene,ultimateTexture(scene,type),38,34,clips,(ctx,x,y,clip,frame,count)=>
+      paintEnemy(scene,ctx,x,y,38,34,type,clip,frame,count));
   }
 }
 
@@ -198,10 +135,10 @@ export function ultimateEnemyFrame(enemy,time,reduced) {
   const phase = hit ? 'hit' : state.phase !== 'patrol' ? state.phase :
     !flyingUltimate(enemy.getData('type')) && Math.abs(y)>50 ? 'air' : Math.abs(x)<5 ? 'idle' : 'patrol';
   const frames = clips[phase];
-  if (reduced) return phase + (phase === 'strike' ? 2 : 0);
-  if (looping.has(phase) || phase==='air') return phase + Math.floor(time / 59) % frames;
+  if (reduced) return phase + (phase === 'strike' ? 3 : 0);
+  if (looping.has(phase) || phase==='air') return phase + Math.floor(time / (118/3)) % frames;
   const age = time - (phase === 'hit' ? enemy.getData('shadowHitUntil') - 240 : state.started ?? time);
-  const frame = Math.max(0,Math.min(frames-1,Math.floor(age/(phase==='windup'?90:27.5))));
+  const frame = Math.max(0,Math.min(frames-1,Math.floor(age/(phase==='windup'?60:55/3))));
   return phase + frame;
 }
 

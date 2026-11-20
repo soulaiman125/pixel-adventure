@@ -145,16 +145,16 @@ async function exportArt(page) {
       tex = s.textures.get("shadow-ninja"),
       names = tex.getFrameNames();
     const source = tex.getSourceImage();
-    const collect = new Map();
-    for (const name of names) {
-      const match = name.match(/^(.*)(\d)$/);
-      const label = match[1];
-      if (!collect.has(label)) collect.set(label, []);
-      const frame = tex.get(name);
-      collect.get(label).push([frame.cutX, frame.cutY]);
-    }
+    const collect=new Map(Object.entries(tex.paintedClips??{}).map(([clip,count])=>[
+      clip,Array.from({length:count},(_,index)=>{
+        const frame=tex.get(clip+index);
+        return [frame.cutX,frame.cutY,frame.cutWidth,frame.cutHeight];
+      }),
+    ]));
+    if([...collect.values()].flat().length!==names.length)throw Error('Atlas frame coverage');
     const canvas = document.createElement("canvas");
-    canvas.width = 160 + 8 * 112;
+    const columns=Math.max(...Array.from(collect.values(),frames=>frames.length));
+    canvas.width = 160 + columns * 112;
     canvas.height = 72 + collect.size * 85;
     const ctx = canvas.getContext("2d");
     ctx.fillStyle = "#141d2c";
@@ -170,18 +170,18 @@ async function exportArt(page) {
       ctx.fillStyle = "#fcdee3";
       ctx.font = "15px monospace";
       ctx.fillText(clip, 22, y + 43);
-      frames.forEach(([x, top], i) =>
-        ctx.drawImage(source, x, top, 112, 80, 155 + i * 112, y, 112, 80),
+      frames.forEach(([x,top,width,height],i)=>
+        ctx.drawImage(source,x,top,width,height,155+i*112,y,112,80),
       );
       row++;
     }
     const stand = document.createElement("canvas");
-    stand.width = 112;
-    stand.height = 80;
-    const idle = tex.get("idle0");
+    const idle = tex.get('idle0');
+    stand.width=idle.cutWidth;
+    stand.height=idle.cutHeight;
     stand
       .getContext("2d")
-      .drawImage(source, idle.cutX, idle.cutY, 112, 80, 0, 0, 112, 80);
+      .drawImage(source,idle.cutX,idle.cutY,idle.cutWidth,idle.cutHeight,0,0,stand.width,stand.height);
     return {
       atlas: source.toDataURL().split(",")[1],
       sheet: canvas.toDataURL().split(",")[1],
@@ -290,8 +290,13 @@ async function arena() {
     "All three katana strikes buffered and hit one time each with 10/12/20 damage",
   );
   await place(page, 135);
-  await sleep(page, 160);
+  const readyToThrow=()=>{
+    const {ninja,elapsed,player}=qaScene;
+    return player.body.blocked.down && !ninja.attack && !ninja.throw && !ninja.charging && !ninja.dash
+      && !ninja.special && !ninja.parry && elapsed>=(ninja.readyAt.throw??0);
+  };
   for (let i = 0; i < 4; i++) {
+    await wait(page,readyToThrow);
     await key(page, "KeyC");
     await wait(page, (i) => qaScene.ninja.uses.shuriken === i + 1, i);
     await wait(page, () => qaScene.ninja.projectiles.some((p) => p.active));
@@ -899,24 +904,24 @@ async function enemyPreviews() {
   const image = await run.page.evaluate(()=>{
     const labels = [['shadowRival','Shadow Rival'],['ironGuardian','Iron Guardian'],['nightHunter','Night Hunter']];
     const canvas = document.createElement('canvas');
-    canvas.width=812; canvas.height=1280;
+    canvas.width=948; canvas.height=1650;
     const ctx=canvas.getContext('2d');
     ctx.imageSmoothingEnabled=false;
     ctx.fillStyle='#151e31';ctx.fillRect(0,0,canvas.width,canvas.height);
     let top=22;
     for (const [id,label] of labels) {
-      const atlas=qaScene.textures.get(id);
+      const atlas=qaScene.enemies.getChildren().find(enemy=>enemy.getData('type')===id).texture;
       const atlasImage=atlas.getSourceImage();
       ctx.fillStyle='#f5ecff';ctx.font='bold 21px monospace';ctx.fillText(label,22,top);
       top+=14;
-      const names=['patrol','windup','strike','recover','evade','hit','fall'];
+      const names=Object.keys(atlas.paintedClips);
       for (const name of names) {
-        ctx.fillStyle='#24334d';ctx.fillRect(12,top,788,51);
+        ctx.fillStyle='#24334d';ctx.fillRect(12,top,924,51);
         ctx.font='bold 14px monospace';ctx.fillStyle='#d9cbe9';ctx.fillText(name,23,top+26);
         let i=0;
         while (atlas.has(name+i)) {
           const f=atlas.get(name+i);
-          ctx.drawImage(atlasImage,f.cutX,f.cutY,38,34,120+i*90,top+1,55,49);
+          ctx.drawImage(atlasImage,f.cutX,f.cutY,f.cutWidth,f.cutHeight,120+i*66,top+1,55,49);
           i++;
         }
         top+=54;

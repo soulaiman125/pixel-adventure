@@ -1,4 +1,7 @@
-import { actorAtlas, atlas, pixelPen } from './prototype-sprites.js';
+import { atlas } from './prototype-sprites.js';
+import { paintedAtlas } from './rendering/painted-atlas.js';
+import { drawPaintedHero } from './rendering/painted-hero.js';
+import { paintedPart } from './rendering/painted-parts.js';
 import { actorBiome } from './rendering/actor-art.js';
 import { inbetweens } from './rendering/frame-tracks.js';
 
@@ -260,195 +263,19 @@ export const shadowClips = Object.fromEntries(Object.entries(shadowFrames).map((
 const loopedClips = new Set(['idle','run','sprintLoop','chargePrep','cycloneSpin','wallSlide','victory']);
 export const detailedShadowClips = inbetweens(shadowClips,loopedClips);
 
-export function shadowPoseAt(name, frame, detailed = false) {
+export function shadowPoseAt(name, frame, detailed = false, subdivision = 2) {
   const frames = shadowFrames[name];
   if (!frames || !Number.isInteger(frame)) return undefined;
   if (!detailed) return frames[frame];
-  const left = frames[Math.floor(frame / 2)];
-  if (!(frame % 2) || !left) return left;
-  const right = frames[(Math.floor(frame / 2) + 1) % frames.length];
+  const left = frames[Math.floor(frame / subdivision)];
+  const progress = frame % subdivision / subdivision;
+  if (!progress || !left) return left;
+  const right = frames[(Math.floor(frame / subdivision) + 1) % frames.length];
   return Object.fromEntries(Object.entries(left).map(([part, values]) => {
     const next = right[part];
     return [part, next && values?.length === next.length ?
-      values.map((value,i) => (value + next[i]) / 2) : values];
+      values.map((value,i) => value + (next[i] - value) * progress) : values];
   }));
-}
-
-const ink = '#101321';
-const fold = '#242739';
-const navy = '#333d57';
-const edge = '#556785';
-const rim = '#8997aa';
-const red = '#9b2546';
-const scarlet = '#d74961';
-const stitch = '#e9a180';
-
-function drawNinja(context, ox, oy, name, frame, colors, hero, detailed = false) {
-  const [fold,navy,edge,rim,cloth=scarlet,seam=stitch]=colors;
-  const { rect: dot, shape: area } = pixelPen(context, ox + 24, oy + 5);
-  const { hips, chest, head, rear, hand, backLeg, leadLeg, blade } = shadowPoseAt(name, frame, detailed);
-  const [x,y] = head;
-  const [cx,cy] = chest;
-  const [hx,hy] = hips;
-  const aim = name.startsWith('sprint') || ['run','dashGround','dashAir','rise','jumpStart','executionRush'].includes(name);
-  const ripple = detailed ? Math.round(4 * Math.sin(frame * .69) + 1.4 * Math.sin(frame * 1.4)) : [0,2,4,3,1,-1,-2,-1][frame];
-  const neckX = Math.round((x + cx) / 2);
-  const neckY = cy - 4;
-  const trail = aim ? 42 : name === 'fall' ? 34 : 28;
-  const tailX = Math.max(-22, neckX - trail);
-  const tailY = Math.min(70, neckY + (aim ? -4 : name === 'fall' ? -13 : 15) + ripple);
-
-  function band(a, b, top, toe, color) {
-    const [ax,ay] = a, [bx,by] = b;
-    const length = Math.hypot(bx - ax, by - ay) || 1;
-    const sx = (by - ay) / length, sy = (ax - bx) / length;
-    area(color, [Math.round(ax + sx*top),Math.round(ay + sy*top)], [Math.round(bx + sx*toe),Math.round(by + sy*toe)],
-      [Math.round(bx - sx*toe),Math.round(by - sy*toe)], [Math.round(ax - sx*top),Math.round(ay - sy*top)]);
-  }
-
-  area(ink,[neckX+2,neckY-2],[neckX-9,neckY-3],[neckX-18,neckY+1],[tailX+10,tailY-1],
-    [tailX,tailY-4],[tailX+2,tailY+1],[tailX-1,tailY+4],[tailX+9,tailY+3],[neckX-14,neckY+8],[neckX,neckY+7]);
-  area(red,[neckX,neckY],[neckX-10,neckY-1],[neckX-18,neckY+3],[tailX+10,tailY+1],
-    [tailX+1,tailY-2],[tailX+4,tailY+1],[tailX+1,tailY+3],[tailX+10,tailY+2],[neckX-13,neckY+7],[neckX,neckY+5]);
-  area(cloth,[neckX-1,neckY],[neckX-10,neckY+1],[neckX-17,neckY+4],[tailX+11,tailY+2],
-    [tailX+3,tailY-1],[tailX+12,tailY],[neckX-16,neckY+2],[neckX-9,neckY-1]);
-  dot(seam,neckX-11,neckY+2,5,.65);
-  area(seam,[neckX-14,neckY+4],[tailX+10,tailY+1.2],[tailX+5,tailY+.2],[tailX+11,tailY+1.9],[neckX-14,neckY+4.7]);
-
-  function arm(palm, far) {
-    const shoulder = [cx+(far?-5:4),cy+2];
-    const elbow = [Math.round((shoulder[0]+palm[0])/2)-(far?4:2), Math.round((shoulder[1]+palm[1])/2)+3];
-    band(shoulder,elbow,5,4,ink);
-    band(elbow,palm,4,3,ink);
-    band(shoulder,elbow,3,2,far?fold:navy);
-    band(elbow,palm,2,2,far?navy:edge);
-    const [px,py] = palm;
-    area(ink,[px-3,py-2],[px+3,py-3],[px+5,py],[px+3,py+4],[px-2,py+4],[px-4,py+1]);
-    area(far?fold:navy,[px-2,py-1],[px+2,py-2],[px+4,py],[px+2,py+2],[px-2,py+2]);
-    dot(rim,px+1,py-2,2,1);
-  }
-  function leg(limbs, far) {
-    const [kx,ky,ax,ay] = limbs;
-    const hip = [hx+(far?-3:4),hy-1];
-    band(hip,[kx,ky],6,4,ink);
-    band([kx,ky],[ax,ay],4,3,ink);
-    band(hip,[kx,ky],4,3,far?fold:navy);
-    band([kx,ky],[ax,ay-2],2,2,far?fold:edge);
-    dot(far?navy:rim,kx-1,ky-2,3,1);
-    area(ink,[ax-4,ay-4],[ax+3,ay-4],[ax+4,ay-1],[ax+8,ay],[ax+9,ay+3],[ax+8,ay+4],[ax-4,ay+4],[ax-6,ay+2]);
-    area(far?fold:navy,[ax-3,ay-3],[ax+2,ay-3],[ax+3,ay],[ax+7,ay+1],[ax+7,ay+2],[ax-3,ay+2]);
-    dot(edge,ax-2,ay-2,4,1);
-    dot(far?navy:rim,ax-.5,ay-1.6,3,.45);
-    dot(ink,ax+3,ay+.5,1,1.5);
-    dot(far?edge:rim,ax-2,ay+2,9,1);
-  }
-  if (!blade && !['death','knockback','throw'].includes(name)) {
-    band([hx-11,hy+6],[cx+2,cy-10],3,2,ink);
-    band([hx-10,hy+5],[cx+2,cy-9],1.5,1,edge);
-    dot('#bd995c',cx,cy-12,5,2);
-  }
-  arm(rear,true);
-  leg(backLeg,true);
-  leg(leadLeg,false);
-  area(ink,[cx-7,cy-4],[cx+5,cy-5],[cx+10,cy+2],[cx+8,cy+9],[hx+8,hy-3],[hx+11,hy+3],
-    [hx+4,hy+8],[hx-6,hy+5],[hx-9,hy-3],[cx-9,cy+8],[cx-11,cy+1]);
-  area(fold,[cx-6,cy-2],[cx+4,cy-3],[cx+8,cy+2],[cx+6,cy+9],[hx+6,hy-2],[hx+8,hy+2],
-    [hx+3,hy+5],[hx-5,hy+3],[hx-7,hy-4],[cx-8,cy+8],[cx-8,cy+2]);
-  area(navy,[cx-6,cy-2],[cx+4,cy-3],[cx+6,cy+2],[cx+4,cy+7],[hx+2,hy-4],[hx-5,hy-4],[cx-6,cy+4]);
-  area(edge,[cx-6,cy-2],[cx+4,cy-2],[cx+1,cy],[cx-6,cy+2],[cx-7,cy+1]);
-  area(navy,[hx-6,hy],[hx+6,hy-2],[hx+8,hy+1],[hx+3,hy+4],[hx-5,hy+2]);
-  dot('#594058',hx-6,hy-3,12,2);
-  dot('#aa9185',hx+1,hy-4,5,3);
-  dot(ink,hx+2,hy-3,2,1);
-  dot(edge,hx-4,hy+1,3,1);
-  area(edge,[cx-5,cy+1],[cx-3,cy+.3],[hx+2,hy-5],[hx+1,hy-4],[cx-5,cy+2]);
-  area(ink,[cx-5,cy+4],[cx-4,cy+4],[hx+1,hy-6],[hx+2,hy-5],[cx-4,cy+6]);
-  for (let seamIndex=0;seamIndex<4;seamIndex++) dot(rim,cx-4+seamIndex*1.25,cy+2+seamIndex*1.75,.58,.55);
-
-  if(hero?.id==='flame'){
-    area(ink,[cx-13,cy-5],[cx-2,cy-13],[cx+9,cy-9],[cx+15,cy+1],[cx+6,cy+6],[cx-12,cy+4]);
-    area(edge,[cx-11,cy-4],[cx-2,cy-10],[cx+8,cy-6],[cx+11,cy+1],[cx-7,cy+2]);
-    dot(rim,cx-8,cy-4,17,2);
-    for(let row=1;row<=3;row++)dot(edge,hx-7,hy-2+row*3,14-row,2);
-  }else if(hero?.id==='thunder'){
-    area(ink,[cx-13,cy-2],[cx,cy-9],[cx+13,cy-4],[cx+10,cy+8],[cx-11,cy+6]);
-    area(edge,[cx-9,cy-1],[cx,cy-6],[cx+9,cy-3],[cx+7,cy+5],[cx-7,cy+4]);
-    dot(rim,cx-7,cy+1,13,1);
-  }else if(hero?.id==='ranger'){
-    area(ink,[cx-6,cy],[cx+4,cy+2],[hx+3,hy+10],[hx-14,hy+8],[hx-10,hy+1]);
-    area(navy,[cx-5,cy+3],[cx+1,cy+5],[hx,hy+7],[hx-11,hy+6]);
-    band([hx-7,hy-4],[cx+9,cy-8],3,2,edge);
-    for(let i=0;i<3;i++)dot(rim,cx+4+i*3,cy-12-i,1,5);
-  }else if(hero?.id==='frost'){
-    band([cx-6,cy],[hx+5,hy+5],3,1,rim);
-  }
-
-  area(ink,[x-10,y-3],[x-6,y-10],[x+3,y-11],[x+9,y-7],[x+11,y-2],[x+11,y+5],
-    [x+7,y+9],[x+2,y+12],[x-6,y+10],[x-10,y+5]);
-  area(fold,[x-8,y-4],[x-5,y-8],[x+3,y-9],[x+8,y-6],[x+9,y],[x+9,y+5],[x+4,y+8],[x-5,y+8],[x-8,y+4]);
-  area(navy,[x-7,y-5],[x-4,y-8],[x+3,y-8],[x+7,y-5],[x+2,y-5],[x-2,y-3],[x-6,y+1],[x-7,y+4]);
-  dot(edge,x-4,y-8,6,1);
-  area(rim,[x-5,y-7.5],[x-1,y-8.3],[x+3,y-7.4],[x-.5,y-7],[x-5,y-6.7]);
-  dot(edge,x-7,y-.3,1,4.3);
-  dot(rim,x-1,y+6,3,.55);
-  area('#9f8389',[x+1,y-1],[x+8,y-2],[x+10,y],[x+9,y+3],[x+5,y+4],[x,y+3]);
-  area('#1a2333',[x-2,y+3],[x+6,y+1],[x+10,y+2],[x+9,y+6],[x+4,y+9],[x-4,y+8],[x-6,y+5]);
-  area(edge,[x-2,y+4],[x+6,y+2],[x+9,y+3],[x+6,y+4],[x+2,y+4],[x-3,y+6]);
-  if (name !== 'death' && !(name === 'idle' && frame===2)) {
-    dot('#b4f7f5',x+5,y,3,1);
-    dot('#67b4ba',x+8,y,1,1);
-  }
-  area(red,[x-7,y+7],[x+3,y+9],[x+6,y+8],[x+8,y+10],[x+3,y+13],[x-5,y+12],[x-10,y+10]);
-  dot(scarlet,x-6,y+9,8,1);
-  dot(stitch,x-3,y+10,3,1);
-  if(hero?.id==='flame'){
-    for(const side of [-1,1])area(rim,[x+side*9,y-5],[x+side*13,y-17],[x+side*2,y-9]);
-  }else if(hero?.id==='ranger'){
-    area(ink,[x-13,y+9],[x-13,y-3],[x-2,y-15],[x+11,y-7],[x+12,y-3],[x-3,y-7],[x-7,y+11]);
-    area(edge,[x-11,y+6],[x-10,y-3],[x-2,y-13],[x+7,y-8],[x-3,y-10],[x-8,y+7]);
-  }else if(hero?.id==='thunder'){
-    area(rim,[x-6,y-9],[x,y-19],[x+7,y-9],[x+1,y-5]);
-  }else if(hero?.id==='frost'){
-    area(edge,[x-9,y-5],[x-2,y-14],[x+9,y-10],[x+3,y-8],[x-9,y-1]);
-  }
-
-  arm(hand,false);
-  if(hero?.bow&&(blade||name==='throw'||name==='idle')){
-    const [px,py]=hand,draw=blade?Math.min(10,frame*3):0;
-    if(hero.alternate&&hero.id==='ranger'){
-      band([px-5,py],[px+16,py-8],3,2,rim);
-      band([px+3,py-12],[px+11,py+1],2,2,edge);
-    }else if(hero.id==='frost'){
-      area(rim,[px-4,py],[px+2,py-7],[px+10,py-3],[px+9,py+6],[px,py+8]);
-      area(fold,[px,py],[px+3,py-4],[px+7,py-1],[px+6,py+4],[px+2,py+5]);
-    }else{
-      band([px,py-13],[px+8,py],2,2,edge);
-      band([px+8,py],[px+1,py+12],2,2,edge);
-      band([px,py-13],[px-draw,py],.5,.5,rim);
-      band([px-draw,py],[px+1,py+12],.5,.5,rim);
-      if(blade)band([px-draw,py],[px+20,py-2],.6,.8,rim);
-    }
-  } else if (blade?.length) {
-    const [bx,by] = blade;
-    const base = [hand[0]+3, hand[1]-1];
-    const reach=hero?.id==='frost'?.65:hero?.id==='thunder'?1.24:hero?.alternate?1.08:1;
-    const tip=[Math.min(86,Math.round(base[0]+(bx-base[0])*reach)),Math.max(0,Math.min(74,Math.round(base[1]+(by-base[1])*reach)))];
-    band(base,tip,hero?.id==='flame'?5:3,0,ink);
-    band(base,tip,hero?.id==='flame'?3:2,0,hero&&hero.id!=='shadow'?rim:'#c6d9e4');
-    band([base[0],base[1]-1],tip,.8,0,'#fff3d7');
-    if(hero?.id==='frost'||hero?.id==='shadow'&&hero.alternate)
-      band(rear,[Math.max(-10,rear[0]-15-frame),Math.max(1,rear[1]-10+frame*3)],2,0,rim);
-    dot('#cfaa73',base[0]-2,base[1]-3,3,6);
-  } else if (name==='throw' && frame<2) drawStar(context,ox+24+hand[0]-5,oy+hand[1],frame);
-}
-
-function drawStar(context, x, y, frame) {
-  const { rect:r, shape:s } = pixelPen(context,x,y);
-  const tips = [[6,0,12,6,6,12,0,6],[9,1,11,9,3,11,1,3],[11,1,11,11,1,11,1,1],[11,3,9,11,1,9,3,1]][frame];
-  s(ink,[tips[0],tips[1]],[8,4],[tips[2],tips[3]],[8,8],[tips[4],tips[5]],[4,8],[tips[6],tips[7]],[4,4]);
-  s('#b2cbd6',[tips[0],tips[1]],[7,5],[tips[2],tips[3]],[7,7],[tips[4],tips[5]],[5,7],[tips[6],tips[7]],[5,5]);
-  r('#fff2cd',5,4,2,2);
-  r(navy,6,6,1,1);
 }
 
 const OUTFITS = {
@@ -462,53 +289,52 @@ const OUTFITS = {
   silver: ['#263348','#53617a','#8eaabc','#e5eff8','#7495a8','#e0fbff'],
 };
 
-export function loadHeroPortrait(scene,hero,costume='scout'){
+const detailedMotion = /^(idle|run|jump.*|rise|fall|hurt|death|knockback|land|slash[1-3]|airSlash|airFollow|airHeavy|sprint.*|chargeRelease|diveSlash)$/;
+const rateFor = name => detailedMotion.test(name) ? 3 : 2;
+export const paintedShadowClips = Object.fromEntries(Object.entries(shadowClips).map(([name,count])=>{
+  const rate=rateFor(name);
+  return [name,count===1?1:count*rate-(loopedClips.has(name)?0:rate-1)];
+}));
+
+export function paintedShadowPose(name, frame, detailed=true) {
+  return shadowPoseAt(name,frame,detailed,rateFor(name));
+}
+
+function paintClips(scene,key,counts,costume,hero,detailed) {
+  paintedAtlas(scene,key,SHADOW_WIDTH,SHADOW_HEIGHT,counts,
+    (ctx,x,y,clip,frame)=>drawPaintedHero(scene,ctx,x,y,paintedShadowPose(clip,frame,detailed),clip,frame,hero,costume),2);
+}
+
+export function loadHeroPortrait(scene,hero,costume='scout') {
   const key='legends-portrait-'+hero.id+'-'+Number(hero.alternate === true)+'-'+costume;
-  const colors=hero.id==='shadow'?OUTFITS[costume]??OUTFITS.scout:
-    costume==='silver'?hero.colors.map((color,i)=>i===3?'#fbfff0':color):hero.colors;
-  actorAtlas(scene,key,SHADOW_WIDTH,SHADOW_HEIGHT,{idle:detailedShadowClips.idle},
-    (ctx,x,y,clip,frame)=>drawNinja(ctx,x,y,clip,frame,colors,hero,true));
+  paintClips(scene,key,{idle:paintedShadowClips.idle},costume,hero,true);
   return key;
 }
 
-export function loadShadowArt(scene, costume='scout', hero, detailed = true) {
-  const counts = detailed ? detailedShadowClips : shadowClips;
-  const variant = detailed ? '' : '-simple';
+const missiles={shadow:'throw',flame:'impactWarm',frost:'chakram',thunder:'spear',ranger:'dagger'};
+function shotAtlas(scene,key,side,part){
+  atlas(scene,key,side,side,{star:4},(ctx,x,y,_clip,n)=>{
+    const image=paintedPart(scene.textures,part),w=side*.86,h=part==='spear'||part==='dagger'?side*.28:w;
+    ctx.save();
+    ctx.translate(x+side*.5,y+side*.5);
+    ctx.rotate(part==='throw'||part==='chakram'?n*Math.PI/8:0);
+    ctx.drawImage(image,-w/2,-h/2,w,h);
+    ctx.restore();
+  },2);
+}
+
+export function loadShadowArt(scene,costume='scout',hero,detailed=true) {
   const outfit=Object.hasOwn(OUTFITS,costume)?costume:'scout';
-  if(hero&&(hero.id!=='shadow'||hero.alternate)){
-    const key='legends-art-'+hero.id+'-'+Number(hero.alternate)+'-'+outfit+'-'+actorBiome(scene)+variant;
-    const colors=hero.id==='shadow'?OUTFITS[outfit]:outfit==='silver'?hero.colors.map((color,i)=>i===3?'#fbfff0':color):hero.colors;
-    actorAtlas(scene,key,SHADOW_WIDTH,SHADOW_HEIGHT,counts,
-      (ctx,x,y,clip,frame)=>drawNinja(ctx,x,y,clip,frame,colors,hero,detailed),1.5);
-    atlas(scene,'legends-shot-'+hero.id,24,16,{star:4},(ctx,x,y,_clip,frame)=>{
-      const {rect,shape}=pixelPen(ctx,x,y);
-      if(hero.id==='frost')shape(colors[3],[4+frame,8],[11,1],[20-frame,8],[10,15]);
-      else if(hero.id==='flame'){
-        shape(colors[2],[1,10],[7,4],[14,6],[21,3],[23,8],[17,12],[9,11]);
-        rect(colors[3],12,7,8,2);
-      }else{
-        rect(colors[2],1,8,17,2);shape(colors[3],[15,4],[23,8],[15,12]);
-        if(hero.id==='thunder')rect(colors[3],3+frame,5,9,1);
-      }
-    });
-    if(hero.id!=='shadow')return key;
-    loadShadowWeapons(scene);
-    return key;
-  }
-  const mood = actorBiome(scene);
-  const base = outfit==='scout'?'shadow-ninja':'shadow-ninja-'+outfit;
-  const key = (mood==='verdant'?base:base+'-'+mood)+variant;
-  actorAtlas(scene,key,SHADOW_WIDTH,SHADOW_HEIGHT,counts,
-    (ctx,x,y,clip,frame)=>drawNinja(ctx,x,y,clip,frame,OUTFITS[outfit],hero,detailed),1.5);
-  loadShadowWeapons(scene);
+  const mood=actorBiome(scene),variant=detailed?'':'-simple';
+  const id=hero?.id??'shadow';
+  const base=outfit==='scout'?'shadow-ninja':'shadow-ninja-'+outfit;
+  const tag=id!=='shadow'||hero?.alternate?'legends-art-'+id+'-'+Number(hero.alternate)+'-'+outfit:base;
+  const suffix=(mood==='verdant'&&tag===base?'':'-'+mood)+variant;
+  const key=tag+suffix;
+  paintClips(scene,key,detailed?paintedShadowClips:shadowClips,outfit,hero,detailed);
+  shotAtlas(scene,'shadow-weapons',12,'throw');
+  if(id!=='shadow')shotAtlas(scene,'legends-shot-'+id,24,missiles[id]);
+  atlas(scene,'shadow-wave',28,21,{wave:1},(ctx,x,y)=>
+    ctx.drawImage(paintedPart(scene.textures,'charged'),x+1,y+1,26,19),2);
   return key;
-}
-
-function loadShadowWeapons(scene) {
-  atlas(scene,'shadow-weapons',12,12,{star:4},(ctx,x,y,_clip,frame)=>drawStar(ctx,x,y,frame));
-  atlas(scene,'shadow-wave',28,21,{wave:1},(ctx,x,y)=>{
-    const {shape}=pixelPen(ctx,x,y);
-    shape('#872f54',[0,18],[13,16],[21,10],[23,0],[26,7],[25,13],[19,18],[8,20]);
-    shape('#ffd4d6',[4,18],[15,15],[21,9],[23,2],[24,9],[20,15],[12,18]);
-  });
 }

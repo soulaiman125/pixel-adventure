@@ -1,5 +1,7 @@
 import { ACTOR_DENSITY, actorBiome, configureDenseTexture, materialPen, useActorPalette } from './rendering/actor-art.js';
 
+import { expandedClips, paintedAtlas } from './rendering/painted-atlas.js';
+import { paintEnemy } from './rendering/painted-enemy.js';
 import { rememberVisualTexture } from './rendering/texture-budget.js';
 import { inbetweens, sampleTrack } from './rendering/frame-tracks.js';
 
@@ -46,7 +48,7 @@ const gold = '#ebbe71';
 
 export const heroClips = inbetweens({idle:4,run:8,rise:3,fall:3,land:3,attack:4,
   hurt:2,recoil:3,death:5,respawn:4,victory:4},new Set(['idle','run','victory']));
-export const brambleClips = inbetweens({idle:4,patrol:6,air:3,windup:3,lunge:3,hurt:2,death:5},new Set(['idle','patrol']));
+export const brambleClips = expandedClips({idle:4,patrol:6,air:3,windup:3,lunge:3,hurt:2,death:5},new Set(['idle','patrol']));
 const heroSteps = [[-4,4],[-2,3],[0,2],[3,-2],[4,-4],[2,-3],[0,-2],[-3,2]];
 
 function hero(context, ox, oy, pose, frame, colors) {
@@ -146,48 +148,6 @@ function hero(context, ox, oy, pose, frame, colors) {
   }
 }
 
-function bramble(context, ox, oy, pose, frame) {
-  const { rect:r, shape:s } = pixelPen(context, ox, oy);
-  const dying = pose === 'death';
-  if (dying && frame > 2) {
-    r('#4d6550',8,26,25,3);
-    r('#93a850',13,24,16,2);
-    r('#c5d982',19-frame,21,2,2);
-    return;
-  }
-  const slide = pose === 'lunge' ? sampleTrack([0,3,4],frame) : pose === 'hurt' ? -2 - frame : 0;
-  const squash = pose === 'windup' || dying ? frame * 2 : pose === 'idle' ? Math.sin(frame*Math.PI*.5)**2 :
-    pose === 'lunge' ? sampleTrack([1,-2,-1],frame) : pose === 'hurt' ? frame : pose === 'air' ? -1-frame : 0;
-  const x = 20 + slide;
-  const y = 17 + squash;
-  // Pale bark feet, a chestnut shell, and a readable fern crest.
-  s('#1e2a29',[x-15,y+4],[x-14,y-3],[x-8,y-9],[x+1,y-12],[x+9,y-7],[x+12,y-5],
-    [x+16,y-2],[x+17,y+5],[x+13,y+10],[x-11,y+10]);
-  s('#526746',[x-14,y+3],[x-13,y-3],[x-7,y-8],[x+1,y-11],[x+8,y-7],[x+10,y-2],[x+8,y+6],[x-10,y+8]);
-  s('#8c9b57',[x-11,y-1],[x-7,y-7],[x+1,y-9],[x+6,y-6],[x+2,y-2],[x-4,y-2],[x-9,y+3]);
-  s('#395c44',[x-11,y-5],[x-15,y-11],[x-18,y-12],[x-15,y-13],[x-8,y-10],[x-6,y-7],
-    [x-6,y-12],[x-4,y-16],[x-2,y-15],[x-3,y-10],[x+3,y-14],[x+7,y-14],[x+3,y-9],[x+7,y-9]);
-  s('#adc270',[x-15,y-12],[x-9,y-10],[x-6,y-7],[x-10,y-8]);
-  r('#d6da90',x-5,y-13,2,3);
-  r('#abc775',x+2,y-12,3,2);
-  r('#d1ae6c',x-10,y-3,3,2);
-  r('#6c7f45',x-8,y+2,4,1);
-  s('#866047',[x+3,y-4],[x+11,y-4],[x+15,y-1],[x+15,y+5],[x+11,y+8],[x+5,y+7],[x+2,y+4]);
-  s('#c18a5c',[x+4,y-4],[x+10,y-4],[x+13,y-1],[x+7,y+1],[x+3,y+1]);
-  r(ink,x+9,y-2,4,4);
-  r(pose==='windup'||pose==='lunge'?'#ffc66e':'#fbde8d',x+10,y-2,2,2);
-  r(ink,x+12,y+4,4,1);
-  if(pose==='lunge') {
-    r(ink,x+11,y+3,6,3);
-    r('#ebc581',x+14,y+3,1,2);
-  } else r('#ebc581',x+13,y+5,1,2);
-  for (let foot=0;foot<3;foot++) {
-    const k = x-11+foot*9 + (pose === 'patrol' ? Math.sin((frame+foot*3)*Math.PI/3)*1.4 : 0);
-    r(ink,k,y+7,6,Math.max(1,29-y-7));
-    r('#ad9567',k+1,Math.min(27,y+8),4,2);
-  }
-}
-
 export function atlas(scene, key, width, height, clips, paint, density = 1) {
   if (scene.textures.exists(key)) return;
   const frames = Object.entries(clips).flatMap(([pose, count]) => Array.from({ length:count }, (_, n) => [pose, n]));
@@ -226,7 +186,8 @@ export function heroAtlas(scene, costume) {
 }
 
 export function brambleAtlas(scene) {
-  actorAtlas(scene, 'brambleback', 42, 29, brambleClips, (ctx,x,y,pose,frame)=>bramble(ctx,x,y,pose,frame/2));
+  paintedAtlas(scene,'brambleback',42,29,brambleClips,(ctx,x,y,clip,frame,count)=>
+    paintEnemy(scene,ctx,x,y,42,29,'brambleback',clip,frame,count));
 }
 
 export function clipFrame(clips, name, age, duration, loop = false) {

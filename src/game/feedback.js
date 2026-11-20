@@ -1,3 +1,5 @@
+import { paintedEffect } from './rendering/painted-parts.js';
+
 const PARTICLE_LIMIT = 32;
 const PULSE_LIMIT = 5;
 const POINT_LIFE = 270;
@@ -5,12 +7,18 @@ const POINT_LIFE = 270;
 export function createFeedback(scene) {
   const art=scene.add.graphics().setName('feedback-bursts').setVisible(false).setDepth(6);
   const particles=Array.from({length:PARTICLE_LIMIT},()=>({until:0}));
-  const pulses=Array.from({length:PULSE_LIMIT},()=>({until:0}));
+  const pulses=Array.from({length:PULSE_LIMIT},()=>({
+    until:0, flare:paintedEffect(scene,'impactWarm',6.1),
+  }));
+  for(const part of ['impactCool','death','halo']){
+    const ready=paintedEffect(scene,part,6.1);
+    ready.destroy();
+  }
   const echo=scene.add.image(0,0,'hero-fall').setOrigin(.5,1).setVisible(false).setDepth(5);
   const shield=scene.add.graphics().setDepth(5);
   let cursor=0, nextPulse=0, echoUntil=0, echoY=0, shownUntil=0;
 
-  function emit(x,y,color,count,dust=false) {
+  function emit(x,y,color,count,dust=false,finish) {
     if (scene.ui.reduceMotion) return;
     const time=scene.elapsed;
     const life=dust?210:POINT_LIFE;
@@ -30,13 +38,23 @@ export function createFeedback(scene) {
       item.dust=dust;
     }
     if(!dust&&count>=8){
-      Object.assign(pulses[nextPulse],{x,y,color,until:time+150,size:count>=11?14:9});
+      const pulse=pulses[nextPulse];
+      const part=finish??(color===0xffba83||color===0xffd97d||color===0xffe184?'impactWarm':'impactCool');
+      Object.assign(pulse,{x,y,color,until:time+150,size:count>=11?14:9});
+      pulse.flare.setTexture('painted-fx-'+part).setPosition(x,y).setAlpha(.8).setVisible(true);
       nextPulse=(nextPulse+1)%pulses.length;
     }
   }
 
   function paint(now) {
-    if (now>=shownUntil || scene.ui.reduceMotion) {
+    const reduced=scene.ui.reduceMotion;
+    for(const {until,size,flare} of pulses){
+      if(until<=now||reduced){if(flare.visible)flare.setVisible(false);continue;}
+      const t=1-(until-now)/150;
+      const width=9+size*t*1.25;
+      flare.setAlpha(.82*(1-t)**1.15).setDisplaySize(width,width*.84);
+    }
+    if (now>=shownUntil || reduced) {
       if(art.visible)art.clear().setVisible(false);
       return;
     }

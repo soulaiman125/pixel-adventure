@@ -191,22 +191,22 @@ async function benchmark(label, options, rate, version, stage) {
   });
   assert(Number.isFinite(runtime.inputMs));
   if (label === "desktop" && stage === 0) {
-    await page.evaluate(
-      () => (window.originalAtlas = qaScene.textures.get("shadow-ninja")),
-    );
+    await page.evaluate(() => {
+      window.originalAtlas=qaScene.children.list.find(item=>item.depth===4.35).texture;
+    });
     const counts = [];
     for (let i = 0; i < 3; i++) {
       await page.locator("#pause-button").click();
       await page.locator("#pause-main").click();
-      await page.locator("#play-game").click();
-      await page.waitForFunction(
-        () => qaScene.sys.isActive() && qaScene.player.body.blocked.down,
-      );
+      await page.locator('#level-select').click();
+      await page.locator('[data-level="0"]').click();
+      await page.waitForFunction(() => qaScene.sys.isActive() && qaScene.player.body.blocked.down
+        && document.activeElement.id==='stage' && document.getElementById('hud-level-number').textContent==='01');
       const fresh = await page.evaluate(() => ({
         objects: qaScene.children.length,
         shots: qaScene.ninja.projectiles.length,
         sameAtlas:
-          qaScene.textures.get("shadow-ninja") === window.originalAtlas,
+          qaScene.children.list.find(item=>item.depth===4.35).texture===window.originalAtlas,
       }));
       assert.equal(fresh.shots, 0);
       assert(fresh.sameAtlas);

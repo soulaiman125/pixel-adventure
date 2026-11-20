@@ -130,6 +130,8 @@ Run `npm run test:hybrid` against `http://127.0.0.1:4240/` or set `PIXEL_TEST_UR
 
 The [global visual audit](docs/global-visual-audit.md) records the art coverage, rendering pipeline, and per-pass profiling results.
 
+The [painted sprite redraw report](docs/sprite-redraw.md) records the roster coverage, raster source packs, comparison procedure, and benchmark deltas.
+
 ## Credits
 
 Character, enemy, terrain and combat animation frames are authored in the project's Canvas code. Sound effects and original music themes are synthesized with Web Audio. The detailed world background plates were created with ImageGen. Their prompts and saved assets are recorded in [the artwork provenance](docs/campaign-art-provenance.md) and [the earlier visual prototype](docs/visual-prototype.md). [Phaser](https://phaser.io/) powers the game. [Vite](https://vite.dev/) builds the web edition, and [Electron](https://www.electronjs.org/) powers the Windows edition. The interface uses [Bricolage Grotesque](https://github.com/ateliertriay/bricolage) and [DM Sans](https://github.com/googlefonts/dm-fonts) via Fontsource.

@@ -18,18 +18,17 @@ const heroPoses = {
 
 export function createPrototypeActors(scene, valley) {
   if (valley) brambleAtlas(scene);
-  const hero = scene.add
+  const hero = scene.ninja ? null : scene.add
     .image(0, 0, heroAtlas(scene, scene.ui.costume), "idle0")
     .setOrigin(0.5, 1)
     .setDepth(4.3);
-  const echo = scene.add
+  const echo = scene.ninja ? null : scene.add
     .image(0, 0, hero.texture.key, "recoil0")
     .setOrigin(0.5, 1)
     .setDepth(4.5)
     .setVisible(false);
   const impacts = scene.add.graphics().setDepth(7);
-  lightProp(scene,hero);
-  if (scene.ninja) hero.setVisible(false);
+  if (hero) lightProp(scene,hero);
   const enemies = valley
     ? scene.enemies.getChildren().map((body) => ({
         body,

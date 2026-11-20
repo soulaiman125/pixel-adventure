@@ -1,6 +1,6 @@
 import { lightProp } from './rendering/light-rig.js';
 import { clipFrame } from "./prototype-sprites.js";
-import { loadShadowArt, shadowClips, shadowPoseAt, detailedShadowClips } from "./shadow-art.js";
+import { loadShadowArt, shadowClips, paintedShadowPose, paintedShadowClips } from "./shadow-art.js";
 import { DASH, KATANA, SHURIKEN, strikeBox } from "./shadow-rules.js";
 import { activeWindows, AIR_DIVE, SPECIALS } from "./combat-techniques.js";
 
@@ -49,7 +49,7 @@ function techniquePose(state, now) {
 
 export function createShadowPresentation(scene) {
   const detailed = scene.swamp?.options.motion !== false;
-  const frameCounts = detailed ? detailedShadowClips : shadowClips;
+  const frameCounts = detailed ? paintedShadowClips : shadowClips;
   let costume = scene.ui.costume;
   let texture = loadShadowArt(scene,costume,scene.hero,detailed);
   for (const key of scene.textures.getTextureKeys()) {
@@ -297,7 +297,7 @@ function paintEffects(scene,hero,pose,detailed) {
   }
   if(swing || tracing){
     const frame=Number(hero.frame.name.slice(pose.length));
-    const current=shadowPoseAt(pose,frame,detailed),previous=shadowPoseAt(pose,Math.max(0,frame-1),detailed);
+    const current=paintedShadowPose(pose,frame,detailed),previous=paintedShadowPose(pose,Math.max(0,frame-1),detailed);
     if(current?.blade?.length&&previous?.blade?.length){
       const side=hero.flipX?-1:1;
       const x=value=>hero.x+(value-32)*SIZE*side;

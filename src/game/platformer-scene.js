@@ -20,7 +20,7 @@ import { createCampaignBackdrop } from './campaign-backdrop.js';
 import { canWallJump, wallSide, WALL_FALL, WALL_JUMP_SPEED, WALL_LOCK } from './wall-movement.js';
 import { createTally } from './ultimate-progress.js';
 import { createSurvival } from './ultimate-levels.js';
-import { flyingUltimate, loadUltimateEnemies, ultimateEnemyFrame, ultimateFallFrame, ULTIMATE_ENEMIES } from './ultimate-enemies.js';
+import { flyingUltimate, loadUltimateEnemies, ultimateTexture, ultimateEnemyFrame, ultimateFallFrame, ULTIMATE_ENEMIES } from './ultimate-enemies.js';
 import { createLegendVista } from './legends-vista.js';
 import { DEFAULT_HERO } from './legends-heroes.js';
 import { paintVillage, VILLAGE_STATIONS } from './ninja-village.js';
@@ -274,7 +274,7 @@ export class PlatformerScene extends Phaser.Scene {
       const monster = monsters[type];
       const ultimate = Object.hasOwn(ULTIMATE_ENEMIES,type);
       const expansion = EXPANSION_ENEMIES.has(type) || monster;
-      const texture = ultimate ? type : type === 'dummy' ? 'target-dummy' : expansion ? `${type}-rest` : terrainTexture(this.level.theme, 'slime-rest');
+      const texture = ultimate ? ultimateTexture(this,type) : type === 'dummy' ? 'target-dummy' : expansion ? `${type}-rest` : terrainTexture(this.level.theme, 'slime-rest');
       if (type === 'dummy' && !this.textures.exists(texture)) {
         const dummy = this.textures.createCanvas(texture, 24, 30);
         const context = dummy.context;
@@ -476,7 +476,7 @@ export class PlatformerScene extends Phaser.Scene {
     this.controls.consumeAttack();
     this.invulnerableUntil = this.elapsed + RESPAWN_GRACE;
     this.moveCamera(1);
-    this.burst(x, Math.min(y, VIEW_HEIGHT)-6, 0xffa7b5,10);
+    this.feedback.emit(x,Math.min(y,VIEW_HEIGHT)-6,0xffa7b5,10,false,'death');
     if (this.boss?.kind && this.boss.hp > 0 && this.boss.phase !== 'waiting') resetExpansionBoss(this, this.boss);
     this.ui.onRespawn(this.deaths, reason);
   }

@@ -1,3 +1,5 @@
+import { paintedEffect } from '../rendering/painted-parts.js';
+
 const HIT_STOP_MS = 190;
 const DISSOLVE_MS = 840;
 const accents = {
@@ -16,6 +18,7 @@ export function beginBossFinisher(scene, boss) {
   const camera = scene.cameras.main, originalZoom = camera.zoom;
   const [light, color] = accents[boss.kind] ?? accents.crown;
   const graphics = scene.add.graphics().setDepth(9);
+  const halo=paintedEffect(scene,'halo',8.95).setPosition(boss.x,159);
   const wasPaused = scene.physics.world.isPaused;
   scene.physics.pause();
   scene.controls.discardActions();
@@ -33,6 +36,7 @@ export function beginBossFinisher(scene, boss) {
     graphics.clear();
     if (release > 0) {
       const flare=(1-t)**2;
+      halo.setVisible(true).setAlpha(flare*.65).setDisplaySize(20+110*t,13+50*t);
       graphics.lineStyle(2,light,.72*flare).strokeCircle(x,y,8+51*t)
         .lineStyle(.8,color,.64*flare).strokeEllipse(x,y,24+95*t,9+38*t)
         .fillStyle(light,.3*flare).fillEllipse(x,y,16+24*t,5+12*t);
@@ -49,6 +53,7 @@ export function beginBossFinisher(scene, boss) {
     }
     if (t === 1) {
       graphics.destroy();
+      halo.destroy();
       camera.setZoom(originalZoom);
       boss.finishAge = Infinity;
       scene.bossFinisher = null;

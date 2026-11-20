@@ -1,4 +1,4 @@
-import { loadHeroPortrait, detailedShadowClips } from '../game/shadow-art.js';
+import { loadHeroPortrait, paintedShadowClips } from '../game/shadow-art.js';
 
 export function showPortrait(canvas, textures, hero, cosmetic, { active = () => true, motion = () => false, animated = true } = {}) {
   const texture = textures.get(loadHeroPortrait({ textures }, hero, cosmetic));
@@ -12,7 +12,7 @@ export function showPortrait(canvas, textures, hero, cosmetic, { active = () => 
   let last = -1;
   function draw(time) {
     if (!active()) return;
-    const index = animated && motion() ? Math.floor(Math.max(0, time - start) / 93) % detailedShadowClips.idle : 0;
+    const index = animated && motion() ? Math.floor(Math.max(0, time - start) / 62) % paintedShadowClips.idle : 0;
     if (index !== last) {
       last = index;
       const frame = texture.get('idle' + index);

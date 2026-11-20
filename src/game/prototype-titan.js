@@ -1,118 +1,13 @@
-import { actorAtlas, clipFrame, pixelPen } from './prototype-sprites.js';
+import { clipFrame } from './prototype-sprites.js';
 
 import { lightProp } from './rendering/light-rig.js';
-import { inbetweens, sampleTrack } from './rendering/frame-tracks.js';
+import { expandedClips, paintedAtlas } from './rendering/painted-atlas.js';
+import { paintBoss } from './rendering/painted-boss.js';
 
-const clips = inbetweens({idle:4,wind:4,wave:4,bolts:4,impact:4,open:4,hurt:2,defeat:5},new Set(['idle','open']));
-const outline = '#15182c';
-const shadow = '#272b4b';
-const iron = '#45486a';
-const mid = '#687d9d';
-const light = '#a8bac8';
-const copper = '#b78263';
-const humid = '#6674a3';
-
-function forgeTitan(context, ox, oy, pose, frame) {
-  const { rect:r, shape:s } = pixelPen(context,ox,oy);
-  const smash = pose === 'impact';
-  const lift = pose === 'wind' ? Math.min(frame*2,6) : pose === 'bolts' ? 5 : 0;
-  const fall = pose === 'defeat' ? frame*9 : 0;
-  const lean = pose === 'hurt' ? (frame ? 2 : 4) : 0;
-  const drop = smash ? sampleTrack([5,1,7,5],frame) : pose === 'idle' ? Math.sin(frame*Math.PI*.5)**2 : 0;
-  const x = 48+lean, y = 42+drop+fall;
-  const dead = pose === 'defeat';
-  const exposed = pose === 'open' || pose === 'hurt';
-  const energy = dead ? '#795d61' : exposed ? '#f9c872' : ['#8ae8ed','#abf4ec','#78d5ee','#d4fffa'][Math.floor(frame)%4];
-  if (dead && frame===4) {
-    s(outline,[15,81],[23,71],[38,73],[45,68],[61,72],[75,73],[86,82]);
-    s(iron,[20,81],[27,74],[40,75],[45,70],[55,73],[63,78],[74,75],[83,82]);
-    r(copper,28,78,8,2);
-    r(mid,47,79,13,2);
-    r(energy,58,74,2,2);
-    return;
-  }
-  for(const side of [-1,1]) {
-    const sx = x+side*17;
-    s(outline,[sx-12,63+drop+fall],[sx+9,63+drop+fall],[sx+11,72+fall],[sx+14,74+fall],
-      [sx+16,82],[sx-15,82],[sx-15,77],[sx-12,72]);
-    s(iron,[sx-9,65+drop+fall],[sx+6,65+drop+fall],[sx+7,73+fall],[sx+12,76+fall],
-      [sx+12,80],[sx-12,80],[sx-10,74+fall]);
-    r(shadow,sx-10,77+fall,24,3);
-    r(copper,sx-7,77+fall,3,2);
-    r(light,sx-4,76+fall,14,2);
-    r(energy,sx-5,73+fall,7,1);
-  }
-  // Segmented shoulder coils and braced chassis.
-  s(outline,[x-30,y-9],[x-19,y-21],[x+19,y-21],[x+30,y-9],[x+28,y+15],[x+20,y+28],
-    [x-20,y+28],[x-28,y+15]);
-  s(shadow,[x-27,y-8],[x-17,y-18],[x+17,y-18],[x+28,y-8],[x+24,y+14],[x+18,y+24],[x-18,y+24],[x-24,y+14]);
-  s(iron,[x-24,y-7],[x-16,y-15],[x+15,y-15],[x+23,y-7],[x+17,y+7],[x+4,y+15],[x-13,y+12],[x-23,y+6]);
-  s(mid,[x-24,y-8],[x-17,y-17],[x+8,y-16],[x+2,y-13],[x-16,y-11],[x-21,y-4]);
-  r(light,x-18,y-15,10,1);
-  r('#8c6967',x-20,y-3,5,2);
-  r('#20243b',x+14,y-9,6,1);
-  r(shadow,x-16,y+12,30,2);
-  r('#33354e',x-14,y+15,28,7);
-  r(copper,x-11,y+20,22,2);
-  r(light,x-12,y+14,5,2);
-  r(light,x+8,y+14,5,2);
-  for (const direction of [-1,1]) {
-    const cx=x+direction*26;
-    const cy=y-7-lift;
-    s(outline,[cx-8,cy+7],[cx-8,cy-17],[cx-5,cy-23],[cx+4,cy-23],[cx+9,cy-17],[cx+10,cy+7]);
-    r(iron,cx-5,cy-18,11,25);
-    r(mid,cx-4,cy-19,3,20);
-    for (let band=0;band<5;band++) {
-      r('#4d3a4d',cx-7,cy-17+band*4,15,3);
-      r(copper,cx-6,cy-17+band*4,11,1);
-      r(band%2?energy:light,cx-3,cy-16+band*4,7,1);
-    }
-    r(mid,cx-7,cy-23,15,5);
-    r(light,cx-5,cy-23,8,2);
-    const reach = pose==='wave' ? sampleTrack([0,7,10,3],frame) : smash ? sampleTrack([0,5,7,4],frame) : 0;
-    const armX=x+direction*(31+reach);
-    const armY=y+(smash?sampleTrack([1,8,20,14],frame):pose==='bolts'?-4:6)-lift;
-    s(outline,[armX-12,armY-9],[armX+10,armY-9],[armX+14,armY+1],[armX+10,armY+17],[armX-9,armY+17],[armX-13,armY+8]);
-    s(iron,[armX-10,armY-7],[armX+8,armY-7],[armX+11,armY+2],[armX+8,armY+14],[armX-7,armY+14],[armX-11,armY+7]);
-    r(mid,armX-8,armY-7,14,3);
-    r(light,armX-9,armY-6,10,1);
-    r(shadow,armX-9,armY-3,18,2);
-    r(shadow,armX-9,armY+5,17,2);
-    r('#594d66',armX-10,armY+10,20,4);
-    r(copper,armX-10,armY+8,20,2);
-    for(let rivet=0;rivet<3;rivet++) {
-      r(outline,armX-8+rivet*6,armY,4,4);
-      r(light,armX-7+rivet*6,armY+1,2,1);
-      r(energy,armX-6+rivet*5,armY+11,3,1);
-    }
-    if (!dead && (pose==='bolts'||pose==='wind') && frame%2) {
-      s(energy,[cx-2,cy-25],[cx+7,cy-33],[cx+14,cy-32],[cx+11,cy-28],[cx+16,cy-23],[cx+8,cy-26],[cx+10,cy-30]);
-    }
-  }
-  // Inset helm and aperture. The glowing core lives near the existing hit zone.
-  s(outline,[x-13,y-7],[x-9,y-15],[x+8,y-15],[x+14,y-7],[x+12,y+7],[x+7,y+11],[x-9,y+11],[x-14,y+6]);
-  s(iron,[x-11,y-6],[x-8,y-13],[x+7,y-13],[x+11,y-6],[x+10,y+5],[x+6,y+8],[x-8,y+8],[x-11,y+5]);
-  r(light,x-7,y-13,13,2);
-  r(copper,x-8,y-10,3,1);
-  r(copper,x+5,y-10,3,1);
-  r(humid,x-10,y-9,4,10);
-  r('#151b32',x-7,y-7,14,6);
-  r(energy,x-6,y-6,4,3);
-  r(energy,x+2,y-6,4,3);
-  r(outline,x-6,y-6,pose==='hurt'?4:2,1);
-  r(outline,x+4,y-6,2,1);
-  r(light,x-5,y-6,1,1);
-  r(light,x+5,y-6,1,1);
-  r(shadow,x-4,y+2,8,4);
-  r(mid,x-6,y+7,12,1);
-  s('#1a2035',[x,y+8],[x+11,y+15],[x+9,y+24],[x,y+28],[x-9,y+24],[x-11,y+15]);
-  s(exposed?'#af704e':'#3a6281',[x,y+10],[x+8,y+16],[x+6,y+23],[x,y+25],[x-6,y+23],[x-8,y+16]);
-  s(energy,[x,y+13],[x+5,y+17],[x+4,y+21],[x,y+23],[x-4,y+21],[x-5,y+17]);
-  r(exposed?'#fff3be':'#d8ffff',x-2,y+16,4,3);
-}
-
+const clips = expandedClips({idle:4,wind:4,wave:4,bolts:4,impact:4,open:4,hurt:2,defeat:5},new Set(['idle','open']));
 export function addTitanPresentation(scene, boss) {
-  actorAtlas(scene,'forge-titan',96,82,clips,(ctx,x,y,pose,frame)=>forgeTitan(ctx,x,y,pose,frame/2));
+  paintedAtlas(scene,'forge-titan',96,82,clips,(ctx,x,y,pose,frame,count)=>
+    paintBoss(scene,ctx,x,y,96,82,'titan',pose,frame,count));
   const sprite=scene.add.image(boss.x,184,'forge-titan','idle0').setOrigin(.5,1).setDepth(3.2);
   lightProp(scene,sprite);
   const mark=scene.add.graphics().setDepth(3.4);
