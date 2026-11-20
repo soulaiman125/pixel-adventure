@@ -14,12 +14,24 @@ const address = new Map(Object.entries(parts).flatMap(([pack,list]) =>
   list.map((name,i)=>[name,[pack,rects[pack][i]]])));
 const cached = new WeakMap();
 const actKeys = Object.keys(parts);
+const DESKTOP = { directory: '', scale: 1, density: 4, canvasBudget: 36 * 1024 * 1024 };
+const MOBILE = { directory: 'mobile/', scale: .75, density: 3, canvasBudget: 20 * 1024 * 1024 };
+const tiers = new WeakMap();
+
+export function paintedSpriteTier(textures) {
+  if (!tiers.has(textures)) {
+    const handheld = location.protocol !== 'pixel:' && matchMedia('(pointer: coarse)').matches;
+    tiers.set(textures, handheld ? MOBILE : DESKTOP);
+  }
+  return tiers.get(textures);
+}
 
 export function preloadPaintedSprites(scene) {
+  const { directory } = paintedSpriteTier(scene.textures);
   for(const name of actKeys){
     const key='painted-parts-'+name;
     if(!scene.textures.exists(key))
-      scene.load.image(key,import.meta.env.BASE_URL+'sprites/painted/'+name+'.webp');
+      scene.load.image(key,import.meta.env.BASE_URL+'sprites/painted/'+directory+name+'.webp');
   }
 }
 
@@ -30,12 +42,14 @@ function tintedPart(textures,name,fill,light) {
   if(cache.has(key))return cache.get(key);
   const [pack,[x,y,w,h]]=address.get(name);
   const source=textures.get('painted-parts-'+pack).getSourceImage();
+  const { scale } = paintedSpriteTier(textures);
+  const left = Math.round(x*scale), top = Math.round(y*scale);
   const image=document.createElement('canvas');
-  image.width=w;
-  image.height=h;
+  image.width=Math.round((x+w)*scale)-left;
+  image.height=Math.round((y+h)*scale)-top;
   const ctx=image.getContext('2d');
   ctx.imageSmoothingQuality='high';
-  ctx.drawImage(source,x,y,w,h,0,0,image.width,image.height);
+  ctx.drawImage(source,left,top,image.width,image.height,0,0,image.width,image.height);
   if(fill){
     ctx.globalCompositeOperation='source-atop';
     ctx.globalAlpha=.25;

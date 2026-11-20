@@ -104,6 +104,24 @@ async function testTouch(browser) {
   await released();
 
   await restart();
+  await down('attack', 3);
+  await wait(page, () => Boolean(touchQA.scene.ninja.charging));
+  await dispatch('touchCancel');
+  await wait(page, () => !touchQA.scene.ninja.charging);
+  assert.equal(await page.evaluate(() => touchQA.scene.ninja.uses.charged ?? 0), 0,
+    'Canceled touch must not fire a charged attack');
+  await down('attack', 3);
+  await wait(page, () => Boolean(touchQA.scene.ninja.charging));
+  await dispatch('touchEnd');
+  await wait(page, () => touchQA.scene.ninja.uses.charged === 1);
+
+  await restart();
+  const duplicateTap = await button(page, 'attack').evaluate(element => {
+    element.dispatchEvent(new PointerEvent('click', { bubbles:true, detail:0, pointerType:'touch' }));
+    return touchQA.controls.consumeAttack();
+  });
+  assert.equal(duplicateTap, false, 'Pointer click must not be treated as a keyboard activation');
+  await restart();
   const comboRun = await down('right', 1);
   await wait(page, () => touchQA.scene.player.body.velocity.x > 45);
   const comboJump = await point('jump', 2);

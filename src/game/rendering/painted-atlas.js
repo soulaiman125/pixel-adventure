@@ -1,9 +1,7 @@
 import { configureDenseTexture } from './actor-art.js';
 import { makeCanvas } from './lighting.js';
+import { paintedSpriteTier } from './painted-parts.js';
 import { rememberVisualTexture } from './texture-budget.js';
-
-export const PAINTED_DENSITY = 4;
-const FRAME_BUDGET = 36 * 1024 * 1024;
 const caches = new WeakMap();
 
 export function expandedClips(counts,loops,subframes=3){
@@ -22,7 +20,7 @@ function reserveFrame(cache, source, footprint, create) {
         cache.frames.set(source, saved);
         return saved.canvas;
       }
-      while (cache.frames.size && cache.bytes + footprint > FRAME_BUDGET) {
+      while (cache.frames.size && cache.bytes + footprint > cache.maxBytes) {
         const oldest = cache.frames.keys().next().value;
         cache.bytes -= cache.frames.get(oldest).footprint;
         cache.frames.delete(oldest);
@@ -50,19 +48,20 @@ export function paintedAtlas(scene,key,width,height,clips,paint) {
   } else {
     const frames = Object.entries(clips).flatMap(([clip,count]) =>
       Array.from({length:count}, (_,n) => [clip,n,count]));
-    const pixelWidth = width * PAINTED_DENSITY;
-    const pixelHeight = height * PAINTED_DENSITY;
+    const { density, canvasBudget } = paintedSpriteTier(textures);
+    const pixelWidth = width * density;
+    const pixelHeight = height * density;
     const footprint = pixelWidth * pixelHeight * 4;
     const palette = { textures, level: scene.level };
     // The Canvas renderer consumes each source directly. The placeholder
     // provides its dimensions until the first access to its raster.
     const placeholder = new Image(pixelWidth, pixelHeight);
     texture = textures.create(key, frames.map(() => placeholder));
-    configureDenseTexture(texture, PAINTED_DENSITY);
+    configureDenseTexture(texture, density);
     texture.add('__BASE', 0, 0, 0, pixelWidth, pixelHeight);
     let cache = caches.get(textures);
     if (!cache) {
-      cache = { frames: new Map(), bytes: 0 };
+      cache = { frames: new Map(), bytes: 0, maxBytes: canvasBudget };
       caches.set(textures, cache);
     }
     for (const [index, [clip, n, count]] of frames.entries()) {
@@ -70,7 +69,7 @@ export function paintedAtlas(scene,key,width,height,clips,paint) {
       reserveFrame(cache, source, footprint, () => {
         const canvas = makeCanvas(pixelWidth, pixelHeight);
         const ctx = canvas.getContext('2d');
-        ctx.scale(PAINTED_DENSITY, PAINTED_DENSITY);
+        ctx.scale(density, density);
         ctx.imageSmoothingQuality = 'high';
         paint(ctx, 0, 0, clip, n, count, palette);
         return canvas;

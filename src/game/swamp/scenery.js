@@ -2,6 +2,7 @@ import { makeCanvas } from '../rendering/lighting.js';
 import { canvasLayer } from '../rendering/projected-shadows.js';
 import { VIEW_HEIGHT, GROUND_Y } from '../level-one.js';
 import { softenDistance } from './post.js';
+import { paintedSpriteTier } from '../rendering/painted-parts.js';
 
 export function randomFrom(seed) {
   return () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296);
@@ -113,12 +114,17 @@ export function createSwampBackdrop(scene) {
   });
   const base = scene.swamp.options.post ? softenDistance(source) : source;
   const opacity = [.15, .40, .27, .48];
+  const mobile = paintedSpriteTier(scene.textures).density === 3;
   const render=canvasLayer(scene,-13,(ctx,camera)=>{
     const span=Math.max(camera.width+164,VIEW_HEIGHT*source.width/source.height);
     const slide=(scene.level.width-camera.width)>0 ? camera.scrollX/(scene.level.width-camera.width) : 0;
     ctx.imageSmoothingEnabled=true;
     ctx.drawImage(base,-(span-camera.width)*(.2+.57*slide),0,span,VIEW_HEIGHT);
+    // The two tree overlays are full-screen blends. Keep the vista, ruins and
+    // near foliage when a mobile device has hit the minimum render resolution.
+    const underLoad = mobile && scene.game.canvas.height <= VIEW_HEIGHT;
     layers.forEach(({canvas,speed},i)=>{
+      if (underLoad && (i === 0 || i === 2)) return;
       const shift=(camera.scrollX*speed)%width;
       ctx.globalAlpha=opacity[i];
       for(let x=-shift;x<camera.width;x+=width)ctx.drawImage(canvas,x,0);

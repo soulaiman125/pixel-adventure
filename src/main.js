@@ -49,6 +49,8 @@ const gameMount = byId('game-mount');
 const toast = byId('game-toast');
 const helpButton = byId('help-button');
 const soundButton = byId('sound-button');
+const soundHome = soundButton.parentElement;
+const touchView = matchMedia('(any-pointer: coarse), (max-width: 680px)');
 const soundSetting = byId('sound-setting');
 const volumeSetting = byId('sound-volume');
 const musicSetting = byId('music-volume');
@@ -328,6 +330,13 @@ function refreshChallengeStages() {
   showChallengeRecord();
 }
 
+function placeSoundButton() {
+  const destination = mode !== 'menu' && touchView.matches ? byId('hud') : soundHome;
+  if (soundButton.parentElement !== destination) destination.append(soundButton);
+}
+
+touchView.addEventListener('change', placeSoundButton);
+
 function setMode(nextMode) {
   mode = nextMode;
   syncMusic();
@@ -339,6 +348,7 @@ function setMode(nextMode) {
   byId('game-arcade').hidden = isMenu;
   if (!isMenu) stopLanding?.();
   byId('hud').hidden = isMenu;
+  placeSoundButton();
   const loading = byId('loading-label');
   loading.dataset.kind = nextMode;
   loading.textContent = nextMode === 'failed' ? 'Stage Failed — Restarting' : 'Loading level…';

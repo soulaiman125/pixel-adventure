@@ -67,6 +67,16 @@ Saved asset `public/sprites/painted/legends.webp`. Original generated file `exec
 A professional production asset sheet for a side-view 2D action platformer, painterly stylized-realistic environmental RPG art, rich but legible materials and volume, like a hand-painted 3D game texture. Strong directional warm light from the upper left, cool blue-grey shadows, controlled dark edges. TRUE TRANSPARENT BACKGROUND. Single output sprite component sheet, exactly 4 columns and 3 rows of equal cells covering the whole wide image, centers at x=12.5%,37.5%,62.5%,87.5% and y=16.7%,50%,83.3%. Each object centered in its cell and isolated with ample transparent gutters. No graphics, particles, artwork, background sheen, cast ground shadows, or object parts outside each cell. No visible grid, numerals, labels, text, perspective grid or watermark. Side or 3/4 profile facing screen-right, only the specified component in each cell, the components will be reassembled on a jointed rig. Maintain consistent dimensions and art quality for all slots. LATE REALM ENEMY ANATOMY SHEET. Row 1 left to right: (1) ghost samurai detached head with blue-green lacquer and glowing spirit eyes, in right-facing side profile; (2) floating lantern spirit's detached carved mask, warm lantern amber core, stylized haunted material; (3) a coral encrusted sea knight detached helmet with fingerlike pink coral, algae and seafoam visor, facing right; (4) a sleek fishlike ambusher head with blue-violet scales and a translucent frilled fin, right-facing. Row 2: (1) a harpy's detached avian head with rich brown and blue plumage, amber eye and right-facing weathered beak; (2) standalone feathered wing with wide sweep and fanned layered blue-gold feathers, extending left, socket on right; (3) a cyan-lensed angular floating security drone central chassis with worn red enamel and copper circuit marks, complete chassis only; (4) detached cyber ninja head dark ultraviolet alloy cowl with pale cyan visor and pink accents, facing right. Row 3: (1) ominous right-facing black iron shadow knight detached head, chains and deep purple eye; (2) right-facing hooded void stalker detached head, weathered purple cloth and red eye slit; (3) standalone weathered ghost robe chest and belt, stylized tapering teal fabric folds, no head, no limbs; (4) standalone heavy robot torso with advanced violet alloy plating, luminous aqua core, no head, no limbs.
 ```
 
+### Mobile sprite packs
+
+Touch browsers load the six 768 × 576 WebP sheets in `public/sprites/painted/mobile`. The sheets share the masters' 4-by-3 component layout and retain alpha. The mobile renderer bakes 3× frames with a 20 MiB frame-cache limit. Desktop and offline Electron use the 1024 × 768 masters and 4× frames.
+
+To recreate a mobile sheet when updating its master, run the following with FFmpeg and repeat for `classic`, `bosses`, `legends`, `variants`, and `ui`.
+
+```sh
+ffmpeg -i public/sprites/painted/ninja.webp -vf scale=768:576:flags=lanczos -frames:v 1 -c:v libwebp -quality 87 -compression_level 6 -pix_fmt yuva420p public/sprites/painted/mobile/ninja.webp
+```
+
 ### variants
 
 Saved asset `public/sprites/painted/variants.webp`. Original generated file `exec-cb4d7b60-5534-4ada-98ad-978b19f5df39.png`.

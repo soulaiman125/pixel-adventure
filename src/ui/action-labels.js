@@ -14,11 +14,7 @@ export function actionNames(hero, shadow = true) {
 }
 
 const touchLabels = { dash: 'Dash', throw: 'Shot', sprint: 'Run', cyclone: 'Skill',
-  execution: 'Finish', parry: 'Parry', attack: 'Attack', jump: 'Jump' };
-const specialties = {
-  shadow: ['Stars', 'Spin'], flame: ['Fire', 'Burst'], frost: ['Ice', 'Trap'],
-  thunder: ['Bolt', 'Field'], ranger: ['Vine', 'Rain'],
-};
+  execution: 'Ult', parry: 'Parry', attack: 'Attack', jump: 'Jump' };
 
 export function refreshControlLabels({ hero, controls, shadow }) {
   const names = actionNames(hero, shadow);
@@ -31,7 +27,7 @@ export function refreshControlLabels({ hero, controls, shadow }) {
     [names.attack, keys('attack'), shadow ? 'Chain two quick attacks into a finisher by pressing again during recovery.' : 'Strike at close range.'],
   ];
   if (shadow) rows.push(
-    [names.charged, keys('attack'), 'Hold past the first attack, then release.'],
+    [names.charged, keys('attack'), 'Hold Attack to charge, then release.'],
     [names.throw, keys('throw'), 'Use your projectile after the cooldown.'],
     [names.dash, keys('dash'), 'One air dash per landing. Hazards still hurt.'],
     [names.sprint, keys('sprint'), 'Hold to run faster on the ground.'],
@@ -62,13 +58,11 @@ export function refreshControlLabels({ hero, controls, shadow }) {
     span.append(...bindings.map(key), ' ' + name);
     return span;
   }));
-  const [throwLabel, skillLabel] = specialties[hero.id];
-  const captions = { ...touchLabels, throw: throwLabel, cyclone: skillLabel };
   for (const button of document.querySelectorAll('[data-action]')) {
     const { action } = button.dataset;
     button.setAttribute('aria-label', names[action]);
     button.title = names[action];
-    if (!captions[action]) continue;
+    if (!touchLabels[action]) continue;
     let caption = button.querySelector('.touch-caption');
     if (!caption) {
       const ns='http://www.w3.org/2000/svg';
@@ -80,7 +74,16 @@ export function refreshControlLabels({ hero, controls, shadow }) {
       caption.className='touch-caption';
       button.replaceChildren(icon,caption);
     }
-    caption.textContent=captions[action];
+    caption.textContent=touchLabels[action];
+    if (action === 'attack' && shadow) {
+      if (!button.querySelector('.touch-charge-hint')) {
+        const hint = Object.assign(document.createElement('small'), { className:'touch-charge-hint', textContent:'Hold: Charge' });
+        hint.setAttribute('aria-hidden','true');
+        button.append(hint);
+      }
+      button.setAttribute('aria-label', names.attack + '. Hold to charge.');
+      button.title = names.attack + ' · Hold to charge';
+    }
   }
   for (const select of document.querySelectorAll('#touch-swap-from,#touch-swap-to')) {
     for (const option of select.options) option.textContent = names[option.value];

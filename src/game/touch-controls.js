@@ -2,7 +2,7 @@ const ACTIVATION_MS = 150;
 
 // Keep native buttons for accessibility and use each browser pointer ID independently.
 // Phaser consumes this state alongside keyboard input in the scene's normal update.
-export function createTouchControls(panel, isPlaying, onAction) {
+export function createTouchControls(panel, isPlaying, onAction, onCancel) {
   const pointers = new Map();
   const buttons = new Map();
   const actions = new Map();
@@ -23,11 +23,17 @@ export function createTouchControls(panel, isPlaying, onAction) {
     if (action && ++action.count === 1) action.button.dataset.pressed = '';
   }
 
-  function release(id) {
+  function dismiss(pointer, canceled) {
+    const action = pointer.action;
+    choose(pointer, undefined);
+    if (canceled && action?.count === 0) onCancel(action.name);
+  }
+
+  function release(id, canceled = false) {
     const pointer = pointers.get(id);
     if (!pointer) return;
     pointers.delete(id);
-    choose(pointer, undefined);
+    dismiss(pointer, canceled);
     const button = pointer.origin.button;
     if (button.hasPointerCapture(id)) button.releasePointerCapture(id);
   }
@@ -58,21 +64,20 @@ export function createTouchControls(panel, isPlaying, onAction) {
       else choose(pointer, undefined);
     } else if (!pointer.crossed && !inside(event, pointer.origin)) {
       pointer.crossed = true;
-      choose(pointer, undefined);
+      dismiss(pointer, true);
     }
   });
 
-  const end = (event) => release(event.pointerId);
-  // Capture delivers releases outside the button. The window also sees an
-  // outside release if the browser cancels or transfers capture.
-  window.addEventListener('pointerup', end, true);
-  window.addEventListener('pointercancel', end, true);
-  panel.addEventListener('lostpointercapture', end);
+  const cancel = event => release(event.pointerId, true);
+  // Listen globally because a browser gesture can cancel the capture.
+  window.addEventListener('pointerup', event => release(event.pointerId), true);
+  window.addEventListener('pointercancel', cancel, true);
+  panel.addEventListener('lostpointercapture', cancel);
   panel.addEventListener('contextmenu', (event) => event.preventDefault());
   panel.addEventListener('click', (event) => {
     const action = buttons.get(event.target.closest('button'));
     // Native keyboard and assistive-technology activation sends a click without a pointer press.
-    if (!action || !isPlaying() || event.detail !== 0) return;
+    if (!action || !isPlaying() || event.detail !== 0 || event.pointerType) return;
     if (isDirection(action)) action.until = performance.now() + ACTIVATION_MS;
     else onAction(action.name);
   });

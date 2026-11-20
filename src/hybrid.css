@@ -268,9 +268,9 @@ dialog[open] { animation:dialog-in .16s var(--ease); }
   .game-view .touch-button.button-primary[data-pressed] { background:#ffb4bf; }
   .game-view .arcade-footer {
     container:touch-dock / inline-size;
-    padding-inline:max(7px,env(safe-area-inset-left)) max(7px,env(safe-area-inset-right));
+    padding-inline:7px;
   }
-  .game-view .hud { padding-inline:max(7px,env(safe-area-inset-left)) max(7px,env(safe-area-inset-right)); }
+  .game-view .hud { padding-inline:7px; }
   .game-view .hud-level { min-width:0; }
   .game-view .stage,.game-view .arcade { min-width:0; }
 }

@@ -411,6 +411,8 @@ export function updateShadowCombat(scene, delta, pressed, hitBoss) {
   const direction = (Number(scene.controls.isDown('right')) - Number(scene.controls.isDown('left'))) ||
     (scene.player.flipX ? -1 : 1);
   const previous = state.attack;
+  const held = scene.controls.isDown('attack');
+  if (scene.controls.consume?.('cancel-attack') && !held) cancelCharge(scene);
   if (state.throw && time - state.throw.since >= SHURIKEN.duration) state.throw = null;
   if (state.parry && time-state.parry.since >= PARRY.duration) state.parry = null;
   const offLandingRecovery = time >= (state.diveLandUntil ?? 0);
@@ -426,7 +428,6 @@ export function updateShadowCombat(scene, delta, pressed, hitBoss) {
     use(state, 'parry');
   } else if(idle && execution) startSpecial(scene,'execution',direction);
   else if(idle && cyclone) startSpecial(scene,'cyclone',direction);
-  const held=scene.controls.isDown('attack');
   if(pressed && idle && !state.special && !state.parry)state.heldAttackAt=time;
   if(pressed && state.attack)state.heldAttackAt=null;
   if(!held && !state.charging)state.heldAttackAt=null;

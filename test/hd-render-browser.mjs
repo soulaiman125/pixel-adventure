@@ -15,7 +15,7 @@ const worlds = [
   [48, 'sky'], [54, 'neon'], [60, 'eclipse'],
 ];
 
-async function inspect(page) {
+async function inspect(page, density = 4) {
   // Observe Phaser's actual draw calls, including the replacement frame returned
   // by the lighting pass, over a few animation frames.
   const result = await page.evaluate(() => new Promise(resolve => {
@@ -50,8 +50,8 @@ async function inspect(page) {
   assert(result.canvas[1] >= result.css[1], JSON.stringify(result));
   assert(result.litActors.some(item => item.key === result.hero), 'Hero must use normal lighting');
   for (const actor of result.litActors) {
-    assert.equal(actor.density, 4, JSON.stringify(actor));
-    assert.deepEqual([actor.width, actor.height], actor.original.map(size => size * 4));
+    assert.equal(actor.density, density, JSON.stringify(actor));
+    assert.deepEqual([actor.width, actor.height], actor.original.map(size => size * density));
   }
   return result;
 }
@@ -95,7 +95,7 @@ try {
       hasTouch:view.touch, isMobile:view.touch, deviceScaleFactor:view.scale });
     await openStage(page, 23);
     if (view.zoom !== 1) await page.evaluate(value => artScene.cameras.main.setOrigin(.5,.82).setZoom(value), view.zoom);
-    const data = await inspect(page);
+    const data = await inspect(page, view.touch ? 3 : 4);
     assert.deepEqual(page.artErrors, []);
     const file = view.name + '.png';
     await page.screenshot({path:resolve(output,file),fullPage:true,scale:'css'});

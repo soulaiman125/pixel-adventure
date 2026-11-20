@@ -38,9 +38,16 @@ export function createControls(container, isPlaying, hapticFeedback, shadowEnabl
       container.querySelector('[data-action="sprint"]').setAttribute('aria-pressed',String(sprintToggle));
     }
     if(action!=='left' && action!=='right')hapticFeedback();
+  }, action => {
+    if (action === 'attack' && !keyboardHeld('attack') && !gamepad.attack && !touch.isDown('attack')) {
+      queued.delete(action);
+      queued.add('cancel-attack');
+    }
   });
   function clear(){
+    const attackHeld = queued.has('cancel-attack') || keyboardHeld('attack') || gamepad.attack || touch.isDown('attack');
     held.clear(); queued.clear(); touch.clear(); sprintToggle=false;
+    if (attackHeld) queued.add('cancel-attack');
     gamepad = {}; gamepadPrimed = false;
     container.querySelector('[data-action="sprint"]')?.setAttribute('aria-pressed','false');
   }

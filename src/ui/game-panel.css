@@ -82,6 +82,7 @@
 }
 .game-view .touch-button.button-primary[data-pressed] { background:#ffd2cf; }
 .touch-caption { line-height:1; }
+.touch-charge-hint { font-size:8px; line-height:1; color:#c2d7ea; letter-spacing:-.02em; }
 
 @media (max-width:750px), (orientation:landscape) and (max-height:550px) {
   .game-view .hud .stat.stat-deaths { padding-inline:5px; }
