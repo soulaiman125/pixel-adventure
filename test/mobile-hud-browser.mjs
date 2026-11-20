@@ -36,7 +36,8 @@ async function verify(page, label, insets = { top:0, right:0, bottom:0, left:0 }
     });
     const disjoint = (a, b) => a.right <= b.left + .5 || b.right <= a.left + .5 || a.top >= b.bottom - .5 || b.top >= a.bottom - .5;
     return {
-      stats: stats.length === 8 && stats.every(Boolean),
+      stats: stats.length === 8 && stats.every(Boolean) &&
+        getComputedStyle(document.querySelector('#hud [data-stat="coins"] dt'), '::before').display === 'none',
       health: within(health) && health.width > 0 && health.height > 0,
       hud: within(hud) && utilities.every(reachable)
         && disjoint(...utilities.map(button => button.getBoundingClientRect())),

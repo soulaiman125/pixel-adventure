@@ -128,7 +128,7 @@
 }
 .touch-button::before { --painted-icon-size:21px; }
 .combat-hud > .cooling::before { opacity:.58; }
-@media(max-width:860px) {
+@media(any-pointer:coarse), (max-width:860px) {
   .hud .stat[data-stat="coins"] dt::before { display:none; }
 }
 @media(max-width:500px), (orientation:landscape) and (max-height:435px) {
