@@ -1,6 +1,6 @@
 # Pixel Adventure 4.1 — Legends of Shadows
 
-A free action-platformer with 60 stages across twelve worlds and five playable heroes. The Hybrid UI redesign is a local review candidate on `feature/v4.1-hybrid-aaa-ui-redesign`. The public links below lead to Pixel Adventure 2.0.0.
+A free action-platformer with 60 stages across twelve worlds and five playable heroes. The web edition includes the Hybrid UI and high-density painted character, enemy, and boss sprites. The Windows download below is the stable 2.0.0 edition.
 
 Choose **Enter Adventure** on the title screen, then **Continue Adventure** to resume the current campaign. **New Adventure** asks for confirmation before resetting active run totals and keeps unlocks, records, and equipment. Open **Heroes → Choose Hero** to preview and select Shadow Ninja, Flame Samurai, Frost Assassin, Thunder Ronin, or Forest Ranger. All five are available from the start. Select a hero between stages. **Enter Ninja Village** takes you to the Blacksmith, Training Dojo, Quest Board, Outfit Shop, World Portal, and Hall of Legends. Press **E** near a village resident or tap the interaction button. The menu also provides direct access to several stations. See [the v4.1 private UI audit resolution](docs/ui-ux-resolution-v4.1.md) for the redesigned screens, validation, and known limitations.
 
@@ -38,7 +38,7 @@ Open [http://127.0.0.1:5173/](http://127.0.0.1:5173/). The browser version can a
 
 Download the setup executable from [GitHub Releases](https://github.com/soulaiman125/pixel-adventure/releases/tag/v2.0.0), close any open Pixel Adventure window, and run the installer on Windows x64. Open **Pixel Adventure** from the desktop or Start menu. Run the same installer over v1.0.0 to upgrade and retain your existing Windows save. The installer includes the runtime, game, and assets. It plays offline after installation and saves progress separately from the browser version.
 
-For the private 4.1.0 Windows candidate, follow the [Windows release candidate guide](docs/windows-release-candidate.md). The build writes the x64 installer to `release/windows/v4.1.0/`. The installer is unsigned, so Windows SmartScreen may display a warning.
+For the separate 4.1.0 Windows candidate, see the [GitHub pre-release](https://github.com/soulaiman125/pixel-adventure/releases/tag/v4.1.0) and the [Windows release candidate guide](docs/windows-release-candidate.md). The build writes the x64 installer to `release/windows/v4.1.0/`. The installer is unsigned, so Windows SmartScreen may display a warning.
 
 To run the desktop edition from source, run `npm.cmd run build` followed by `npm.cmd run desktop`.
 

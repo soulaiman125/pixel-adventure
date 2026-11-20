@@ -123,8 +123,8 @@ export const ultimateTexture=(scene,type)=>'painted-enemy-'+actorBiome(scene)+'-
 export function loadUltimateEnemies(scene,roster=Object.keys(ULTIMATE_ENEMIES)) {
   for(const type of new Set(roster)){
     if(!Object.hasOwn(ULTIMATE_ENEMIES,type))continue;
-    paintedAtlas(scene,ultimateTexture(scene,type),38,34,clips,(ctx,x,y,clip,frame,count)=>
-      paintEnemy(scene,ctx,x,y,38,34,type,clip,frame,count));
+    paintedAtlas(scene,ultimateTexture(scene,type),38,34,clips,(ctx,x,y,clip,frame,count,palette)=>
+      paintEnemy(palette,ctx,x,y,38,34,type,clip,frame,count));
   }
 }
 

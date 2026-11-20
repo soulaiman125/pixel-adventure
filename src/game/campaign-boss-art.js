@@ -8,8 +8,8 @@ const CLIPS = expandedClips({idle:4,wind:4,strike:5,open:4,hurt:3,defeat:6},new 
 
 export function addCampaignBoss(scene, boss) {
   const key = "campaign-boss-" + boss.kind;
-  paintedAtlas(scene,key,80,88,CLIPS,(ctx,x,y,clip,frame,count)=>
-    paintBoss(scene,ctx,x,y,80,88,boss.kind,clip,frame,count));
+  paintedAtlas(scene,key,80,88,CLIPS,(ctx,x,y,clip,frame,count,palette)=>
+    paintBoss(palette,ctx,x,y,80,88,boss.kind,clip,frame,count));
   const image = scene.add
     .image(boss.x, 184, key, "idle0")
     .setOrigin(0.5, 1)

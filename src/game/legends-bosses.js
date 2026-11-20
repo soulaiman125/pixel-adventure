@@ -56,8 +56,8 @@ const clips=expandedClips({waiting:3,warn:4,attack:4,open:3,hurt:3,defeated:4},n
 
 export function addLegendBoss(scene,boss) {
   const key='legends-boss-'+boss.kind;
-  paintedAtlas(scene,key,96,73,clips,(ctx,x,y,clip,frame,count)=>
-    paintBoss(scene,ctx,x,y,96,73,boss.kind,clip,frame,count));
+  paintedAtlas(scene,key,96,73,clips,(ctx,x,y,clip,frame,count,palette)=>
+    paintBoss(palette,ctx,x,y,96,73,boss.kind,clip,frame,count));
   const sprite=scene.add.image(boss.x,185,key,'waiting0').setOrigin(.5,1).setDepth(3);
   lightProp(scene,sprite);
   return { update(){

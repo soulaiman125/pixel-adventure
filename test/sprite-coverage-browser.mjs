@@ -17,7 +17,12 @@ try {
         const texture=s.textures.get(key);
         const counts=texture.paintedClips;
         const first=counts&&texture.get(Object.keys(counts)[0]+'0');
-        if(!first||first.cutWidth<=first.realWidth)throw new Error('Missing dense raster frame '+key);
+        if(!first)throw new Error('Missing raster atlas '+key);
+        for (const [clip,count] of Object.entries(counts)) for (let i=0;i<count;i++) {
+          const frame=texture.get(clip+i);
+          if (frame.name!==clip+i || frame.source.resolution!==4 || frame.cutWidth!==frame.realWidth*4 || frame.cutHeight!==frame.realHeight*4)
+            throw new Error('Missing 4× raster frame '+key+' / '+clip+i);
+        }
         return {key,source:[first.cutWidth,first.cutHeight],counts};
       }
       const team=s.enemies.getChildren().map(enemy=>{

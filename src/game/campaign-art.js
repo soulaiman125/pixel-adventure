@@ -22,8 +22,8 @@ export function createCampaignActors(scene) {
       const type = body.getData("type");
       if (type === "dummy" || body.getData('ultimateState')) return null;
       const key = "campaign-" + scene.level.theme + "-" + (type ?? "slime");
-      paintedAtlas(scene,key,44,40,CLIPS,(ctx,x,y,clip,frame,count)=>
-        paintEnemy(scene,ctx,x,y,44,40,type??'slime',clip,frame,count));
+      paintedAtlas(scene,key,44,40,CLIPS,(ctx,x,y,clip,frame,count,palette)=>
+        paintEnemy(palette,ctx,x,y,44,40,type??'slime',clip,frame,count));
       return {
         body,
         image: scene.add

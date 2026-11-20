@@ -41,7 +41,7 @@ svg { width: 19px; height: 19px; flex: none; }
 .stage { position: relative; aspect-ratio: 24 / 11; background: #72aac4; isolation: isolate; outline: none; }
 [data-view="menu"] .stage { aspect-ratio: 2 / 1; background: #314b53; }
 .game-mount { position: absolute; inset: 0; overflow: hidden; }
-.game-mount canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+.game-mount canvas { display: block; width: 100%; height: 100%; }
 .menu { position: absolute; inset: 0; display: grid; align-items: center; padding: clamp(24px, 5vw, 75px); }
 .menu::before {
   position: absolute;

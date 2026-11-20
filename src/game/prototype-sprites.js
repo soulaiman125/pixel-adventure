@@ -186,8 +186,8 @@ export function heroAtlas(scene, costume) {
 }
 
 export function brambleAtlas(scene) {
-  paintedAtlas(scene,'brambleback',42,29,brambleClips,(ctx,x,y,clip,frame,count)=>
-    paintEnemy(scene,ctx,x,y,42,29,'brambleback',clip,frame,count));
+  paintedAtlas(scene,'brambleback',42,29,brambleClips,(ctx,x,y,clip,frame,count,palette)=>
+    paintEnemy(palette,ctx,x,y,42,29,'brambleback',clip,frame,count));
 }
 
 export function clipFrame(clips, name, age, duration, loop = false) {

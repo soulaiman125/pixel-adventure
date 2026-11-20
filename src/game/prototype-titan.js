@@ -6,8 +6,8 @@ import { paintBoss } from './rendering/painted-boss.js';
 
 const clips = expandedClips({idle:4,wind:4,wave:4,bolts:4,impact:4,open:4,hurt:2,defeat:5},new Set(['idle','open']));
 export function addTitanPresentation(scene, boss) {
-  paintedAtlas(scene,'forge-titan',96,82,clips,(ctx,x,y,pose,frame,count)=>
-    paintBoss(scene,ctx,x,y,96,82,'titan',pose,frame,count));
+  paintedAtlas(scene,'forge-titan',96,82,clips,(ctx,x,y,pose,frame,count,palette)=>
+    paintBoss(palette,ctx,x,y,96,82,'titan',pose,frame,count));
   const sprite=scene.add.image(boss.x,184,'forge-titan','idle0').setOrigin(.5,1).setDepth(3.2);
   lightProp(scene,sprite);
   const mark=scene.add.graphics().setDepth(3.4);

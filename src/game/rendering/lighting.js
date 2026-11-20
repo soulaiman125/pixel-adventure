@@ -57,6 +57,34 @@ export function surfaceLight(rig,x,y) {
   return { direction:rig.key+(local-rig.key)*influence, strength:.52+influence*.42 };
 }
 
+function finishDenseLighting(frame, field) {
+  const lit = makeCanvas(frame.cutWidth, frame.cutHeight);
+  const ctx = lit.getContext('2d');
+  ctx.drawImage(frame.source.image, frame.canvasData.x, frame.canvasData.y, frame.cutWidth, frame.cutHeight,
+    0, 0, lit.width, lit.height);
+  ctx.globalCompositeOperation = 'source-atop';
+  ctx.drawImage(field, 0, 0, lit.width, lit.height);
+  return lit;
+}
+
+// Encode the lighting as an overlay over the painted colors. The normal field
+// can stay small without resampling the character's color or silhouette.
+function writeLightOverlay(data, pixels, i, red, green, blue, ambient) {
+  const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
+  red = Math.min(255, red);
+  green = Math.min(255, green);
+  blue = Math.min(255, blue);
+  const alpha = Math.max(ambient,
+    (red - r) / Math.max(1, 255 - r), (r - red) / Math.max(1, r),
+    (green - g) / Math.max(1, 255 - g), (g - green) / Math.max(1, g),
+    (blue - b) / Math.max(1, 255 - b), (b - blue) / Math.max(1, b));
+  if (alpha <= 0) return;
+  data[i] = r + (red - r) / alpha;
+  data[i + 1] = g + (green - g) / alpha;
+  data[i + 2] = b + (blue - b) / alpha;
+  data[i + 3] = alpha * 255;
+}
+
 export function createNormalLighting(scene,rig) {
   const maps = new WeakMap(), variants = new Map();
   let serial = 0, bytes = 0, remaining = 0;
@@ -64,7 +92,7 @@ export function createNormalLighting(scene,rig) {
   function beginFrame() { remaining=isTouch?2:5; }
   scene.events.on('prerender',beginFrame);
   scene.events.once('shutdown',()=>scene.events.off('prerender',beginFrame));
-  const maxBytes = 10 * 1024 * 1024;
+  const maxBytes = (isTouch ? 18 : 26) * 1024 * 1024;
   const tone = rig.color.map(channel=>.88+channel/1800);
   function mapFor(frame, entry) {
     if (entry.albedo) return entry;
@@ -83,7 +111,8 @@ export function createNormalLighting(scene,rig) {
     const strength = Math.round(light.strength*4)/4;
     let entry=maps.get(frame);
     if (!entry) { entry={id:serial++}; maps.set(frame,entry); }
-    const key = entry.id+':'+direction+':'+strength;
+    const dense = Boolean(frame.texture?.paintedClips) && scene.game.canvas.height > scene.scale.height;
+    const key = entry.id+':'+direction+':'+strength+':'+Number(dense);
     if (variants.has(key)) {
       const cached=variants.get(key);
       variants.delete(key);
@@ -93,9 +122,9 @@ export function createNormalLighting(scene,rig) {
     if (remaining<=0) return variants.get(entry.last) ?? frame;
     remaining-=1+Math.floor(frame.realWidth*frame.realHeight/18000);
     const {albedo,normals}=mapFor(frame,entry);
-    const canvas = makeCanvas(albedo.width, albedo.height);
-    const ctx = canvas.getContext('2d',{willReadFrequently:true});
-    const image = ctx.createImageData(canvas.width, canvas.height);
+    const field = makeCanvas(albedo.width, albedo.height);
+    const ctx = field.getContext('2d',{willReadFrequently:true});
+    const image = ctx.createImageData(field.width, field.height);
     const scale = 127 * Math.hypot(direction, .65, .72);
     const { data } = image;
     for (let i = 0; i < normals.length; i += 4) {
@@ -104,16 +133,24 @@ export function createNormalLighting(scene,rig) {
         (normals[i + 2] - 128) * .72) / scale);
       const diffuse = .62 + incident * (.54 + strength * .38);
       const rim = Math.max(0, incident - .72) ** 2 * 68;
-      data[i] = (albedo.data[i]*diffuse+rim)*tone[0];
-      data[i+1] = (albedo.data[i+1]*diffuse+rim*.88)*tone[1];
-      data[i+2] = (albedo.data[i+2]*diffuse+rim*.72)*tone[2];
-      data[i + 3] = normals[i + 3];
+      const red = (albedo.data[i]*diffuse+rim)*tone[0];
+      const green = (albedo.data[i+1]*diffuse+rim*.88)*tone[1];
+      const blue = (albedo.data[i+2]*diffuse+rim*.72)*tone[2];
+      if (dense) {
+        writeLightOverlay(data, albedo.data, i, red, green, blue, 1 - diffuse);
+      } else {
+        data[i] = red;
+        data[i + 1] = green;
+        data[i + 2] = blue;
+        data[i + 3] = normals[i + 3];
+      }
     }
     ctx.putImageData(image, 0, 0);
+    const canvas = dense ? finishDenseLighting(frame, field) : field;
     const { customPivot, realWidth, realHeight, x, y } = frame;
     const lit = { cutWidth:canvas.width, cutHeight:canvas.height, customPivot, realWidth, realHeight, x, y,
       canvasData: { x: 0, y: 0 },
-      source: { image: canvas, resolution: 1, scaleMode: frame.source.scaleMode },
+      source: { image: canvas, resolution: dense ? frame.source.resolution : 1, scaleMode: frame.source.scaleMode },
     };
     const footprint = canvas.width*canvas.height*4;
     while (variants.size && bytes+footprint>maxBytes) {

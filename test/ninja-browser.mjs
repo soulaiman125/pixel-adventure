@@ -144,11 +144,19 @@ async function exportArt(page) {
     const s = qaScene,
       tex = s.textures.get("shadow-ninja"),
       names = tex.getFrameNames();
-    const source = tex.getSourceImage();
+    const source = document.createElement("canvas");
+    const tileWidth=224,tileHeight=160,atlasColumns=10;
+    source.width=tileWidth*atlasColumns;
+    source.height=tileHeight*Math.ceil(names.length/atlasColumns);
+    const atlasContext=source.getContext("2d");
+    let offset=0;
     const collect=new Map(Object.entries(tex.paintedClips??{}).map(([clip,count])=>[
       clip,Array.from({length:count},(_,index)=>{
         const frame=tex.get(clip+index);
-        return [frame.cutX,frame.cutY,frame.cutWidth,frame.cutHeight];
+        const x=offset%atlasColumns*tileWidth,y=Math.floor(offset/atlasColumns)*tileHeight;
+        offset++;
+        atlasContext.drawImage(frame.source.image,frame.cutX,frame.cutY,frame.cutWidth,frame.cutHeight,x,y,tileWidth,tileHeight);
+        return [x,y,tileWidth,tileHeight];
       }),
     ]));
     if([...collect.values()].flat().length!==names.length)throw Error('Atlas frame coverage');
@@ -181,7 +189,7 @@ async function exportArt(page) {
     stand.height=idle.cutHeight;
     stand
       .getContext("2d")
-      .drawImage(source,idle.cutX,idle.cutY,idle.cutWidth,idle.cutHeight,0,0,stand.width,stand.height);
+      .drawImage(idle.source.image,idle.cutX,idle.cutY,idle.cutWidth,idle.cutHeight,0,0,stand.width,stand.height);
     return {
       atlas: source.toDataURL().split(",")[1],
       sheet: canvas.toDataURL().split(",")[1],
@@ -911,7 +919,6 @@ async function enemyPreviews() {
     let top=22;
     for (const [id,label] of labels) {
       const atlas=qaScene.enemies.getChildren().find(enemy=>enemy.getData('type')===id).texture;
-      const atlasImage=atlas.getSourceImage();
       ctx.fillStyle='#f5ecff';ctx.font='bold 21px monospace';ctx.fillText(label,22,top);
       top+=14;
       const names=Object.keys(atlas.paintedClips);
@@ -921,7 +928,7 @@ async function enemyPreviews() {
         let i=0;
         while (atlas.has(name+i)) {
           const f=atlas.get(name+i);
-          ctx.drawImage(atlasImage,f.cutX,f.cutY,f.cutWidth,f.cutHeight,120+i*66,top+1,55,49);
+          ctx.drawImage(f.source.image,f.cutX,f.cutY,f.cutWidth,f.cutHeight,120+i*66,top+1,55,49);
           i++;
         }
         top+=54;

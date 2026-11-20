@@ -58,35 +58,46 @@ async function choose(page,id){
 async function archiveHero(page,id){
   if(!screenshots)return;
   const art=await page.evaluate(()=>{
-    const scene=qaScene,id=scene.hero.id;
-    const key=id==='shadow'?'shadow-ninja':scene.textures.getTextureKeys().find(name=>name.startsWith('legends-art-'+id+'-'));
-    const texture=scene.textures.get(key),source=texture.getSourceImage();
+    const scene=qaScene;
+    const texture=scene.children.list.find(item=>item.depth===4.35 && item.texture?.paintedClips).texture;
     const clips={};
-    for(const name of texture.getFrameNames()){
-      const match=name.match(/^(.*)(\d)$/);
-      if(!match)continue;
-      const frame=texture.get(name);
-      (clips[match[1]]??=[]).push([frame.cutX,frame.cutY]);
+    const source=document.createElement('canvas');
+    const names=texture.getFrameNames();
+    const tileWidth=224,tileHeight=160,columns=10;
+    source.width=tileWidth*columns;
+    source.height=tileHeight*Math.ceil(names.length/columns);
+    const atlasContext=source.getContext('2d');
+    let index=0;
+    for(const [clip,count] of Object.entries(texture.paintedClips)){
+      clips[clip]=[];
+      for(let i=0;i<count;i++){
+        const frame=texture.get(clip+i);
+        const x=index%columns*tileWidth,y=Math.floor(index/columns)*tileHeight;
+        atlasContext.drawImage(frame.source.image,frame.cutX,frame.cutY,frame.cutWidth,frame.cutHeight,x,y,tileWidth,tileHeight);
+        clips[clip].push([x,y]);
+        index++;
+      }
     }
     const data=(width,height,draw)=>{
       const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;
       const ctx=canvas.getContext('2d');ctx.imageSmoothingEnabled=false;draw(ctx);
       return canvas.toDataURL().split(',')[1];
     };
-    const sheet=data(920,62+Object.keys(clips).length*84,ctx=>{
-      ctx.fillStyle='#142137';ctx.fillRect(0,0,920,4000);
+    const width=160+Math.max(...Object.values(clips).map(frames=>frames.length))*94;
+    const sheet=data(width,62+Object.keys(clips).length*84,ctx=>{
+      ctx.fillStyle='#142137';ctx.fillRect(0,0,ctx.canvas.width,ctx.canvas.height);
       ctx.font='bold 21px monospace';ctx.fillStyle='#ffe7ee';ctx.fillText(scene.hero.name,22,35);
       ctx.font='14px monospace';
       for(const [i,[name,frames]] of Object.entries(clips).entries()){
         const top=55+i*84;
-        ctx.fillStyle=i%2?'#243450':'#2b3c55';ctx.fillRect(14,top,892,83);
+        ctx.fillStyle=i%2?'#243450':'#2b3c55';ctx.fillRect(14,top,ctx.canvas.width-28,83);
         ctx.fillStyle='#ecdff4';ctx.fillText(name,27,top+29);
-        for(const [index,[x,y]] of frames.entries())ctx.drawImage(source,x,y,112,80,135+index*94,top,94,80);
+        for(const [index,[x,y]] of frames.entries())ctx.drawImage(source,x,y,tileWidth,tileHeight,135+index*94,top,94,80);
       }
     });
     const [x,y]=clips.idle[0];
     return {clips,atlas:data(source.width,source.height,ctx=>ctx.drawImage(source,0,0)),sheet,
-      width:source.width,height:source.height,portrait:data(112,80,ctx=>ctx.drawImage(source,x,y,112,80,0,0,112,80))};
+      width:source.width,height:source.height,portrait:data(112,80,ctx=>ctx.drawImage(source,x,y,tileWidth,tileHeight,0,0,112,80))};
   });
   assert.equal(Object.keys(art.clips).length,43);
   for(const part of ['atlas','sheet','portrait'])await writeFile(output(id+'-'+part+'.png'),Buffer.from(art[part],'base64'));

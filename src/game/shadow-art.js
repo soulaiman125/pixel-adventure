@@ -302,7 +302,7 @@ export function paintedShadowPose(name, frame, detailed=true) {
 
 function paintClips(scene,key,counts,costume,hero,detailed) {
   paintedAtlas(scene,key,SHADOW_WIDTH,SHADOW_HEIGHT,counts,
-    (ctx,x,y,clip,frame)=>drawPaintedHero(scene,ctx,x,y,paintedShadowPose(clip,frame,detailed),clip,frame,hero,costume),2);
+    (ctx,x,y,clip,frame,_count,palette)=>drawPaintedHero(palette,ctx,x,y,paintedShadowPose(clip,frame,detailed),clip,frame,hero,costume));
 }
 
 export function loadHeroPortrait(scene,hero,costume='scout') {

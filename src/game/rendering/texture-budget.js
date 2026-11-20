@@ -6,9 +6,12 @@ export function rememberVisualTexture(scene,key) {
   const textures=scene.textures;
   let cache=caches.get(textures);
   if(!cache){ cache=new Map(); caches.set(textures,cache); }
-  const {width,height}=textures.get(key).getSourceImage();
+  const texture = textures.get(key);
+  const {width,height} = texture.source[0];
+  // Painted rasters have a separate cache. Account for the retained frame metadata here.
+  const bytes = texture.paintedClips ? texture.frameTotal * 1024 : width * height * 4;
   cache.delete(key);
-  cache.set(key,width*height*4);
+  cache.set(key,bytes);
 }
 
 export function pruneVisualTextures(scene) {

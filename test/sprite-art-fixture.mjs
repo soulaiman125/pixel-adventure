@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 
-export async function browserScene(browser,base){
-  const page=await browser.newPage({viewport:{width:1366,height:768}});
+export async function browserScene(browser,base,options={}){
+  const page=await browser.newPage({viewport:{width:1366,height:768},...options});
   const errors=[];
   page.on('pageerror',error=>{errors.push(error.message);console.error(error);});
   page.artErrors=errors;
@@ -14,7 +14,8 @@ export async function browserScene(browser,base){
   });
   await page.addInitScript(()=>{
     localStorage.setItem('pixel-adventure.progress','{"version":2,"unlocked":60}');
-    localStorage.setItem('pixel-adventure.preferences','{"tutorialSeen":true,"sound":false}');
+    if (!localStorage.getItem('pixel-adventure.preferences'))
+      localStorage.setItem('pixel-adventure.preferences','{"tutorialSeen":true,"sound":false}');
   });
   await page.goto(base);
   await page.locator('#enter-adventure').click();

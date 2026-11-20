@@ -65,6 +65,6 @@ export function actorBiome(scene) {
 }
 
 export function configureDenseTexture(texture, fraction = ACTOR_DENSITY) {
-  texture.source[0].resolution=fraction;
+  for (const source of texture.source) source.resolution = fraction;
   texture.setFilter(0);
 }

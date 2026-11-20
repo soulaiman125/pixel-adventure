@@ -30,10 +30,9 @@ function tintedPart(textures,name,fill,light) {
   if(cache.has(key))return cache.get(key);
   const [pack,[x,y,w,h]]=address.get(name);
   const source=textures.get('painted-parts-'+pack).getSourceImage();
-  const ratio=Math.min(1,146/Math.max(w,h));
   const image=document.createElement('canvas');
-  image.width=Math.round(w*ratio);
-  image.height=Math.round(h*ratio);
+  image.width=w;
+  image.height=h;
   const ctx=image.getContext('2d');
   ctx.imageSmoothingQuality='high';
   ctx.drawImage(source,x,y,w,h,0,0,image.width,image.height);

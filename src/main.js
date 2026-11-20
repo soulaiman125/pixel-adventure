@@ -27,6 +27,7 @@ import { createWorldMap } from './ui/world-map.js';
 import { refreshControlLabels } from './ui/action-labels.js';
 import { swampOptions } from './game/swamp/options.js';
 import { installSwampSettings } from './ui/swamp-settings.js';
+import { installDisplayResolution } from './game/rendering/display-resolution.js';
 
 const byId = (id) => document.getElementById(id);
 const shell = byId('shell');
@@ -381,9 +382,11 @@ function isPlayfieldVisible() {
   return gameMount.clientWidth > 0 && gameMount.clientHeight > 0;
 }
 
+let syncDisplayResolution;
 function resize() {
   const width = viewportWidth();
   if (isPlayfieldVisible() && game.scale.width !== width) game.scale.resize(width, VIEW_HEIGHT);
+  syncDisplayResolution?.();
 }
 
 function transitionLandscape() {
@@ -1038,6 +1041,7 @@ export const ready = new Promise((resolve, reject) => { completeBoot = resolve; 
 function onGameReady() {
   queueMicrotask(() => {
     try {
+      syncDisplayResolution = installDisplayResolution(game, gameMount);
       paintLanding();
       updateHub();
       completeBoot();
