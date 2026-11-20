@@ -361,6 +361,10 @@ export function createCampaignActors(scene) {
       };
     })
     .filter(Boolean);
+  for (const { image } of actors) {
+    scene.swamp?.light?.(image);
+    scene.swamp?.cast?.(image);
+  }
   return {
     update() {
       const now = scene.elapsed,

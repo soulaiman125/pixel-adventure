@@ -255,6 +255,26 @@ export const SHADOW_WIDTH = 112;
 export const SHADOW_HEIGHT = 80;
 export const shadowClips = Object.fromEntries(Object.entries(shadowFrames).map(([name, frames]) => [name, frames.length]));
 
+const inbetweenClips = new Set(['run','sprintLoop','jumpStart','sprintJump','rise','fall','land',
+  'airSlash','airFollow','airHeavy','slash1','slash2','slash3','sprintAttack','diveSlash','chargeRelease']);
+const loopedClips = new Set(['run','sprintLoop']);
+export const swampShadowClips = Object.fromEntries(Object.entries(shadowClips).map(([name,count]) =>
+  [name, inbetweenClips.has(name) ? count * 2 - Number(!loopedClips.has(name)) : count]));
+
+export function shadowPoseAt(name, frame, detailed = false) {
+  const frames = shadowFrames[name];
+  if (!frames || !Number.isInteger(frame)) return undefined;
+  if (!detailed || !inbetweenClips.has(name)) return frames[frame];
+  const left = frames[Math.floor(frame / 2)];
+  if (!(frame % 2) || !left) return left;
+  const right = frames[(Math.floor(frame / 2) + 1) % frames.length];
+  return Object.fromEntries(Object.entries(left).map(([part, values]) => {
+    const next = right[part];
+    return [part, next && values?.length === next.length ?
+      values.map((value,i) => Math.round((value + next[i]) / 2)) : values];
+  }));
+}
+
 const ink = '#101321';
 const fold = '#242739';
 const navy = '#333d57';
@@ -264,15 +284,15 @@ const red = '#9b2546';
 const scarlet = '#d74961';
 const stitch = '#e9a180';
 
-function drawNinja(context, ox, oy, name, frame, colors, hero) {
+function drawNinja(context, ox, oy, name, frame, colors, hero, detailed = false) {
   const [fold,navy,edge,rim,cloth=scarlet,seam=stitch]=colors;
   const { rect: dot, shape: area } = pixelPen(context, ox + 24, oy + 5);
-  const { hips, chest, head, rear, hand, backLeg, leadLeg, blade } = shadowFrames[name][frame];
+  const { hips, chest, head, rear, hand, backLeg, leadLeg, blade } = shadowPoseAt(name, frame, detailed);
   const [x,y] = head;
   const [cx,cy] = chest;
   const [hx,hy] = hips;
   const aim = name.startsWith('sprint') || ['run','dashGround','dashAir','rise','jumpStart','executionRush'].includes(name);
-  const ripple = [0,2,4,3,1,-1,-2,-1][frame];
+  const ripple = detailed ? Math.round(4 * Math.sin(frame * .69) + 1.4 * Math.sin(frame * 1.4)) : [0,2,4,3,1,-1,-2,-1][frame];
   const neckX = Math.round((x + cx) / 2);
   const neckY = cy - 4;
   const trail = aim ? 42 : name === 'fall' ? 34 : 28;
@@ -440,6 +460,15 @@ export function loadHeroPortrait(scene,hero,costume='scout'){
     costume==='silver'?hero.colors.map((color,i)=>i===3?'#fbfff0':color):hero.colors;
   atlas(scene,key,SHADOW_WIDTH,SHADOW_HEIGHT,{idle:shadowClips.idle},
     (ctx,x,y,clip,frame)=>drawNinja(ctx,x,y,clip,frame,colors,hero));
+  return key;
+}
+
+export function loadSwampHero(scene, costume, hero) {
+  const key = 'swamp-hero-' + hero.id + '-' + Number(hero.alternate) + '-' + costume;
+  const colors = hero.id === 'shadow' ? OUTFITS[costume] ?? OUTFITS.scout :
+    costume === 'silver' ? hero.colors.map((color,i) => i === 3 ? '#fbfff0' : color) : hero.colors;
+  atlas(scene,key,SHADOW_WIDTH,SHADOW_HEIGHT,swampShadowClips,
+    (ctx,x,y,clip,frame) => drawNinja(ctx,x,y,clip,frame,colors,hero,true));
   return key;
 }
 

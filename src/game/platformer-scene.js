@@ -24,6 +24,13 @@ import { flyingUltimate, loadUltimateEnemies, ultimateEnemyFrame, ULTIMATE_ENEMI
 import { createLegendVista } from './legends-vista.js';
 import { DEFAULT_HERO } from './legends-heroes.js';
 import { paintVillage, VILLAGE_STATIONS } from './ninja-village.js';
+import { createNormalLighting } from './swamp/lighting.js';
+import { SWAMP_STAGE } from './swamp/options.js';
+import { createSwampShadows } from './swamp/shadows.js';
+import { addSwampRuins, createSwampBackdrop } from './swamp/scenery.js';
+import { addSwampLamps, addSwampPost } from './swamp/post.js';
+import { addSwampWater, swampSurface, swampTree, weatherStone } from './swamp/materials.js';
+import { addReactiveFerns } from './swamp/motion.js';
 
 const MOVE_SPEED = 132;
 const JUMP_SPEED = 263;
@@ -48,8 +55,11 @@ export class PlatformerScene extends Phaser.Scene {
     this.ui = ui;
   }
 
-  init({ level, shadow, hero=DEFAULT_HERO }) {
+  init({ level, shadow, hero=DEFAULT_HERO, swampOptions, normalCampaign, afterFailure = false }) {
     this.level = level;
+    this.swampOptions = swampOptions;
+    this.holdSpawnPickup = afterFailure;
+    this.deathLimit = normalCampaign && level.name === SWAMP_STAGE && swampOptions?.retryLimit ? swampOptions.deaths : 0;
     this.shadowEnabled = Boolean(shadow);
     this.hero=hero;
   }
@@ -62,6 +72,8 @@ export class PlatformerScene extends Phaser.Scene {
     this.deaths = 0;
     this.checkpoint = this.level.spawnX;
     this.complete = false;
+    this.failed = false;
+    this.bossFinisher = null;
     this.invulnerableUntil = 0;
     this.cameraX = 0;
     this.elapsed = 0;
@@ -77,8 +89,14 @@ export class PlatformerScene extends Phaser.Scene {
     this.riding = null;
     this.specialPlatforms = [];
     this.resetJump();
+    this.swamp = this.level.name === SWAMP_STAGE && this.swampOptions ? {
+      options: this.swampOptions,
+      lamps: this.level.ground.map(([start]) => ({ x: start + 89, y: 148 })),
+    } : null;
+    if (this.swamp?.options.normals) this.swamp.light = createNormalLighting(this);
+    if (this.swamp?.options.shadows) this.swamp.cast = createSwampShadows(this);
 
-    this.backdrop = createLegendVista(this) || ((this.valleyPrototype || this.shadowEnabled && this.level.theme==='verdant') && createValley(this))
+    this.backdrop = (this.swamp?.options.depth && createSwampBackdrop(this)) || createLegendVista(this) || ((this.valleyPrototype || this.shadowEnabled && this.level.theme==='verdant') && createValley(this))
       || (this.shadowEnabled && createCampaignBackdrop(this,this.level.theme))
       || createBackdrop(this, this.level.theme);
     this.physics.world.setBounds(0, 0, this.level.width, VIEW_HEIGHT, true, true, false, false);
@@ -98,16 +116,21 @@ export class PlatformerScene extends Phaser.Scene {
     this.obstacleUpdates = addObstacles(this, this.level.hazards);
     addCombat(this);
     this.createAmbient();
+    if (this.swamp && (this.swamp.options.normals || this.swamp.options.shadows || this.swamp.options.post)) addSwampLamps(this);
+    if (this.swamp?.options.post) addSwampPost(this);
+    if (this.swamp?.options.materials) addSwampWater(this);
+    if (this.swamp?.options.motion) this.swamp.sway = addReactiveFerns(this);
     this.resizeBackdrop();
     this.createContacts();
-    const paintPrototype = (time) => {
+    const paintPrototype = (time, delta) => {
+      this.swamp?.sway?.(delta);
       this.prototypeActors?.update();
       this.boss?.presentation?.update();
       this.hall?.update();
       this.campaignActors?.update();
       this.shadowPresentation?.update(time);
     };
-    if (this.prototypeActors || this.shadowPresentation) this.events.on(Phaser.Scenes.Events.POST_UPDATE,paintPrototype);
+    if (this.prototypeActors || this.shadowPresentation || this.swamp?.sway) this.events.on(Phaser.Scenes.Events.POST_UPDATE,paintPrototype);
     this.input.on(Phaser.Input.Events.POINTER_DOWN, this.ui.onPlayfieldPress);
     this.scale.on(Phaser.Scale.Events.RESIZE, this.resizeBackdrop, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -146,10 +169,16 @@ export class PlatformerScene extends Phaser.Scene {
   createTerrain() {
     this.fieldProps=this.valleyPrototype?valleyProps(this):null;
     if(!this.valleyPrototype) {
-      for (const [x, scale] of this.level.trees) {
-        this.add.image(x, GROUND_Y + 1, terrainTexture(this.level.theme, 'tree')).setOrigin(0.5, 1).setScale(scale).setDepth(-4);
+      for (const [index, [x, scale]] of this.level.trees.entries()) {
+        const detail = this.swamp?.options.materials;
+        const texture = detail ? swampTree(this,index) : terrainTexture(this.level.theme, 'tree');
+        const tree = this.add.image(x, GROUND_Y + 1, texture).setOrigin(0.5, 1).setScale(detail ? scale * .74 : scale).setDepth(-4);
+        this.swamp?.light?.(tree);
+        this.swamp?.cast?.(tree);
       }
       drawMeadow(this, this.level.ground, GROUND_Y, this.level.theme);
+      if (this.swamp?.options.depth || this.swamp?.options.materials)
+        addSwampRuins(this, this.swamp.options.materials ? weatherStone : undefined);
     }
     const ice = this.add.graphics().setDepth(1);
     for (const [start, end] of this.level.ice ?? []) {
@@ -196,8 +225,11 @@ export class PlatformerScene extends Phaser.Scene {
 
   addSurface(group, x, y, width, height, key, kind) {
     let visual = this.valleyPrototype ? valleySurface(this,x,y,width,height)
-      : this.shadowEnabled ? campaignSurface(this,x,y,width,height)
+      : this.swamp?.options.materials ? swampSurface(this,x,y,width,height)
+        : this.shadowEnabled || this.swamp?.options.normals || this.swamp?.options.shadows ? campaignSurface(this,x,y,width,height)
         : this.add.tileSprite(x,y,width,height,terrainTexture(this.level.theme,key)).setOrigin(0);
+    this.swamp?.light?.(visual);
+    if (key === 'platform') this.swamp?.cast?.(visual, true);
     if (kind) {
       const marker = this.add.graphics();
       marker.fillStyle(0xffe998).fillRect(4, 3, 4, 2).fillRect(width - 8, 3, 4, 2);
@@ -217,11 +249,16 @@ export class PlatformerScene extends Phaser.Scene {
     this.player = this.physics.add.sprite(this.checkpoint, GROUND_Y, 'hero-idle')
       .setOrigin(0.5, 1).setDepth(4).setCollideWorldBounds(true).setMaxVelocity(MOVE_SPEED, 370);
     this.player.body.setSize(12, 18, false).setOffset(2, 3);
+    if (!this.shadowEnabled) {
+      this.swamp?.light?.(this.player);
+      this.swamp?.cast?.(this.player);
+    }
 
     this.coins = this.physics.add.group({ allowGravity: false, immovable: true });
     this.level.coins.forEach(([x, y], index) => {
       const coin = this.coins.create(x, y, 'coin-wide').setDepth(2);
       coin.body.setSize(11, 12);
+      this.swamp?.light?.(coin);
       this.tweens.add({
         targets: coin, y: y - 3, duration: 540 + (index % 3) * 95, yoyo: true, repeat: -1,
         ease: 'Sine.inOut',
@@ -251,6 +288,8 @@ export class PlatformerScene extends Phaser.Scene {
       if (ultimate) slime.body.setSize(16,22,false).setOffset(11,11);
       else if (type === 'dummy') slime.body.setSize(18, 17, false).setOffset(3, 5);
       else slime.body.setSize(15, expansion ? 13 : 11, false).setOffset(1, expansion ? 5 : 2);
+      this.swamp?.light?.(slime);
+      this.swamp?.cast?.(slime);
       slime.setData({ left, right: left + distance, speed, type, homeY });
       if (ultimate) {
         slime.setData({ ultimateState:{phase:'patrol',until:0,facing:1}, signal:this.add.graphics().setDepth(6), captain });
@@ -304,7 +343,7 @@ export class PlatformerScene extends Phaser.Scene {
     if (this.solidWalls) this.physics.add.collider(this.player, this.solidWalls);
     this.physics.add.collider(this.player, this.ground, (_player, ground) => {
       const start = ground.body.left;
-      if (!this.complete && this.checkpointFlags.has(start) && start > this.checkpoint && this.player.x > start + 15) {
+      if (!this.complete && !this.failed && this.checkpointFlags.has(start) && start > this.checkpoint && this.player.x > start + 15) {
         this.checkpoint = start + 19;
         const flag = this.checkpointFlags.get(start);
         if(this.valleyPrototype) flag.setFrame('active0');
@@ -333,7 +372,7 @@ export class PlatformerScene extends Phaser.Scene {
   }
 
   collect(coin) {
-    if (this.complete) return;
+    if (this.complete || this.failed || this.holdSpawnPickup) return;
     this.collected += 1;
     this.burst(coin.x, coin.y, 0xffe184, 8);
     this.tweens.killTweensOf(coin);
@@ -358,7 +397,7 @@ export class PlatformerScene extends Phaser.Scene {
   }
 
   hitSlime(enemy) {
-    if (this.complete || this.elapsed < this.invulnerableUntil) return;
+    if (this.complete || this.failed || this.bossFinisher || this.elapsed < this.invulnerableUntil) return;
     if (this.ninja && this.elapsed < (enemy.getData('shadowHitUntil') ?? 0)) return;
     const body = this.player.body;
     if (enemy.getData('ultimateState')) return;
@@ -404,7 +443,14 @@ export class PlatformerScene extends Phaser.Scene {
   }
 
   respawn(reason = 'damage') {
+    if (this.bossFinisher || this.failed) return;
     this.deaths++;
+    if (this.deathLimit && this.deaths >= this.deathLimit) {
+      this.failed = true;
+      this.physics.pause();
+      this.ui.onStageFailed(this.deaths);
+      return;
+    }
     const x = this.player.x;
     const y = this.player.y;
     this.riding = null;
@@ -449,7 +495,7 @@ export class PlatformerScene extends Phaser.Scene {
   }
 
   finishLevel() {
-    if (this.complete || (this.boss && this.boss.hp !== 0)) return;
+    if (this.complete || this.failed || this.bossFinisher || (this.boss && this.boss.hp !== 0)) return;
     this.complete = true;
     clearShadow(this);
     this.player.setVelocity(0);
@@ -563,10 +609,11 @@ export class PlatformerScene extends Phaser.Scene {
   }
 
   update(_time, delta) {
-    if (this.complete) return;
-    this.elapsed += delta;
+    if (this.complete || this.failed) return;
+    if (!this.bossFinisher) this.elapsed += delta;
     this.controls.readGamepad?.();
     if (this.controls.consume?.('pause') && this.ui.onPause?.()) return;
+    if (this.bossFinisher) { this.bossFinisher(delta); return; }
     const second = Math.floor(this.elapsed / 1000);
     if (second !== this.lastSecond) {
       this.lastSecond = second;
@@ -577,6 +624,9 @@ export class PlatformerScene extends Phaser.Scene {
       return;
     }
     this.updatePlayer(this.elapsed);
+    // A stationary hero starts over with zero until moving into the pre-existing spawn pickup.
+    if (this.holdSpawnPickup && (Math.abs(this.player.x - this.level.spawnX) > 1 || this.player.y < GROUND_Y - 2))
+      this.holdSpawnPickup = false;
     if(this.level.village){
       const next=VILLAGE_STATIONS.find(station=>Math.abs(this.player.x-station.x)<32)??null;
       if(next!==this.villageStation){this.villageStation=next;this.ui.onVillageNear?.(next);}
@@ -586,6 +636,7 @@ export class PlatformerScene extends Phaser.Scene {
     updatePlatforms(this);
     this.obstacleUpdates.forEach((update) => update(this.elapsed));
     updateCombat(this, delta);
+    if (this.bossFinisher || this.failed) return;
     this.survival?.update();
     this.feedback.update();
     this.enemies.children.iterate((enemy) => {

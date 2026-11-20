@@ -16,7 +16,8 @@
     "test:campaign": "node test/campaign.mjs",
     "test:ninja": "node test/ninja-browser.mjs",
     "test:legends": "node test/legends-browser.mjs",
-    "test:performance": "node test/performance.mjs"
+    "test:performance": "node test/performance.mjs",
+    "test:swamp": "node test/swamp-browser.mjs"
   },
   "type": "module",
   "dependencies": {

@@ -1,7 +1,10 @@
 import { createThemeArt } from "./art.js";
 import { VIEW_HEIGHT } from "./level-one.js";
+import { softenDistance } from "./swamp/post.js";
 
 export function preloadWorlds(scene) {
+  if (!scene.textures.exists('swamp-distance'))
+    scene.load.image('swamp-distance', import.meta.env.BASE_URL + 'worlds/forgotten-swamp.webp');
   for (const theme of [
     "canyon",
     "crystal",
@@ -23,8 +26,14 @@ export function createCampaignBackdrop(scene, theme) {
   const key = "campaign-world-" + theme;
   if (!scene.textures.exists(key)) return null;
   createThemeArt(scene, theme);
+  let vistaKey = key;
+  if (scene.swamp?.options.post) {
+    vistaKey = key + '-swamp-soft';
+    if (!scene.textures.exists(vistaKey))
+      scene.textures.addCanvas(vistaKey, softenDistance(scene.textures.get(key).getSourceImage()));
+  }
   const vista = scene.add
-    .image(0, 0, key)
+    .image(0, 0, vistaKey)
     .setOrigin(0)
     .setScrollFactor(0)
     .setDepth(-12);

@@ -91,7 +91,8 @@ export function addLegendBoss(scene,boss) {
   return { update(){
     const elapsed=scene.elapsed;
     const clip=boss.phase;
-    const age=clip==='waiting'?elapsed%750:Math.max(0,elapsed-(boss.since ?? elapsed));
+    const age=clip==='waiting'?elapsed%750:clip==='defeated'&&boss.finishAge!==undefined?boss.finishAge:
+      Math.max(0,elapsed-(boss.since ?? elapsed));
     const duration=clip==='warn'?boss.profile.warning:clip==='attack'?680:clip==='defeated'?410:750;
     sprite.setFrame(clipFrame(clips,clip,age,duration))
       .setAlpha(clip==='defeated'?.5:1).setFlipX(scene.player.x < boss.x);

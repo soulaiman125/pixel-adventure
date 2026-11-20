@@ -128,7 +128,7 @@ export function addTitanPresentation(scene, boss) {
         state==='attack'?boss.profile.attack:650;
       const loop=pose==='idle'||pose==='open';
       const frameAge=reduced ? (pose==='defeat'?580:0) :
-        pose==='defeat'?time-defeatAt:pose==='hurt'?150-(boss.flashUntil-time):loop?time:age;
+        pose==='defeat'?(boss.finishAge ?? time-defeatAt):pose==='hurt'?150-(boss.flashUntil-time):loop?time:age;
       sprite.setFrame(clipFrame(clips,pose,frameAge,duration,loop));
       mark.clear();
       if (open) {

@@ -1,3 +1,4 @@
+import { beginBossFinisher } from './swamp/finisher.js';
 import { contact } from './obstacles.js';
 import { EXPANSION_ENEMIES, strikeEnemy, updateExpansionEnemy } from './expansion-enemies.js';
 import { phaseHealthFloor, updateExpansionBoss } from './expansion-bosses.js';
@@ -115,15 +116,18 @@ function hitBoss(scene, damage) {
   if (!scene.ninja && scene.prototypeActors?.enabled()) scene.prototypeActors.hit(boss.x,164,true);
   scene.burst(boss.x, 164, 0xffd97d, 8);
   scene.ui.playSound('bossHit');
-  if (!scene.ui.reduceMotion) scene.cameras.main.shake(boss.hp === 0 ? 240 : 135, boss.hp === 0 ? .009 : .005);
+  if (boss.hp > 0 && !scene.ui.reduceMotion) scene.cameras.main.shake(135, .005);
   if (boss.hp === 0) {
     boss.phase = 'defeated';
     boss.art.clear();
     boss.indicator.clear();
     boss.trapArt?.forEach(({ art }) => art.clear());
     scene.clearProjectiles();
-    scene.burst(boss.x, 161, 0xd8ffff, 14);
-    scene.burst(boss.x, 149, 0xffdc96, 10);
+    if (!beginBossFinisher(scene, boss)) {
+      if (!scene.ui.reduceMotion) scene.cameras.main.shake(240, .009);
+      scene.burst(boss.x, 161, 0xd8ffff, 14);
+      scene.burst(boss.x, 149, 0xffdc96, 10);
+    }
     scene.ui.playSound('bossDefeat');
     scene.ui.onBoss(boss, 'Boss defeated · Reach the flag');
   }

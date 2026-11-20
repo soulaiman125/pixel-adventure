@@ -69,6 +69,7 @@ export function createControls(container, isPlaying, hapticFeedback, shadowEnabl
   document.addEventListener('visibilitychange',()=>{if(document.hidden)clear();});
   return {
     clear,keyFor,consume,
+    discardActions:()=>queued.clear(),
     readGamepad(){
       const pad = !document.hidden && navigator.getGamepads?.().find(Boolean);
       if (!pad) {

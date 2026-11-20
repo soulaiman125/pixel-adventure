@@ -1,5 +1,5 @@
 import { clipFrame } from "./prototype-sprites.js";
-import { loadShadowArt, shadowClips, shadowFrames } from "./shadow-art.js";
+import { loadShadowArt, loadSwampHero, shadowClips, shadowPoseAt, swampShadowClips } from "./shadow-art.js";
 import { DASH, KATANA, SHURIKEN, strikeBox } from "./shadow-rules.js";
 import { activeWindows, AIR_DIVE, SPECIALS } from "./combat-techniques.js";
 
@@ -47,8 +47,12 @@ function techniquePose(state, now) {
 }
 
 export function createShadowPresentation(scene) {
+  const detailed = Boolean(scene.swamp?.options.motion);
+  const frameCounts = detailed ? swampShadowClips : shadowClips;
+  const loadArt = detailed ? loadSwampHero : loadShadowArt;
   let costume = scene.ui.costume;
-  let texture = loadShadowArt(scene, costume,scene.hero);
+  let texture = loadArt(scene, costume,scene.hero);
+  if (detailed) scene.events.once('shutdown', () => scene.textures.remove(texture));
   for (const key of scene.textures.getTextureKeys()) {
     if ((key.startsWith('shadow-ninja-')||key.startsWith('legends-art-')) && key !== texture) scene.textures.remove(key);
   }
@@ -60,6 +64,8 @@ export function createShadowPresentation(scene) {
       .setDepth(depth);
   }
   const hero = sprite(4.35);
+  scene.swamp?.light?.(hero);
+  scene.swamp?.cast?.(hero);
   const echo = sprite(4.2).setVisible(false);
   const hitboxes = scene.ui.onShadowStatus && scene.add.graphics().setDepth(9);
   const trail = Array.from({ length: 3 }, () => ({
@@ -95,7 +101,7 @@ export function createShadowPresentation(scene) {
       if (scene.ui.costume !== costume) {
         const previous = texture;
         costume = scene.ui.costume;
-        texture = loadShadowArt(scene, costume,scene.hero);
+        texture = loadArt(scene, costume,scene.hero);
         for (const image of [hero, echo, ...trail.map((item) => item.image)])
           image.setTexture(texture, "idle0");
         if (previous !== texture && previous !== 'shadow-ninja') scene.textures.remove(previous);
@@ -175,7 +181,7 @@ export function createShadowPresentation(scene) {
         state.attack
       ) {
         hero.setFrame(
-          clipFrame(shadowClips, name, anchoredAge, duration, looping),
+          clipFrame(frameCounts, name, anchoredAge, duration, looping),
         );
       }
       hero
@@ -205,7 +211,7 @@ export function createShadowPresentation(scene) {
         echo.setVisible(!reduced && age < 407);
         if (echo.visible)
           echo
-            .setFrame(clipFrame(shadowClips, name, progress, duration))
+            .setFrame(clipFrame(frameCounts, name, progress, duration))
             .setFlipX(dying.flip)
             .setPosition(
               dying.x +
@@ -214,7 +220,7 @@ export function createShadowPresentation(scene) {
             )
             .setAlpha(age < 282 ? 1 : (408 - age) / 126);
       }
-      paintEffects(scene,hero,name);
+      paintEffects(scene,hero,name,detailed);
       if (hitboxes) {
         hitboxes.clear();
         const { attack, special, projectiles } = state;
@@ -241,7 +247,7 @@ export function createShadowPresentation(scene) {
   };
 }
 
-function paintEffects(scene,hero,pose) {
+function paintEffects(scene,hero,pose,detailed) {
   const { attack, effect, spark, lastHit } = scene.ninja;
   const now = scene.elapsed;
   const reduced = scene.ui.reduceMotion;
@@ -282,9 +288,8 @@ function paintEffects(scene,hero,pose) {
   }
   if(swing || tracing){
     const frame=Number(hero.frame.name.slice(pose.length));
-    const frames=shadowFrames[pose];
-    const current=frames?.[frame],previous=frames?.[Math.max(0,frame-1)];
-    if(current?.blade&&previous?.blade){
+    const current=shadowPoseAt(pose,frame,detailed),previous=shadowPoseAt(pose,Math.max(0,frame-1),detailed);
+    if(current?.blade?.length&&previous?.blade?.length){
       const side=hero.flipX?-1:1;
       const x=value=>hero.x+(value-32)*SIZE*side;
       const y=value=>hero.y+(value-74)*SIZE;

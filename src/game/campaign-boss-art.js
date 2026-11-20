@@ -291,7 +291,7 @@ export function addCampaignBoss(scene, boss) {
                   : "idle";
       const age =
         clip === "defeat"
-          ? time - defeated
+          ? (boss.finishAge ?? time - defeated)
           : clip === "hurt"
             ? time - (boss.flashUntil - 145)
             : state === "warn" || state === "attack"

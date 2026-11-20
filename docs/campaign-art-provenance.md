@@ -2,6 +2,14 @@
 
 Six original background plates were generated with ImageGen for the private 3.0 candidate. The game uses 576 × 384 WebP copies encoded at quality 0.93 after nearest-neighbor sampling. Character, enemy, boss, terrain and effect sprites are authored in the repository. The source PNGs remain in the local generated-image directory.
 
+## Forgotten Swamp
+
+Saved game asset `public/worlds/forgotten-swamp.webp`. Original ImageGen file `exec-f8021e4f-3497-415e-9476-88ee6d7e41ac.png`. The panorama supplies the distant layer. The other four background layers and stage materials are drawn by the game.
+
+```
+Original landscape environment art for Forgotten Swamp, an atmospheric side-view action platformer. Very wide 2.3:1 composition, only the distant background layer of a deep flooded rainforest viewed across still water. Semi-realistic painterly near-3D environmental rendering, warm olive greens, subdued teal shadows, pale golden sun shafts breaking through the upper-left canopy, old forest trunks in several veils of humidity, distant crumbling stone silhouette barely visible in fog, deep green reflections. The trees should feel ancient and solid under directional light. Keep the middle-height terrain horizon and lower quarter soft and low contrast so independently rendered gameplay ledges and player sprite remain clear. Landscape spans the whole frame with natural overlap on both ends. No characters, no animals, no symbols, no text, no user interface, no walkable foreground platforms.
+```
+
 ## canyon
 
 Saved game asset `public/worlds/canyon.webp`. Original generated file `exec-85898adc-34c9-420f-b228-c04afb10aad5.png`.

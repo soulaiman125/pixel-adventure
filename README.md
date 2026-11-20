@@ -102,6 +102,10 @@ Hold an arrow with one thumb and tap Jump or Attack with the other. Slide direct
 
 Open **Settings** from the main menu or pause screen to change button size, opacity, handedness, action positions, or sprint behavior. Haptics and fullscreen appear when the browser supports them. Preferences are saved per browser or app.
 
+### Forgotten Swamp effects and retry limit
+
+Open **Settings → Forgotten Swamp and boss effects** to switch the visual effects, boss finishers, and retry limit independently. The limit defaults to three deaths in normal-mode Forgotten Swamp. See [the Forgotten Swamp review guide](docs/forgotten-swamp.md) for the configuration and test commands.
+
 ### Private training arena
 
 Open [Shadow Training Hall](http://127.0.0.1:5173/?shadow=arena) with the development server running. It includes enemies, a training boss, a collision corridor, an active laser, and an isolated skill profile. The debug overlay shows active frames, hitboxes, timing, and impacts. The production build omits the training entry point.

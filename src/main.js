@@ -25,6 +25,8 @@ import { createNavigation, installMenuGamepad } from './ui/navigation.js';
 import { showPortrait } from './ui/portrait.js';
 import { createWorldMap } from './ui/world-map.js';
 import { clockLabels, refreshControlLabels } from './ui/action-labels.js';
+import { swampOptions } from './game/swamp/options.js';
+import { installSwampSettings } from './ui/swamp-settings.js';
 
 const byId = (id) => document.getElementById(id);
 const shell = byId('shell');
@@ -115,6 +117,7 @@ function readPreferences() {
 }
 
 const preferences = { ...readPreferences() };
+const swampQuery = new URLSearchParams(location.search).get('swamp');
 const ultimate = createUltimateProgress(localStorage);
 const skills = createShadowSkills(shadowArena ? {getItem(){return null;},setItem(){}} : localStorage);
 for(const [index, level] of LEVELS.entries()){
@@ -327,7 +330,7 @@ function refreshChallengeStages() {
 function setMode(nextMode) {
   mode = nextMode;
   syncMusic();
-  document.documentElement.classList.toggle('in-game', nextMode === 'playing' || nextMode === 'loading');
+  document.documentElement.classList.toggle('in-game', nextMode === 'playing' || nextMode === 'loading' || nextMode === 'failed');
   const isMenu = nextMode === 'menu';
   document.documentElement.classList.toggle('game-view', !isMenu);
   shell.dataset.view = isMenu ? 'menu' : 'playing';
@@ -335,7 +338,10 @@ function setMode(nextMode) {
   byId('game-arcade').hidden = isMenu;
   if (!isMenu) stopLanding?.();
   byId('hud').hidden = isMenu;
-  byId('loading-label').hidden = nextMode !== 'loading';
+  const loading = byId('loading-label');
+  loading.dataset.kind = nextMode;
+  loading.textContent = nextMode === 'failed' ? 'Stage Failed — Restarting' : 'Loading level…';
+  loading.hidden = nextMode !== 'loading' && nextMode !== 'failed';
   byId('keyboard-hints').hidden = isMenu;
 }
 
@@ -489,7 +495,7 @@ function showWorldMap() {
   navigation.open(byId('world-dialog'), { onBack: fromVillage ? resumeRun : undefined });
 }
 
-function startRun(index) {
+function startRun(index, afterFailure = false) {
   byId('boss-hud').hidden = true;
   byId('combat-announcement').textContent = '';
   byId('village-interact').hidden=true;
@@ -528,7 +534,8 @@ function startRun(index) {
   game.scene.stop('menu');
   game.scene.stop('platformer');
   resize();
-  game.scene.start('platformer', { level, shadow, hero:runHero });
+  game.scene.start('platformer', { level, shadow, hero:runHero,
+    swampOptions: swampOptions(preferences.swamp, swampQuery), normalCampaign: runMode === 'normal', afterFailure });
   transitionLandscape();
 }
 
@@ -719,7 +726,7 @@ window.addEventListener('keydown', (event) => {
     openPause();
   }
   if (event.code === 'KeyR' && !event.repeat && !event.ctrlKey && !event.metaKey && !event.altKey
-    && mode === 'playing' && document.activeElement === stage) {
+    && mode === 'playing' && !scene.bossFinisher && document.activeElement === stage) {
     event.preventDefault();
     controls.clear();
     scene.respawn('retry');
@@ -730,6 +737,7 @@ const panel = byId('touch-controls');
 const hapticFeedback = setupTouchSettings(panel, preferences, savePreferences);
 const controls = createControls(panel, () => mode === 'playing', hapticFeedback, () => useShadowNinja, preferences);
 setupCombatSettings(preferences,savePreferences,controls.clear,refreshActionLabels);
+installSwampSettings(preferences,savePreferences);
 function refreshActionLabels(hero = mode === 'menu' ? HEROES[legends.selected] : runHero) {
   configuredActions = refreshControlLabels({ hero, controls, shadow: useShadowNinja });
   for (const [key, node] of combatClocks) node.title = configuredActions[key];
@@ -871,6 +879,14 @@ const scene = new PlatformerScene(controls, {
     if (shadowDebug.textContent !== line) shadowDebug.textContent = line;
   } : undefined,
   onCheckpoint() { showToast('Checkpoint reached', 'checkpoint'); },
+  onStageFailed(deaths) {
+    byId('deaths').textContent = deaths;
+    controls.clear();
+    hideToast();
+    setMode('failed');
+    sound.play('respawn');
+    scene.time.delayedCall(1150, () => { if (mode === 'failed') startRun(currentLevel, true); });
+  },
   onRespawn(deaths, reason) {
     byId('deaths').textContent = deaths;
     if (runMode === 'survival') {
